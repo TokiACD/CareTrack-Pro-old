@@ -21,6 +21,12 @@ interface CarerInvitationData {
   expiresAt: Date
 }
 
+interface PasswordResetData {
+  to: string
+  name: string
+  resetUrl: string
+}
+
 class EmailService {
   private transporter: nodemailer.Transporter | null = null
   private useSendGrid: boolean
@@ -78,6 +84,24 @@ class EmailService {
       subject: '🏥 Welcome to CareTrack Pro - Carer Invitation',
       html: this.getCarerInvitationHTML(data),
       text: this.getCarerInvitationText(data),
+    }
+
+    if (this.useSendGrid) {
+      await sgMail.send(mailData)
+    } else {
+      await this.transporter!.sendMail(mailData)
+    }
+  }
+
+  async sendPasswordResetEmail(data: PasswordResetData): Promise<void> {
+    const { to, name, resetUrl } = data
+
+    const mailData = {
+      from: process.env.SMTP_FROM || 'CareTrack Pro <noreply@caretrack.com>',
+      to,
+      subject: '🔐 CareTrack Pro - Password Reset Request',
+      html: this.getPasswordResetHTML(data),
+      text: this.getPasswordResetText(data),
     }
 
     if (this.useSendGrid) {
@@ -397,6 +421,87 @@ class EmailService {
       • Progress Reports: Generate and view your progress reports
       
       If you have any questions about getting started, please contact your administrator.
+      
+      © ${new Date().getFullYear()} CareTrack Pro. All rights reserved.
+    `
+  }
+
+  private getPasswordResetHTML(data: PasswordResetData): string {
+    const { name, resetUrl } = data
+
+    return `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>CareTrack Pro - Password Reset</title>
+        ${this.getEmailStyles()}
+      </head>
+      <body>
+        <div class="header">
+          <h1>🏥 CareTrack Pro</h1>
+          <p>Care Management System</p>
+        </div>
+        
+        <div class="content">
+          <h2>Password Reset Request</h2>
+          
+          <p>Hello ${name},</p>
+          
+          <p>We received a request to reset your password for your CareTrack Pro account.</p>
+          
+          <div class="invitation-box">
+            <h3>🔐 Reset Your Password</h3>
+            <p>Click the button below to create a new password:</p>
+            <a href="${resetUrl}" class="button">Reset Password</a>
+          </div>
+          
+          <div class="warning">
+            <h4>⏰ Important</h4>
+            <p>This password reset link expires in <strong>15 minutes</strong> for security reasons.</p>
+            <p>If you didn't request this password reset, you can safely ignore this email.</p>
+          </div>
+          
+          <p>If the button doesn't work, copy and paste this link into your browser:</p>
+          <div class="url-box">
+            <a href="${resetUrl}">${resetUrl}</a>
+          </div>
+          
+          <p><strong>Security Note:</strong> For your protection, this link can only be used once and will expire shortly.</p>
+          
+          <p>If you continue to have trouble accessing your account, please contact your system administrator.</p>
+        </div>
+        
+        <div class="footer">
+          <p>This email was sent by CareTrack Pro Care Management System</p>
+          <p>© ${new Date().getFullYear()} CareTrack Pro. All rights reserved.</p>
+        </div>
+      </body>
+      </html>
+    `
+  }
+
+  private getPasswordResetText(data: PasswordResetData): string {
+    const { name, resetUrl } = data
+    
+    return `
+      CareTrack Pro - Password Reset Request
+      
+      Hello ${name},
+      
+      We received a request to reset your password for your CareTrack Pro account.
+      
+      To reset your password, please visit:
+      ${resetUrl}
+      
+      IMPORTANT: This password reset link expires in 15 minutes for security reasons.
+      
+      If you didn't request this password reset, you can safely ignore this email.
+      
+      Security Note: For your protection, this link can only be used once and will expire shortly.
+      
+      If you continue to have trouble accessing your account, please contact your system administrator.
       
       © ${new Date().getFullYear()} CareTrack Pro. All rights reserved.
     `

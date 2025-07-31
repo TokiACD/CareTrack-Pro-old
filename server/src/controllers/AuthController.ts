@@ -1,6 +1,7 @@
 import { Request, Response } from 'express'
 import bcrypt from 'bcryptjs'
 import jwt from 'jsonwebtoken'
+import crypto from 'crypto'
 import { prisma } from '../index'
 import { asyncHandler, createError } from '../middleware/errorHandler'
 import { emailService } from '../services/emailService'
@@ -197,6 +198,163 @@ export class AuthController {
     res.status(201).json({
       success: true,
       message: 'Admin invitation sent successfully',
+    })
+  })
+
+  forgotPassword = asyncHandler(async (req: Request, res: Response): Promise<void> => {
+    const { email } = req.body
+
+    if (!email) {
+      throw createError(400, 'Email is required')
+    }
+
+    // Find user (case-insensitive)
+    const user = await prisma.adminUser.findFirst({
+      where: { 
+        email: {
+          equals: email,
+          mode: 'insensitive'
+        },
+        isActive: true,
+        deletedAt: null,
+      },
+    })
+
+    // Always return success to prevent email enumeration
+    // but only send email if user exists
+    if (user) {
+      // Generate secure reset token
+      const resetToken = crypto.randomBytes(32).toString('hex')
+      const expiresAt = new Date(Date.now() + 15 * 60 * 1000) // 15 minutes
+
+      // Clean up any existing tokens for this email
+      await prisma.passwordResetToken.deleteMany({
+        where: { email: user.email }
+      })
+
+      // Create new reset token
+      await prisma.passwordResetToken.create({
+        data: {
+          email: user.email,
+          token: resetToken,
+          expiresAt
+        }
+      })
+
+      // Send reset email
+      const resetUrl = `${process.env.FRONTEND_URL}/reset-password?token=${resetToken}`
+      
+      try {
+        await emailService.sendPasswordResetEmail({
+          to: user.email,
+          name: user.name,
+          resetUrl
+        })
+
+        // Log the password reset request
+        await auditService.log({
+          action: 'PASSWORD_RESET_REQUESTED',
+          entityType: 'AdminUser',
+          entityId: user.id,
+          performedByAdminId: user.id,
+          performedByAdminName: user.name,
+          ipAddress: req.ip,
+          userAgent: req.get('User-Agent'),
+        })
+      } catch (error) {
+        // If email fails, clean up the token
+        await prisma.passwordResetToken.deleteMany({
+          where: { token: resetToken }
+        })
+        throw createError(500, 'Failed to send reset email')
+      }
+    }
+
+    res.json({
+      success: true,
+      data: null,
+      message: 'If an account with that email exists, a password reset link has been sent.',
+    })
+  })
+
+  resetPassword = asyncHandler(async (req: Request, res: Response): Promise<void> => {
+    const { token, password } = req.body
+
+    if (!token || !password) {
+      throw createError(400, 'Token and password are required')
+    }
+
+    if (password.length < 8) {
+      throw createError(400, 'Password must be at least 8 characters long')
+    }
+
+    // Find valid reset token
+    const resetToken = await prisma.passwordResetToken.findFirst({
+      where: {
+        token,
+        expiresAt: { gt: new Date() },
+        usedAt: null
+      }
+    })
+
+    if (!resetToken) {
+      throw createError(400, 'Invalid or expired reset token')
+    }
+
+    // Find the user
+    const user = await prisma.adminUser.findFirst({
+      where: { 
+        email: {
+          equals: resetToken.email,
+          mode: 'insensitive'
+        },
+        isActive: true,
+        deletedAt: null,
+      },
+    })
+
+    if (!user) {
+      throw createError(400, 'User not found or inactive')
+    }
+
+    // Hash new password
+    const passwordHash = await bcrypt.hash(password, 12)
+
+    // Update password and mark token as used
+    await prisma.$transaction([
+      prisma.adminUser.update({
+        where: { id: user.id },
+        data: { passwordHash }
+      }),
+      prisma.passwordResetToken.update({
+        where: { id: resetToken.id },
+        data: { usedAt: new Date() }
+      })
+    ])
+
+    // Clean up all reset tokens for this email
+    await prisma.passwordResetToken.deleteMany({
+      where: { 
+        email: resetToken.email,
+        id: { not: resetToken.id }
+      }
+    })
+
+    // Log the password reset
+    await auditService.log({
+      action: 'PASSWORD_RESET_COMPLETED',
+      entityType: 'AdminUser',
+      entityId: user.id,
+      performedByAdminId: user.id,
+      performedByAdminName: user.name,
+      ipAddress: req.ip,
+      userAgent: req.get('User-Agent'),
+    })
+
+    res.json({
+      success: true,
+      data: null,
+      message: 'Password has been reset successfully',
     })
   })
 }

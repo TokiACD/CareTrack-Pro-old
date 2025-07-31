@@ -29,6 +29,12 @@ router.post('/logout', requireAuth, authController.logout)
 // Verify token
 router.get('/verify', requireAuth, authController.verifyToken)
 
+// Forgot password
+router.post('/forgot-password', authController.forgotPassword)
+
+// Reset password
+router.post('/reset-password', authController.resetPassword)
+
 // Debug: List all admin users (temporary)
 router.get('/debug/admins', authController.listAdmins)
 

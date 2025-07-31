@@ -172,11 +172,13 @@ export function LoginPage() {
 
                 <Box sx={{ mt: 2, textAlign: 'center' }}>
                   <Link
-                    component="button"
-                    type="button"
+                    href="/forgot-password"
                     variant="body2"
-                    onClick={() => alert('Please contact your system administrator to reset your password.')}
-                    sx={{ textDecoration: 'none' }}
+                    sx={{ 
+                      textDecoration: 'none',
+                      color: 'primary.main',
+                      '&:hover': { textDecoration: 'underline' }
+                    }}
                   >
                     Forgot Password?
                   </Link>

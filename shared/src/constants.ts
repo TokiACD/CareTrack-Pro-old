@@ -18,7 +18,9 @@ export const API_ENDPOINTS = {
     LOGIN: '/api/auth/login',
     LOGOUT: '/api/auth/logout',
     INVITE: '/api/auth/invite',
-    VERIFY_TOKEN: '/api/auth/verify'
+    VERIFY_TOKEN: '/api/auth/verify',
+    FORGOT_PASSWORD: '/api/auth/forgot-password',
+    RESET_PASSWORD: '/api/auth/reset-password'
   },
   INVITATIONS: {
     SEND_ADMIN: '/api/invitations/admin',
