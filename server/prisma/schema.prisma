@@ -1,0 +1,422 @@
+// Prisma Schema for CareTrack Pro
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Admin Users
+model AdminUser {
+  id          String    @id @default(cuid())
+  email       String    @unique
+  name        String
+  passwordHash String   @map("password_hash")
+  isActive    Boolean   @default(true) @map("is_active")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+  deletedAt   DateTime? @map("deleted_at")
+  invitedBy   String?   @map("invited_by")
+  lastLogin   DateTime? @map("last_login")
+
+  // Relations
+  invitedByAdmin    AdminUser?  @relation("AdminInvites", fields: [invitedBy], references: [id])
+  invitedAdmins     AdminUser[] @relation("AdminInvites")
+  auditLogs         AuditLog[]
+  competencyRatings CompetencyRating[]
+  shifts            Shift[]
+  rotaEntries       RotaEntry[]
+  assessmentResponses AssessmentResponse[]
+
+  @@map("admin_users")
+}
+
+// Carers
+model Carer {
+  id        String    @id @default(cuid())
+  email     String    @unique
+  name      String
+  phone     String
+  isActive  Boolean   @default(true) @map("is_active")
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  // Relations
+  packageAssignments CarerPackageAssignment[]
+  taskProgress       TaskProgress[]
+  competencyRatings  CompetencyRating[]
+  assessmentResponses AssessmentResponse[]
+  shiftAssignments   ShiftAssignment[]
+  rotaEntries        RotaEntry[]
+
+  @@map("carers")
+}
+
+// Care Packages
+model CarePackage {
+  id        String    @id @default(cuid())
+  name      String
+  postcode  String    // 3 digits only
+  isActive  Boolean   @default(true) @map("is_active")
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  // Relations
+  carerAssignments CarerPackageAssignment[]
+  taskAssignments  PackageTaskAssignment[]
+  taskProgress     TaskProgress[]
+  shifts           Shift[]
+  rotaEntries      RotaEntry[]
+
+  @@map("care_packages")
+}
+
+// Tasks
+model Task {
+  id          String    @id @default(cuid())
+  name        String
+  targetCount Int       @map("target_count") // Target completion count for 100%
+  isActive    Boolean   @default(true) @map("is_active")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+  deletedAt   DateTime? @map("deleted_at")
+
+  // Relations
+  packageAssignments    PackageTaskAssignment[]
+  taskProgress          TaskProgress[]
+  competencyRatings     CompetencyRating[]
+  assessmentTaskCoverage AssessmentTaskCoverage[]
+
+  @@map("tasks")
+}
+
+// Carer to Package Assignments (Many-to-Many)
+model CarerPackageAssignment {
+  id         String   @id @default(cuid())
+  carerId    String   @map("carer_id")
+  packageId  String   @map("package_id")
+  assignedAt DateTime @default(now()) @map("assigned_at")
+  isActive   Boolean  @default(true) @map("is_active")
+
+  // Relations
+  carer   Carer       @relation(fields: [carerId], references: [id], onDelete: Cascade)
+  package CarePackage @relation(fields: [packageId], references: [id], onDelete: Cascade)
+
+  @@unique([carerId, packageId])
+  @@map("carer_package_assignments")
+}
+
+// Task to Package Assignments (Many-to-Many)
+model PackageTaskAssignment {
+  id         String   @id @default(cuid())
+  packageId  String   @map("package_id")
+  taskId     String   @map("task_id")
+  assignedAt DateTime @default(now()) @map("assigned_at")
+  isActive   Boolean  @default(true) @map("is_active")
+
+  // Relations
+  package CarePackage @relation(fields: [packageId], references: [id], onDelete: Cascade)
+  task    Task        @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@unique([packageId, taskId])
+  @@map("package_task_assignments")
+}
+
+// Assessments
+model Assessment {
+  id            String    @id @default(cuid())
+  name          String
+  displayTaskId String?   @map("display_task_id") // Task to show assessment button on progress page
+  isActive      Boolean   @default(true) @map("is_active")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+  deletedAt     DateTime? @map("deleted_at")
+
+  // Relations
+  knowledgeQuestions    KnowledgeQuestion[]
+  practicalSkills       PracticalSkill[]
+  emergencyQuestions    EmergencyQuestion[]
+  tasksCovered          AssessmentTaskCoverage[]
+  assessmentResponses   AssessmentResponse[]
+
+  @@map("assessments")
+}
+
+// Knowledge Questions (Section 1)
+model KnowledgeQuestion {
+  id           String @id @default(cuid())
+  assessmentId String @map("assessment_id")
+  question     String
+  modelAnswer  String @map("model_answer")
+  order        Int
+
+  // Relations
+  assessment          Assessment            @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+  knowledgeResponses  KnowledgeResponse[]
+
+  @@map("knowledge_questions")
+}
+
+// Practical Skills (Section 2)
+model PracticalSkill {
+  id                  String  @id @default(cuid())
+  assessmentId        String  @map("assessment_id")
+  skillDescription    String  @map("skill_description")
+  canBeNotApplicable  Boolean @default(false) @map("can_be_not_applicable")
+  order               Int
+
+  // Relations
+  assessment         Assessment           @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+  practicalResponses PracticalResponse[]
+
+  @@map("practical_skills")
+}
+
+// Emergency Questions (Section 3)
+model EmergencyQuestion {
+  id           String @id @default(cuid())
+  assessmentId String @map("assessment_id")
+  question     String
+  modelAnswer  String @map("model_answer")
+  order        Int
+
+  // Relations
+  assessment         Assessment          @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+  emergencyResponses EmergencyResponse[]
+
+  @@map("emergency_questions")
+}
+
+// Assessment Task Coverage (Section 4)
+model AssessmentTaskCoverage {
+  id           String @id @default(cuid())
+  assessmentId String @map("assessment_id")
+  taskId       String @map("task_id")
+
+  // Relations
+  assessment Assessment @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+  task       Task       @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@unique([assessmentId, taskId])
+  @@map("assessment_task_coverage")
+}
+
+// Assessment Responses
+model AssessmentResponse {
+  id               String          @id @default(cuid())
+  assessmentId     String          @map("assessment_id")
+  carerId          String          @map("carer_id")
+  assessorId       String          @map("assessor_id")
+  assessorName     String          @map("assessor_name")
+  assessorUniqueId String          @map("assessor_unique_id")
+  completedAt      DateTime        @default(now()) @map("completed_at")
+  overallRating    CompetencyLevel @map("overall_rating")
+
+  // Relations
+  assessment         Assessment          @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+  carer              Carer               @relation(fields: [carerId], references: [id], onDelete: Cascade)
+  assessor           AdminUser           @relation(fields: [assessorId], references: [id], onDelete: Cascade)
+  knowledgeResponses KnowledgeResponse[]
+  practicalResponses PracticalResponse[]
+  emergencyResponses EmergencyResponse[]
+  competencyRatings  CompetencyRating[]
+
+  @@map("assessment_responses")
+}
+
+// Knowledge Responses
+model KnowledgeResponse {
+  id           String @id @default(cuid())
+  responseId   String @map("response_id")
+  questionId   String @map("question_id")
+  carerAnswer  String @map("carer_answer")
+
+  // Relations
+  response AssessmentResponse @relation(fields: [responseId], references: [id], onDelete: Cascade)
+  question KnowledgeQuestion @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@map("knowledge_responses")
+}
+
+// Practical Responses
+model PracticalResponse {
+  id       String          @id @default(cuid())
+  responseId String        @map("response_id")
+  skillId  String          @map("skill_id")
+  rating   PracticalRating
+
+  // Relations
+  response AssessmentResponse @relation(fields: [responseId], references: [id], onDelete: Cascade)
+  skill    PracticalSkill     @relation(fields: [skillId], references: [id], onDelete: Cascade)
+
+  @@map("practical_responses")
+}
+
+// Emergency Responses
+model EmergencyResponse {
+  id          String @id @default(cuid())
+  responseId  String @map("response_id")
+  questionId  String @map("question_id")
+  carerAnswer String @map("carer_answer")
+
+  // Relations
+  response AssessmentResponse @relation(fields: [responseId], references: [id], onDelete: Cascade)
+  question EmergencyQuestion  @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@map("emergency_responses")
+}
+
+// Task Progress
+model TaskProgress {
+  id                   String   @id @default(cuid())
+  carerId              String   @map("carer_id")
+  packageId            String   @map("package_id")
+  taskId               String   @map("task_id")
+  completionCount      Int      @default(0) @map("completion_count")
+  completionPercentage Int      @default(0) @map("completion_percentage")
+  lastUpdated          DateTime @updatedAt @map("last_updated")
+
+  // Relations
+  carer   Carer       @relation(fields: [carerId], references: [id], onDelete: Cascade)
+  package CarePackage @relation(fields: [packageId], references: [id], onDelete: Cascade)
+  task    Task        @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@unique([carerId, packageId, taskId])
+  @@map("task_progress")
+}
+
+// Competency Ratings
+model CompetencyRating {
+  id                   String           @id @default(cuid())
+  carerId              String           @map("carer_id")
+  taskId               String           @map("task_id")
+  level                CompetencyLevel
+  source               CompetencySource
+  assessmentResponseId String?          @map("assessment_response_id")
+  setByAdminId         String?          @map("set_by_admin_id")
+  setByAdminName       String?          @map("set_by_admin_name")
+  setAt                DateTime         @default(now()) @map("set_at")
+  notes                String?
+
+  // Relations
+  carer              Carer               @relation(fields: [carerId], references: [id], onDelete: Cascade)
+  task               Task                @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  assessmentResponse AssessmentResponse? @relation(fields: [assessmentResponseId], references: [id])
+  setByAdmin         AdminUser?          @relation(fields: [setByAdminId], references: [id])
+
+  @@unique([carerId, taskId])
+  @@map("competency_ratings")
+}
+
+// Shifts
+model Shift {
+  id                    String    @id @default(cuid())
+  packageId             String    @map("package_id")
+  name                  String
+  description           String
+  requiredCompetencies  String[]  @map("required_competencies") // Task IDs that require competency
+  isCompetentOnly       Boolean   @default(false) @map("is_competent_only")
+  createdAt             DateTime  @default(now()) @map("created_at")
+  createdByAdminId      String    @map("created_by_admin_id")
+
+  // Relations
+  package      CarePackage       @relation(fields: [packageId], references: [id], onDelete: Cascade)
+  createdBy    AdminUser         @relation(fields: [createdByAdminId], references: [id])
+  assignments  ShiftAssignment[]
+
+  @@map("shifts")
+}
+
+// Shift Assignments
+model ShiftAssignment {
+  id          String      @id @default(cuid())
+  shiftId     String      @map("shift_id")
+  carerId     String      @map("carer_id")
+  assignedAt  DateTime    @default(now()) @map("assigned_at")
+  confirmedAt DateTime?   @map("confirmed_at")
+  status      ShiftStatus @default(PENDING)
+
+  // Relations
+  shift Shift @relation(fields: [shiftId], references: [id], onDelete: Cascade)
+  carer Carer @relation(fields: [carerId], references: [id], onDelete: Cascade)
+
+  @@map("shift_assignments")
+}
+
+// Rota Entries
+model RotaEntry {
+  id                String    @id @default(cuid())
+  packageId         String    @map("package_id")
+  carerId           String    @map("carer_id")
+  date              DateTime
+  shiftType         ShiftType @map("shift_type")
+  startTime         String    @map("start_time") // HH:MM format
+  endTime           String    @map("end_time")   // HH:MM format
+  isConfirmed       Boolean   @default(false) @map("is_confirmed")
+  createdAt         DateTime  @default(now()) @map("created_at")
+  createdByAdminId  String    @map("created_by_admin_id")
+
+  // Relations
+  package   CarePackage @relation(fields: [packageId], references: [id], onDelete: Cascade)
+  carer     Carer       @relation(fields: [carerId], references: [id], onDelete: Cascade)
+  createdBy AdminUser   @relation(fields: [createdByAdminId], references: [id])
+
+  @@map("rota_entries")
+}
+
+// Audit Logs
+model AuditLog {
+  id                   String   @id @default(cuid())
+  action               String
+  entityType           String   @map("entity_type")
+  entityId             String   @map("entity_id")
+  oldValues            Json?    @map("old_values")
+  newValues            Json?    @map("new_values")
+  performedByAdminId   String   @map("performed_by_admin_id")
+  performedByAdminName String   @map("performed_by_admin_name")
+  performedAt          DateTime @default(now()) @map("performed_at")
+  ipAddress            String?  @map("ip_address")
+  userAgent            String?  @map("user_agent")
+
+  // Relations
+  performedBy AdminUser @relation(fields: [performedByAdminId], references: [id])
+
+  @@map("audit_logs")
+}
+
+// Enums
+enum CompetencyLevel {
+  NOT_ASSESSED
+  NOT_COMPETENT
+  ADVANCED_BEGINNER
+  COMPETENT
+  PROFICIENT
+  EXPERT
+}
+
+enum CompetencySource {
+  ASSESSMENT
+  MANUAL
+}
+
+enum PracticalRating {
+  COMPETENT
+  NEEDS_SUPPORT
+  NOT_APPLICABLE
+}
+
+enum ShiftStatus {
+  PENDING
+  CONFIRMED
+  CANCELLED
+  COMPLETED
+}
+
+enum ShiftType {
+  DAY
+  NIGHT
+}
