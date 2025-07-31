@@ -87,7 +87,10 @@ npm run docker:clean   # Remove container and data (careful!)
 
 ### Key Features
 
-- **Email Invite System**: Admin accounts created by invitation only
+- **Complete Invitation System**: Secure token-based invitations for admins and carers
+- **Professional Email Templates**: Responsive HTML email templates with branding
+- **SendGrid Integration**: Production-ready email service with fallback SMTP
+- **Invitation Acceptance Flow**: Multi-step UI for secure account creation
 - **Soft Delete**: All entities support soft delete with restore capability
 - **Competency System**: Assessment-based and manual competency ratings
 - **Progress Tracking**: Package-specific task completion tracking
@@ -163,7 +166,12 @@ DATABASE_URL="postgresql://caretrack:dev_password@localhost:5432/caretrack_pro?s
 JWT_SECRET="caretrack-pro-development-secret-key-change-in-production"
 JWT_EXPIRES_IN="8h"
 
-# Email (Configure with real SMTP for invitations)
+# Email Service (SendGrid recommended for production)
+EMAIL_SERVICE="sendgrid"
+SENDGRID_API_KEY="your-sendgrid-api-key"
+SMTP_FROM="CareTrack Pro <your-email@domain.com>"
+
+# Fallback SMTP (if not using SendGrid)
 SMTP_HOST="smtp.gmail.com"
 SMTP_PORT=587
 SMTP_USER="your-email@gmail.com"
@@ -195,17 +203,27 @@ VITE_NODE_ENV=development
 - [x] Development workflow with Docker
 - [x] One-command setup script
 
-### 🚧 Phase 2: Dashboard Card Implementation (NEXT)
-- [ ] **Users Card** - Admin/Carer management with soft delete
+### ✅ Phase 2: User Management & Invitations (COMPLETE)
+- [x] **Complete Invitation System** - Secure token-based user creation
+- [x] **Professional Email Templates** - Responsive HTML email design
+- [x] **SendGrid Email Service** - Production-ready email delivery
+- [x] **Invitation Database Model** - Secure tokens with expiration
+- [x] **Invitation API Endpoints** - Send, accept, decline functionality
+- [x] **Invitation Acceptance UI** - Multi-step user onboarding flow
+- [x] **Users Card Implementation** - Admin/Carer management with invite system
+- [x] **Email Service Configuration** - Both SendGrid and SMTP fallback
+
+### 🚧 Phase 3: Dashboard Card Implementation (NEXT)
 - [ ] **Care Packages Card** - CRUD with postcode validation
 - [ ] **Tasks Card** - Target count management
 - [ ] **Assignments Card** - Many-to-many relationships
-- [ ] **Assessments Card** - 4-section assessment builder
+- [ ] **Assessments Card** - 4-section assessment builder  
 - [ ] **Progress Card** - Progress tracking + PDF generation
 - [ ] **Shift Sender Card** - Competency-based shift assignment
 - [ ] **Rota Card** - Drag-and-drop scheduling with rules
 - [ ] **Recycle Bin Card** - Soft delete management
 - [ ] **Audit Login Card** - Activity logging display
+- [ ] **Pending Invitations Management** - Admin interface for invitation management
 
 ### 🔮 Phase 3: Advanced Features (PLANNED)
 - [ ] Real-time progress calculations
@@ -246,11 +264,16 @@ VITE_NODE_ENV=development
 
 All endpoints require authentication except `/api/auth/login`.
 
-### Authentication
+### Authentication & Invitations
 - `POST /api/auth/login` - Admin login
 - `POST /api/auth/logout` - Logout  
 - `GET /api/auth/verify` - Verify token
-- `POST /api/auth/invite` - Invite new admin
+- `POST /api/invitations/admin` - Send admin invitation
+- `POST /api/invitations/carer` - Send carer invitation  
+- `POST /api/invitations/accept` - Accept invitation with password
+- `POST /api/invitations/decline` - Decline invitation
+- `GET /api/invitations` - List pending invitations
+- `POST /api/invitations/resend` - Resend invitation email
 
 ### Dashboard Cards
 - `GET /api/dashboard/summary` - Dashboard overview

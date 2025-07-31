@@ -28,7 +28,10 @@ import {
   CircularProgress,
   Alert,
   Menu,
-  MenuItem
+  MenuItem,
+  Snackbar,
+  ToggleButton,
+  ToggleButtonGroup
 } from '@mui/material';
 import {
   Search as SearchIcon,
@@ -37,7 +40,11 @@ import {
   MoreVert as MoreVertIcon,
   PersonAdd as PersonAddIcon,
   Group as GroupIcon,
-  Assessment as AssessmentIcon
+  Assessment as AssessmentIcon,
+  Email as EmailIcon,
+  Refresh as RefreshIcon,
+  Cancel as CancelIcon,
+  Schedule as ScheduleIcon
 } from '@mui/icons-material';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiService } from '../../services/api';
@@ -91,6 +98,25 @@ interface Carer {
   fullyAssessed: boolean;
 }
 
+interface Invitation {
+  id: string;
+  email: string;
+  name?: string;
+  firstName?: string;
+  lastName?: string;
+  phone?: string;
+  userType: 'ADMIN' | 'CARER';
+  token: string;
+  status: 'PENDING' | 'ACCEPTED' | 'DECLINED' | 'EXPIRED';
+  invitedAt: string;
+  expiresAt: string;
+  acceptedAt?: string;
+  declinedAt?: string;
+  invitedByAdmin: {
+    name: string;
+  };
+}
+
 
 interface UserFormData {
   name?: string;
@@ -109,6 +135,7 @@ const UsersCard: React.FC = () => {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<AdminUser | Carer | null>(null);
   const [userType, setUserType] = useState<'admin' | 'carer'>('admin');
+  const [invitationStatusFilter, setInvitationStatusFilter] = useState<'PENDING' | 'ACCEPTED'>('PENDING');
   
   const [formData, setFormData] = useState<UserFormData>({
     email: '',
@@ -121,8 +148,32 @@ const UsersCard: React.FC = () => {
   });
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const [selectedUser, setSelectedUser] = useState<AdminUser | Carer | null>(null);
+  
+  // Notification state
+  const [notification, setNotification] = useState<{
+    open: boolean;
+    message: string;
+    severity: 'success' | 'error';
+  }>({
+    open: false,
+    message: '',
+    severity: 'success'
+  });
 
   const queryClient = useQueryClient();
+
+  // Helper function to show notifications
+  const showNotification = (message: string, severity: 'success' | 'error') => {
+    setNotification({
+      open: true,
+      message,
+      severity
+    });
+  };
+
+  const handleCloseNotification = () => {
+    setNotification(prev => ({ ...prev, open: false }));
+  };
 
   // Fetch admin users
   const {
@@ -153,6 +204,22 @@ const UsersCard: React.FC = () => {
     }
   });
 
+  // Fetch invitations
+  const {
+    data: invitationsData,
+    isLoading: invitationsLoading,
+    error: invitationsError
+  } = useQuery({
+    queryKey: ['invitations', searchTerm, invitationStatusFilter],
+    queryFn: async () => {
+      const params: Record<string, string> = {};
+      if (searchTerm) params.search = searchTerm;
+      params.status = invitationStatusFilter;
+      
+      return await apiService.get<Invitation[]>(`${API_ENDPOINTS.INVITATIONS.LIST}`, params);
+    }
+  });
+
   // Send invitation mutation
   const sendInvitationMutation = useMutation({
     mutationFn: async (userData: UserFormData) => {
@@ -176,6 +243,11 @@ const UsersCard: React.FC = () => {
       queryClient.invalidateQueries({ queryKey: ['users'] });
       setDialogOpen(false);
       resetForm();
+      showNotification(`✅ ${userType === 'admin' ? 'Admin' : 'Carer'} invitation sent successfully!`, 'success');
+    },
+    onError: (error) => {
+      console.error('Failed to send invitation:', error);
+      showNotification(`❌ Failed to send invitation: ${error.message}`, 'error');
     }
   });
 
@@ -191,6 +263,11 @@ const UsersCard: React.FC = () => {
       queryClient.invalidateQueries({ queryKey: ['users'] });
       setDialogOpen(false);
       resetForm();
+      showNotification(`✅ ${userType === 'admin' ? 'Admin' : 'Carer'} updated successfully!`, 'success');
+    },
+    onError: (error) => {
+      console.error('Failed to update user:', error);
+      showNotification(`❌ Failed to update user: ${error.message}`, 'error');
     }
   });
 
@@ -205,6 +282,41 @@ const UsersCard: React.FC = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['users'] });
       handleMenuClose();
+      showNotification(`✅ ${userType === 'admin' ? 'Admin' : 'Carer'} deleted successfully!`, 'success');
+    },
+    onError: (error) => {
+      console.error('Failed to delete user:', error);
+      showNotification(`❌ Failed to delete user: ${error.message}`, 'error');
+    }
+  });
+
+  // Resend invitation mutation
+  const resendInvitationMutation = useMutation({
+    mutationFn: async (invitationId: string) => {
+      return await apiService.post(`${API_ENDPOINTS.INVITATIONS.RESEND}/${invitationId}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['invitations'] });
+      showNotification('✅ Invitation resent successfully!', 'success');
+    },
+    onError: (error) => {
+      console.error('Failed to resend invitation:', error);
+      showNotification(`❌ Failed to resend invitation: ${error.message}`, 'error');
+    }
+  });
+
+  // Cancel invitation mutation
+  const cancelInvitationMutation = useMutation({
+    mutationFn: async (invitationId: string) => {
+      return await apiService.delete(`${API_ENDPOINTS.INVITATIONS.DELETE}/${invitationId}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['invitations'] });
+      showNotification('✅ Invitation cancelled successfully!', 'success');
+    },
+    onError: (error) => {
+      console.error('Failed to cancel invitation:', error);
+      showNotification(`❌ Failed to cancel invitation: ${error.message}`, 'error');
     }
   });
 
@@ -225,6 +337,10 @@ const UsersCard: React.FC = () => {
     setActiveTab(newValue);
     setSearchTerm('');
     setShowFullyAssessedOnly(false);
+    // Reset invitation filter to PENDING when switching to invitations tab
+    if (newValue === 2) {
+      setInvitationStatusFilter('PENDING');
+    }
   };
 
   const handleAddUser = (type: 'admin' | 'carer') => {
@@ -273,6 +389,22 @@ const UsersCard: React.FC = () => {
   };
 
   const handleSubmit = () => {
+    // Basic validation
+    if (!formData.email) {
+      showNotification('❌ Email is required', 'error');
+      return;
+    }
+    
+    if (userType === 'admin' && !formData.name) {
+      showNotification('❌ Name is required for admin users', 'error');
+      return;
+    }
+    
+    if (userType === 'carer' && (!formData.firstName || !formData.lastName)) {
+      showNotification('❌ First name and last name are required for carers', 'error');
+      return;
+    }
+    
     if (editingUser) {
       updateUserMutation.mutate({
         id: editingUser.id,
@@ -303,6 +435,11 @@ const UsersCard: React.FC = () => {
     return Array.isArray(carersData) ? carersData : [];
   }, [carersData]);
 
+  const filteredInvitations = useMemo(() => {
+    if (!invitationsData) return [];
+    return Array.isArray(invitationsData) ? invitationsData : [];
+  }, [invitationsData]);
+
   const getCompetencyChip = (status: string) => {
     const color = status === 'COMPETENT' ? 'success' : 
                  status === 'NEEDS_SUPPORT' ? 'warning' : 'default';
@@ -310,6 +447,44 @@ const UsersCard: React.FC = () => {
                  status === 'NEEDS_SUPPORT' ? 'Needs Support' : 'Not Assessed';
     
     return <Chip size="small" color={color} label={label} />;
+  };
+
+  const getInvitationStatusChip = (status: string) => {
+    let color: 'default' | 'primary' | 'success' | 'error' | 'warning' = 'default';
+    let label = status;
+    
+    switch (status) {
+      case 'PENDING':
+        color = 'primary';
+        label = 'Pending';
+        break;
+      case 'ACCEPTED':
+        color = 'success';
+        label = 'Accepted';
+        break;
+      case 'DECLINED':
+        color = 'error';
+        label = 'Declined';
+        break;
+      case 'EXPIRED':
+        color = 'warning';
+        label = 'Expired';
+        break;
+    }
+    
+    return <Chip size="small" color={color} label={label} />;
+  };
+
+  const handleResendInvitation = (invitationId: string) => {
+    if (window.confirm('Are you sure you want to resend this invitation?')) {
+      resendInvitationMutation.mutate(invitationId);
+    }
+  };
+
+  const handleCancelInvitation = (invitationId: string) => {
+    if (window.confirm('Are you sure you want to cancel this invitation? This action cannot be undone.')) {
+      cancelInvitationMutation.mutate(invitationId);
+    }
   };
 
   return (
@@ -322,16 +497,18 @@ const UsersCard: React.FC = () => {
           </Box>
         }
         action={
-          <Box display="flex" gap={1}>
-            <Button
-              variant="outlined"
-              size="small"
-              startIcon={<PersonAddIcon />}
-              onClick={() => handleAddUser(activeTab === 0 ? 'admin' : 'carer')}
-            >
-              Invite {activeTab === 0 ? 'Admin' : 'Carer'}
-            </Button>
-          </Box>
+          activeTab <= 1 ? (
+            <Box display="flex" gap={1}>
+              <Button
+                variant="outlined"
+                size="small"
+                startIcon={<PersonAddIcon />}
+                onClick={() => handleAddUser(activeTab === 0 ? 'admin' : 'carer')}
+              >
+                Invite {activeTab === 0 ? 'Admin' : 'Carer'}
+              </Button>
+            </Box>
+          ) : null
         }
       />
       
@@ -348,13 +525,18 @@ const UsersCard: React.FC = () => {
               icon={<AssessmentIcon />}
               iconPosition="start"
             />
+            <Tab 
+              label={`Invitations (${filteredInvitations?.length || 0})`}
+              icon={<EmailIcon />}
+              iconPosition="start"
+            />
           </Tabs>
         </Box>
 
         {/* Search and Filters */}
         <Box display="flex" gap={2} mb={2} alignItems="center">
           <TextField
-            placeholder={`Search ${activeTab === 0 ? 'admin users' : 'carers'}...`}
+            placeholder={`Search ${activeTab === 0 ? 'admin users' : activeTab === 1 ? 'carers' : 'invitations'}...`}
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             size="small"
@@ -379,6 +561,26 @@ const UsersCard: React.FC = () => {
               }
               label="Fully Assessed Only"
             />
+          )}
+          
+          {activeTab === 2 && (
+            <ToggleButtonGroup
+              value={invitationStatusFilter}
+              exclusive
+              onChange={(_, newValue) => {
+                if (newValue !== null) {
+                  setInvitationStatusFilter(newValue);
+                }
+              }}
+              size="small"
+            >
+              <ToggleButton value="PENDING">
+                Pending
+              </ToggleButton>
+              <ToggleButton value="ACCEPTED">
+                Accepted
+              </ToggleButton>
+            </ToggleButtonGroup>
           )}
         </Box>
 
@@ -526,6 +728,106 @@ const UsersCard: React.FC = () => {
           )}
         </TabPanel>
 
+        {/* Invitations Tab */}
+        <TabPanel value={activeTab} index={2}>
+          {invitationsLoading ? (
+            <Box display="flex" justifyContent="center" p={3}>
+              <CircularProgress />
+            </Box>
+          ) : invitationsError ? (
+            <Alert severity="error">
+              Failed to load invitations. Please try again.
+            </Alert>
+          ) : (
+            <TableContainer component={Paper} variant="outlined">
+              <Table>
+                <TableHead>
+                  <TableRow>
+                    <TableCell>Name</TableCell>
+                    <TableCell>Email</TableCell>
+                    <TableCell>Type</TableCell>
+                    <TableCell>Status</TableCell>
+                    <TableCell>Invited By</TableCell>
+                    <TableCell>Invited Date</TableCell>
+                    <TableCell>Expires</TableCell>
+                    <TableCell align="right">Actions</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {filteredInvitations.map((invitation: Invitation) => (
+                    <TableRow key={invitation.id} hover>
+                      <TableCell>
+                        {invitation.userType === 'ADMIN' 
+                          ? invitation.name 
+                          : `${invitation.firstName} ${invitation.lastName}`
+                        }
+                      </TableCell>
+                      <TableCell>{invitation.email}</TableCell>
+                      <TableCell>
+                        <Chip 
+                          size="small"
+                          color={invitation.userType === 'ADMIN' ? 'primary' : 'secondary'}
+                          label={invitation.userType === 'ADMIN' ? 'Admin' : 'Carer'}
+                        />
+                      </TableCell>
+                      <TableCell>{getInvitationStatusChip(invitation.status)}</TableCell>
+                      <TableCell>{invitation.invitedByAdmin.name}</TableCell>
+                      <TableCell>{new Date(invitation.invitedAt).toLocaleDateString()}</TableCell>
+                      <TableCell>
+                        <Box display="flex" alignItems="center" gap={1}>
+                          {new Date(invitation.expiresAt).toLocaleDateString()}
+                          {new Date() > new Date(invitation.expiresAt) && (
+                            <Chip size="small" color="error" label="Expired" />
+                          )}
+                        </Box>
+                      </TableCell>
+                      <TableCell align="right">
+                        <Box display="flex" gap={0.5} justifyContent="flex-end">
+                          {invitation.status === 'PENDING' && (
+                            <>
+                              <IconButton
+                                size="small"
+                                onClick={() => handleResendInvitation(invitation.id)}
+                                disabled={resendInvitationMutation.isPending}
+                                title="Resend invitation"
+                              >
+                                <RefreshIcon />
+                              </IconButton>
+                              <IconButton
+                                size="small"
+                                onClick={() => handleCancelInvitation(invitation.id)}
+                                disabled={cancelInvitationMutation.isPending}
+                                title="Cancel invitation"
+                                sx={{ color: 'error.main' }}
+                              >
+                                <CancelIcon />
+                              </IconButton>
+                            </>
+                          )}
+                          {invitation.status === 'ACCEPTED' && (
+                            <Typography variant="body2" color="textSecondary">
+                              -
+                            </Typography>
+                          )}
+                        </Box>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                  {filteredInvitations.length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={8} align="center">
+                        <Typography color="textSecondary">
+                          No invitations found
+                        </Typography>
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          )}
+        </TabPanel>
+
         {/* Context Menu */}
         <Menu
           anchorEl={anchorEl}
@@ -655,6 +957,23 @@ const UsersCard: React.FC = () => {
             </Button>
           </DialogActions>
         </Dialog>
+
+        {/* Success/Error Notifications */}
+        <Snackbar
+          open={notification.open}
+          autoHideDuration={4000}
+          onClose={handleCloseNotification}
+          anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+        >
+          <Alert 
+            onClose={handleCloseNotification} 
+            severity={notification.severity}
+            variant="filled"
+            sx={{ width: '100%' }}
+          >
+            {notification.message}
+          </Alert>
+        </Snackbar>
       </CardContent>
     </Card>
   );

@@ -74,7 +74,7 @@ router.post('/admin',
           name,
           userType: InvitationType.ADMIN,
           token,
-          invitedBy: req.admin!.id,
+          invitedBy: req.user!.id,
           expiresAt,
           status: InvitationStatus.PENDING
         },
@@ -112,9 +112,15 @@ router.post('/admin',
       });
     } catch (error) {
       console.error('Error sending admin invitation:', error);
+      
+      // More detailed error for debugging
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      console.error('Error details:', errorMessage);
+      
       res.status(500).json({
         success: false,
-        message: 'Failed to send admin invitation'
+        message: 'Failed to send admin invitation',
+        error: process.env.NODE_ENV === 'development' ? errorMessage : undefined
       });
     }
   }
@@ -183,7 +189,7 @@ router.post('/carer',
           phone,
           userType: InvitationType.CARER,
           token,
-          invitedBy: req.admin!.id,
+          invitedBy: req.user!.id,
           expiresAt,
           status: InvitationStatus.PENDING
         },
@@ -224,9 +230,15 @@ router.post('/carer',
       });
     } catch (error) {
       console.error('Error sending carer invitation:', error);
+      
+      // More detailed error for debugging
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      console.error('Error details:', errorMessage);
+      
       res.status(500).json({
         success: false,
-        message: 'Failed to send carer invitation'
+        message: 'Failed to send carer invitation',
+        error: process.env.NODE_ENV === 'development' ? errorMessage : undefined
       });
     }
   }
@@ -542,6 +554,56 @@ router.post('/resend/:id',
       res.status(500).json({
         success: false,
         message: 'Failed to resend invitation'
+      });
+    }
+  }
+);
+
+// Delete/Cancel invitation
+router.delete('/:id',
+  requireAuth,
+  audit(AuditAction.DELETE, 'Invitation'),
+  async (req, res) => {
+    try {
+      const { id } = req.params;
+
+      const invitation = await prisma.invitation.findUnique({
+        where: { id }
+      });
+
+      if (!invitation) {
+        return res.status(404).json({
+          success: false,
+          message: 'Invitation not found'
+        });
+      }
+
+      if (invitation.status !== 'PENDING') {
+        return res.status(400).json({
+          success: false,
+          message: 'Can only cancel pending invitations'
+        });
+      }
+
+      // Delete the invitation
+      await prisma.invitation.delete({
+        where: { id }
+      });
+
+      res.json({
+        success: true,
+        message: 'Invitation cancelled successfully'
+      });
+    } catch (error) {
+      console.error('Error cancelling invitation:', error);
+      
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      console.error('Error details:', errorMessage);
+      
+      res.status(500).json({
+        success: false,
+        message: 'Failed to cancel invitation',
+        error: process.env.NODE_ENV === 'development' ? errorMessage : undefined
       });
     }
   }

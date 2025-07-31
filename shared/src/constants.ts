@@ -26,7 +26,8 @@ export const API_ENDPOINTS = {
     ACCEPT: '/api/invitations/accept',
     DECLINE: '/api/invitations/decline',
     LIST: '/api/invitations',
-    RESEND: '/api/invitations/resend'
+    RESEND: '/api/invitations/resend',
+    DELETE: '/api/invitations'
   },
   USERS: {
     ADMINS: '/api/users/admins',
