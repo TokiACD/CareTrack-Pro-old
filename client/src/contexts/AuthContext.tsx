@@ -27,9 +27,14 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const initializeAuth = async () => {
     try {
       const token = localStorage.getItem('authToken')
+      console.log('🔑 AuthContext: Initializing auth, token exists:', !!token)
       if (token) {
+        console.log('🔑 AuthContext: Verifying token...')
         const userData = await authService.verifyToken()
+        console.log('🔑 AuthContext: Token verified, user:', userData)
         setUser(userData)
+      } else {
+        console.log('🔑 AuthContext: No token found')
       }
     } catch (error) {
       console.error('Auth initialization failed:', error)

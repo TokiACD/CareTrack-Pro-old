@@ -69,12 +69,15 @@ export const API_ENDPOINTS = {
     CREATE: '/api/tasks',
     UPDATE: '/api/tasks',
     DELETE: '/api/tasks',
-    RESTORE: '/api/tasks/restore'
+    RESTORE: '/api/tasks'
   },
   ASSIGNMENTS: {
+    LIST: '/api/assignments',
+    SUMMARY: '/api/assignments/summary',
     CARER_TO_PACKAGE: '/api/assignments/carer-package',
     TASK_TO_PACKAGE: '/api/assignments/task-package',
-    LIST: '/api/assignments'
+    AVAILABLE_CARERS: '/api/assignments/packages',
+    AVAILABLE_TASKS: '/api/assignments/packages'
   },
   ASSESSMENTS: {
     LIST: '/api/assessments',

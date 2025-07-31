@@ -8,6 +8,11 @@ import { DashboardPage } from './pages/DashboardPage'
 import { ForgotPasswordPage } from './pages/ForgotPasswordPage'
 import { ResetPasswordPage } from './pages/ResetPasswordPage'
 import AcceptInvitationPage from './pages/AcceptInvitationPage'
+import TasksPage from './pages/TasksPage'
+import AssignmentsPage from './pages/AssignmentsPage'
+import AssessmentsPage from './pages/AssessmentsPage'
+import CreateAssessmentPage from './pages/CreateAssessmentPage'
+import EditAssessmentPage from './pages/EditAssessmentPage'
 import { ProtectedRoute } from './components/auth/ProtectedRoute'
 
 function App() {
@@ -50,6 +55,46 @@ function App() {
           element={
             <ProtectedRoute>
               <DashboardPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/tasks"
+          element={
+            <ProtectedRoute>
+              <TasksPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/assignments"
+          element={
+            <ProtectedRoute>
+              <AssignmentsPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/assessments"
+          element={
+            <ProtectedRoute>
+              <AssessmentsPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/assessments/create"
+          element={
+            <ProtectedRoute>
+              <CreateAssessmentPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/assessments/:id/edit"
+          element={
+            <ProtectedRoute>
+              <EditAssessmentPage />
             </ProtectedRoute>
           }
         />

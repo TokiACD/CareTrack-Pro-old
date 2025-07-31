@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import {
   Box,
   Container,
@@ -109,6 +110,7 @@ export function DashboardPage() {
   
   const { user, logout } = useAuth()
   const { showSuccess } = useNotification()
+  const navigate = useNavigate()
 
   const handleMenuOpen = (event: React.MouseEvent<HTMLElement>) => {
     setAnchorEl(event.currentTarget)
@@ -125,6 +127,23 @@ export function DashboardPage() {
   }
 
   const handleCardClick = (cardId: string) => {
+    // Navigate to dedicated pages for certain cards
+    if (cardId === 'tasks') {
+      navigate('/tasks')
+      return
+    }
+    
+    if (cardId === 'assignments') {
+      navigate('/assignments')
+      return
+    }
+    
+    if (cardId === 'assessments') {
+      navigate('/assessments')
+      return
+    }
+    
+    // For other cards, use the existing internal navigation
     setActiveCard(cardId)
   }
 
