@@ -24,6 +24,7 @@ model AdminUser {
   // Relations
   invitedByAdmin    AdminUser?  @relation("AdminInvites", fields: [invitedBy], references: [id])
   invitedAdmins     AdminUser[] @relation("AdminInvites")
+  sentInvitations   Invitation[]
   auditLogs         AuditLog[]
   competencyRatings CompetencyRating[]
   shifts            Shift[]
@@ -31,6 +32,32 @@ model AdminUser {
   assessmentResponses AssessmentResponse[]
 
   @@map("admin_users")
+}
+
+// Invitations for pending user registrations
+model Invitation {
+  id          String          @id @default(cuid())
+  email       String          @unique
+  userType    InvitationType  @map("user_type")
+  token       String          @unique // Secure token for invitation acceptance
+  // Admin-specific fields
+  name        String?         // Full name for admin invitations
+  // Carer-specific fields  
+  firstName   String?         @map("first_name")
+  lastName    String?         @map("last_name")
+  phone       String?
+  // Common fields
+  invitedBy   String          @map("invited_by")
+  invitedAt   DateTime        @default(now()) @map("invited_at")
+  expiresAt   DateTime        @map("expires_at")
+  acceptedAt  DateTime?       @map("accepted_at")
+  declinedAt  DateTime?       @map("declined_at")
+  status      InvitationStatus @default(PENDING)
+
+  // Relations
+  invitedByAdmin AdminUser @relation(fields: [invitedBy], references: [id])
+
+  @@map("invitations")
 }
 
 // Carers
@@ -419,4 +446,16 @@ enum ShiftStatus {
 enum ShiftType {
   DAY
   NIGHT
+}
+
+enum InvitationType {
+  ADMIN
+  CARER
+}
+
+enum InvitationStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+  EXPIRED
 }

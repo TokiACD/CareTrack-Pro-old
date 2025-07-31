@@ -20,6 +20,14 @@ export const API_ENDPOINTS = {
     INVITE: '/api/auth/invite',
     VERIFY_TOKEN: '/api/auth/verify'
   },
+  INVITATIONS: {
+    SEND_ADMIN: '/api/invitations/admin',
+    SEND_CARER: '/api/invitations/carer',
+    ACCEPT: '/api/invitations/accept',
+    DECLINE: '/api/invitations/decline',
+    LIST: '/api/invitations',
+    RESEND: '/api/invitations/resend'
+  },
   USERS: {
     ADMINS: '/api/users/admins',
     CARERS: '/api/users/carers',
@@ -111,6 +119,13 @@ export const ERROR_MESSAGES = {
     TOKEN_EXPIRED: 'Session has expired. Please log in again.',
     UNAUTHORIZED: 'You are not authorized to perform this action',
     INVITE_FAILED: 'Failed to send invitation email'
+  },
+  INVITATIONS: {
+    INVALID_TOKEN: 'Invalid or expired invitation token',
+    ALREADY_ACCEPTED: 'This invitation has already been accepted',
+    EXPIRED: 'This invitation has expired',
+    EMAIL_EXISTS: 'An account with this email already exists',
+    SEND_FAILED: 'Failed to send invitation email'
   },
   VALIDATION: {
     REQUIRED_FIELD: 'This field is required',

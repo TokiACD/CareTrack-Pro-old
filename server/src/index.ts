@@ -9,6 +9,7 @@ import { PrismaClient } from '@prisma/client'
 import { errorHandler } from './middleware/errorHandler'
 import { notFoundHandler } from './middleware/notFoundHandler'
 import { authRoutes } from './routes/authRoutes'
+import invitationRoutes from './routes/invitationRoutes'
 import { usersRouter } from './routes/users'
 import { adminUserRoutes } from './routes/adminUserRoutes'
 import { carerRoutes } from './routes/carerRoutes'
@@ -95,6 +96,7 @@ app.get('/health', (req, res) => {
 
 // API Routes
 app.use('/api/auth', authRoutes)
+app.use('/api/invitations', invitationRoutes)
 app.use('/api/users', usersRouter)
 app.use('/api/admin-users', adminUserRoutes)
 app.use('/api/carers', carerRoutes)

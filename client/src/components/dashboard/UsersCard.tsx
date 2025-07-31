@@ -153,11 +153,24 @@ const UsersCard: React.FC = () => {
     }
   });
 
-  // Create user mutation
-  const createUserMutation = useMutation({
+  // Send invitation mutation
+  const sendInvitationMutation = useMutation({
     mutationFn: async (userData: UserFormData) => {
-      const endpoint = userType === 'admin' ? API_ENDPOINTS.USERS.CREATE_ADMIN : API_ENDPOINTS.USERS.CREATE_CARER;
-      return await apiService.post(endpoint, userData);
+      const endpoint = userType === 'admin' ? API_ENDPOINTS.INVITATIONS.SEND_ADMIN : API_ENDPOINTS.INVITATIONS.SEND_CARER;
+      
+      if (userType === 'admin') {
+        return await apiService.post(endpoint, {
+          email: userData.email,
+          name: userData.name
+        });
+      } else {
+        return await apiService.post(endpoint, {
+          email: userData.email,
+          firstName: userData.firstName,
+          lastName: userData.lastName,
+          phone: userData.phone
+        });
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['users'] });
@@ -266,7 +279,7 @@ const UsersCard: React.FC = () => {
         userData: formData
       });
     } else {
-      createUserMutation.mutate(formData);
+      sendInvitationMutation.mutate(formData);
     }
   };
 
@@ -316,7 +329,7 @@ const UsersCard: React.FC = () => {
               startIcon={<PersonAddIcon />}
               onClick={() => handleAddUser(activeTab === 0 ? 'admin' : 'carer')}
             >
-              Add {activeTab === 0 ? 'Admin' : 'Carer'}
+              Invite {activeTab === 0 ? 'Admin' : 'Carer'}
             </Button>
           </Box>
         }
@@ -551,7 +564,7 @@ const UsersCard: React.FC = () => {
           fullWidth
         >
           <DialogTitle>
-            {editingUser ? `Edit ${userType === 'admin' ? 'Admin User' : 'Carer'}` : `Add New ${userType === 'admin' ? 'Admin User' : 'Carer'}`}
+            {editingUser ? `Edit ${userType === 'admin' ? 'Admin User' : 'Carer'}` : `Invite New ${userType === 'admin' ? 'Admin User' : 'Carer'}`}
           </DialogTitle>
           <DialogContent>
             <Box display="flex" flexDirection="column" gap={2} pt={1}>
@@ -573,15 +586,9 @@ const UsersCard: React.FC = () => {
                     required
                   />
                   {!editingUser && (
-                    <TextField
-                      label="Temporary Password"
-                      type="password"
-                      value={formData.tempPassword || ''}
-                      onChange={(e) => setFormData({ ...formData, tempPassword: e.target.value })}
-                      fullWidth
-                      required
-                      helperText="The user will be required to change this on first login"
-                    />
+                    <Alert severity="info" sx={{ mt: 1 }}>
+                      An invitation email will be sent with instructions to set up their password.
+                    </Alert>
                   )}
                 </>
               ) : (
@@ -614,6 +621,11 @@ const UsersCard: React.FC = () => {
                     onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                     fullWidth
                   />
+                  {!editingUser && (
+                    <Alert severity="info" sx={{ mt: 1 }}>
+                      An invitation email will be sent with instructions to set up their password.
+                    </Alert>
+                  )}
                 </>
               )}
               
@@ -633,12 +645,12 @@ const UsersCard: React.FC = () => {
             <Button 
               onClick={handleSubmit}
               variant="contained"
-              disabled={createUserMutation.isPending || updateUserMutation.isPending}
+              disabled={sendInvitationMutation.isPending || updateUserMutation.isPending}
             >
-              {createUserMutation.isPending || updateUserMutation.isPending ? (
+              {sendInvitationMutation.isPending || updateUserMutation.isPending ? (
                 <CircularProgress size={20} />
               ) : (
-                editingUser ? 'Update' : 'Create'
+                editingUser ? 'Update' : 'Send Invitation'
               )}
             </Button>
           </DialogActions>

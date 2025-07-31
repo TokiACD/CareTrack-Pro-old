@@ -253,6 +253,29 @@ export interface AuditLog {
   userAgent?: string;
 }
 
+// Invitation Types
+export interface Invitation {
+  id: string;
+  email: string;
+  userType: InvitationType;
+  token: string;
+  // Admin-specific fields
+  name?: string;
+  // Carer-specific fields
+  firstName?: string;
+  lastName?: string;
+  phone?: string;
+  // Common fields
+  invitedBy: string;
+  invitedAt: Date;
+  expiresAt: Date;
+  acceptedAt?: Date;
+  declinedAt?: Date;
+  status: InvitationStatus;
+  // Relations
+  invitedByAdmin?: AdminUser;
+}
+
 // Enums
 export enum CompetencyLevel {
   NOT_ASSESSED = 'NOT_ASSESSED',
@@ -284,6 +307,18 @@ export enum ShiftStatus {
 export enum ShiftType {
   DAY = 'DAY',
   NIGHT = 'NIGHT'
+}
+
+export enum InvitationType {
+  ADMIN = 'ADMIN',
+  CARER = 'CARER'
+}
+
+export enum InvitationStatus {
+  PENDING = 'PENDING',
+  ACCEPTED = 'ACCEPTED',
+  DECLINED = 'DECLINED',
+  EXPIRED = 'EXPIRED'
 }
 
 // API Response Types
@@ -329,6 +364,18 @@ export interface LoginRequest {
 export interface InviteAdminRequest {
   email: string;
   name: string;
+}
+
+export interface InviteCarerRequest {
+  email: string;
+  firstName: string;
+  lastName: string;
+  phone?: string;
+}
+
+export interface AcceptInvitationRequest {
+  token: string;
+  password: string;
 }
 
 export interface CreateCarerRequest {

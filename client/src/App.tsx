@@ -5,6 +5,7 @@ import { useAuth } from './contexts/AuthContext'
 import { LoadingScreen } from './components/common/LoadingScreen'
 import { LoginPage } from './pages/LoginPage'
 import { DashboardPage } from './pages/DashboardPage'
+import AcceptInvitationPage from './pages/AcceptInvitationPage'
 import { ProtectedRoute } from './components/auth/ProtectedRoute'
 
 function App() {
@@ -23,6 +24,10 @@ function App() {
           element={
             user ? <Navigate to="/dashboard" replace /> : <LoginPage />
           } 
+        />
+        <Route 
+          path="/invitation/accept" 
+          element={<AcceptInvitationPage />} 
         />
         
         {/* Protected routes */}
