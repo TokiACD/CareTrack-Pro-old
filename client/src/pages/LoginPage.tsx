@@ -9,7 +9,11 @@ import {
   Alert,
   Container,
   Paper,
+  IconButton,
+  InputAdornment,
+  Link
 } from '@mui/material'
+import { Visibility, VisibilityOff } from '@mui/icons-material'
 import { useForm } from 'react-hook-form'
 import { useAuth } from '../contexts/AuthContext'
 import { useNotification } from '../contexts/NotificationContext'
@@ -23,6 +27,7 @@ interface LoginFormData {
 export function LoginPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string>('')
+  const [showPassword, setShowPassword] = useState(false)
   
   const { login } = useAuth()
   const { showSuccess } = useNotification()
@@ -34,13 +39,17 @@ export function LoginPage() {
   } = useForm<LoginFormData>()
 
   const onSubmit = async (data: LoginFormData) => {
+    console.log('🔐 Login form submitted:', { email: data.email, password: '***' })
     setLoading(true)
     setError('')
 
     try {
+      console.log('🚀 Attempting login...')
       await login(data.email, data.password)
+      console.log('✅ Login successful!')
       showSuccess('Successfully logged in')
     } catch (err) {
+      console.error('❌ Login failed:', err)
       setError(err instanceof Error ? err.message : ERROR_MESSAGES.AUTH.INVALID_CREDENTIALS)
     } finally {
       setLoading(false)
@@ -90,7 +99,7 @@ export function LoginPage() {
 
           <Card elevation={0} sx={{ bgcolor: 'transparent' }}>
             <CardContent sx={{ p: 0 }}>
-              <form onSubmit={handleSubmit(onSubmit)}>
+              <form onSubmit={handleSubmit(onSubmit)} noValidate>
                 <Box sx={{ mb: 3 }}>
                   <TextField
                     fullWidth
@@ -115,7 +124,7 @@ export function LoginPage() {
                   <TextField
                     fullWidth
                     label="Password"
-                    type="password"
+                    type={showPassword ? 'text' : 'password'}
                     {...register('password', {
                       required: ERROR_MESSAGES.VALIDATION.REQUIRED_FIELD,
                     })}
@@ -123,6 +132,20 @@ export function LoginPage() {
                     helperText={errors.password?.message}
                     disabled={loading}
                     autoComplete="current-password"
+                    InputProps={{
+                      endAdornment: (
+                        <InputAdornment position="end">
+                          <IconButton
+                            aria-label="toggle password visibility"
+                            onClick={() => setShowPassword(!showPassword)}
+                            onMouseDown={(e) => e.preventDefault()}
+                            edge="end"
+                          >
+                            {showPassword ? <VisibilityOff /> : <Visibility />}
+                          </IconButton>
+                        </InputAdornment>
+                      ),
+                    }}
                   />
                 </Box>
 
@@ -146,6 +169,18 @@ export function LoginPage() {
                 >
                   {loading ? 'Signing In...' : 'Sign In'}
                 </Button>
+
+                <Box sx={{ mt: 2, textAlign: 'center' }}>
+                  <Link
+                    component="button"
+                    type="button"
+                    variant="body2"
+                    onClick={() => alert('Please contact your system administrator to reset your password.')}
+                    sx={{ textDecoration: 'none' }}
+                  >
+                    Forgot Password?
+                  </Link>
+                </Box>
               </form>
             </CardContent>
           </Card>

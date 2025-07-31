@@ -86,7 +86,7 @@ model Carer {
 model CarePackage {
   id        String    @id @default(cuid())
   name      String
-  postcode  String    // 3 digits only
+  postcode  String    // UK postcode outward code only (e.g., SW1A, M1, B33)
   isActive  Boolean   @default(true) @map("is_active")
   createdAt DateTime  @default(now()) @map("created_at")
   updatedAt DateTime  @updatedAt @map("updated_at")

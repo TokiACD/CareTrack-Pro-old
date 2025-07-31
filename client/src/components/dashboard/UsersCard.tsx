@@ -43,8 +43,7 @@ import {
   Assessment as AssessmentIcon,
   Email as EmailIcon,
   Refresh as RefreshIcon,
-  Cancel as CancelIcon,
-  Schedule as ScheduleIcon
+  Cancel as CancelIcon
 } from '@mui/icons-material';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiService } from '../../services/api';
@@ -220,6 +219,16 @@ const UsersCard: React.FC = () => {
     }
   });
 
+  // Fetch all pending invitations for tab count
+  const {
+    data: pendingInvitationsData
+  } = useQuery({
+    queryKey: ['invitations-pending-count'],
+    queryFn: async () => {
+      return await apiService.get<Invitation[]>(`${API_ENDPOINTS.INVITATIONS.LIST}`, { status: 'PENDING' });
+    }
+  });
+
   // Send invitation mutation
   const sendInvitationMutation = useMutation({
     mutationFn: async (userData: UserFormData) => {
@@ -240,7 +249,10 @@ const UsersCard: React.FC = () => {
       }
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['users'] });
+      // Invalidate both users and invitations queries including the pending count
+      queryClient.invalidateQueries({ 
+        predicate: (query) => query.queryKey[0] === 'users' || query.queryKey[0] === 'invitations' || query.queryKey[0] === 'invitations-pending-count'
+      });
       setDialogOpen(false);
       resetForm();
       showNotification(`✅ ${userType === 'admin' ? 'Admin' : 'Carer'} invitation sent successfully!`, 'success');
@@ -296,7 +308,9 @@ const UsersCard: React.FC = () => {
       return await apiService.post(`${API_ENDPOINTS.INVITATIONS.RESEND}/${invitationId}`);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['invitations'] });
+      queryClient.invalidateQueries({ 
+        predicate: (query) => query.queryKey[0] === 'invitations' || query.queryKey[0] === 'invitations-pending-count'
+      });
       showNotification('✅ Invitation resent successfully!', 'success');
     },
     onError: (error) => {
@@ -311,7 +325,9 @@ const UsersCard: React.FC = () => {
       return await apiService.delete(`${API_ENDPOINTS.INVITATIONS.DELETE}/${invitationId}`);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['invitations'] });
+      queryClient.invalidateQueries({ 
+        predicate: (query) => query.queryKey[0] === 'invitations' || query.queryKey[0] === 'invitations-pending-count'
+      });
       showNotification('✅ Invitation cancelled successfully!', 'success');
     },
     onError: (error) => {
@@ -440,6 +456,11 @@ const UsersCard: React.FC = () => {
     return Array.isArray(invitationsData) ? invitationsData : [];
   }, [invitationsData]);
 
+  const pendingInvitationsCount = useMemo(() => {
+    if (!pendingInvitationsData) return 0;
+    return Array.isArray(pendingInvitationsData) ? pendingInvitationsData.length : 0;
+  }, [pendingInvitationsData]);
+
   const getCompetencyChip = (status: string) => {
     const color = status === 'COMPETENT' ? 'success' : 
                  status === 'NEEDS_SUPPORT' ? 'warning' : 'default';
@@ -526,7 +547,7 @@ const UsersCard: React.FC = () => {
               iconPosition="start"
             />
             <Tab 
-              label={`Invitations (${filteredInvitations?.length || 0})`}
+              label={`Invitations (${pendingInvitationsCount})`}
               icon={<EmailIcon />}
               iconPosition="start"
             />

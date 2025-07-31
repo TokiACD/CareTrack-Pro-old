@@ -30,7 +30,7 @@ export interface Carer {
 export interface CarePackage {
   id: string;
   name: string;
-  postcode: string; // 3 digits only
+  postcode: string; // UK postcode outward code only (e.g., SW1A, M1, B33)
   isActive: boolean;
   createdAt: Date;
   updatedAt: Date;

@@ -27,6 +27,7 @@ import { useAuth } from '../contexts/AuthContext'
 import { useNotification } from '../contexts/NotificationContext'
 import { DashboardCard } from '../components/dashboard/DashboardCard'
 import UsersCard from '../components/dashboard/UsersCard'
+import CarePackagesCard from '../components/dashboard/CarePackagesCard'
 
 // Dashboard card configurations
 const DASHBOARD_CARDS = [
@@ -140,6 +141,8 @@ export function DashboardPage() {
     switch (activeCard) {
       case 'users':
         return <UsersCard />
+      case 'care-packages':
+        return <CarePackagesCard />
       default:
         return (
           <Box textAlign="center" py={8}>

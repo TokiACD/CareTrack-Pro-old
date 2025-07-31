@@ -1,6 +1,6 @@
 // System Constants
 export const SYSTEM_CONSTANTS = {
-  POSTCODE_LENGTH: 3,
+  POSTCODE_MAX_LENGTH: 4, // UK postcode outward code max length
   WEEKLY_HOUR_LIMIT: 36,
   RECYCLE_BIN_RETENTION_DAYS: 30,
   MIN_COMPETENT_STAFF: 1,
@@ -131,7 +131,7 @@ export const ERROR_MESSAGES = {
   VALIDATION: {
     REQUIRED_FIELD: 'This field is required',
     INVALID_EMAIL: 'Please enter a valid email address',
-    INVALID_POSTCODE: 'Postcode must be exactly 3 digits',
+    INVALID_POSTCODE: 'Please enter a valid UK postcode area (e.g., SW1A, M1, B33, E14)',
     INVALID_PHONE: 'Please enter a valid phone number',
     TARGET_COUNT_MIN: 'Target count must be at least 1'
   },

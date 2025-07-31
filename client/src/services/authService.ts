@@ -13,10 +13,13 @@ interface InviteAdminData {
 
 class AuthService {
   async login(email: string, password: string): Promise<LoginResponse> {
-    return apiService.post<LoginResponse>(API_ENDPOINTS.AUTH.LOGIN, {
+    console.log('📡 AuthService: Making API call to', API_ENDPOINTS.AUTH.LOGIN)
+    const response = await apiService.post<LoginResponse>(API_ENDPOINTS.AUTH.LOGIN, {
       email,
       password,
     })
+    console.log('📡 AuthService: API response received')
+    return response
   }
 
   async logout(): Promise<void> {

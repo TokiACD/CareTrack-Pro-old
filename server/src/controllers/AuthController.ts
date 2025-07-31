@@ -10,23 +10,34 @@ import { AdminUser } from '@caretrack/shared'
 export class AuthController {
   login = asyncHandler(async (req: Request, res: Response): Promise<void> => {
     const { email, password } = req.body
+    console.log('🔐 Login attempt for email:', email)
 
-    // Find user
-    const user = await prisma.adminUser.findUnique({
+    // Find user (case-insensitive email lookup)
+    const user = await prisma.adminUser.findFirst({
       where: { 
-        email,
+        email: {
+          equals: email,
+          mode: 'insensitive'
+        },
         isActive: true,
         deletedAt: null,
       },
     })
 
+    console.log('🔍 User found:', user ? { id: user.id, email: user.email, isActive: user.isActive, deletedAt: user.deletedAt } : 'No user found')
+
     if (!user) {
+      console.log('❌ User not found or inactive')
       throw createError(401, 'Invalid email or password')
     }
 
     // Verify password
+    console.log('🔑 Verifying password...')
     const isValidPassword = await bcrypt.compare(password, user.passwordHash)
+    console.log('🔑 Password valid:', isValidPassword)
+    
     if (!isValidPassword) {
+      console.log('❌ Invalid password')
       throw createError(401, 'Invalid email or password')
     }
 
@@ -89,6 +100,27 @@ export class AuthController {
     res.json({
       success: true,
       message: 'Logout successful',
+    })
+  })
+
+  // Debug endpoint to list all admin users (temporary)
+  listAdmins = asyncHandler(async (req: Request, res: Response): Promise<void> => {
+    const users = await prisma.adminUser.findMany({
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        isActive: true,
+        deletedAt: true,
+        createdAt: true,
+        invitedBy: true
+      }
+    })
+    
+    res.json({
+      success: true,
+      data: users,
+      total: users.length
     })
   })
 

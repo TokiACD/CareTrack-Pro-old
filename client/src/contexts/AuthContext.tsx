@@ -41,10 +41,16 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   const login = async (email: string, password: string) => {
     try {
+      console.log('🔑 AuthContext: Calling authService.login')
       const response = await authService.login(email, password)
+      console.log('🔑 AuthContext: Login response received:', response)
       localStorage.setItem('authToken', response.token)
       setUser(response.user)
+      console.log('🔑 AuthContext: User set, navigating...')
+      // Navigate to dashboard after successful login
+      window.location.href = '/dashboard'
     } catch (error) {
+      console.error('🔑 AuthContext: Login error:', error)
       throw error
     }
   }
