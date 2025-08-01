@@ -33,7 +33,10 @@ import {
   Dialog,
   DialogTitle,
   DialogContent,
-  DialogActions
+  DialogActions,
+  Accordion,
+  AccordionSummary,
+  AccordionDetails
 } from '@mui/material'
 import {
   ArrowBack as ArrowBackIcon,
@@ -48,7 +51,8 @@ import {
   Assignment as AssignmentIcon,
   Search as SearchIcon,
   CheckCircle as CheckCircleIcon,
-  Warning as WarningIcon
+  Warning as WarningIcon,
+  ExpandMore as ExpandMoreIcon
 } from '@mui/icons-material'
 import { useNavigate } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
@@ -154,6 +158,11 @@ const CreateAssessmentPage: React.FC = () => {
     tasksCovered: []
   })
 
+  // Accordion state management
+  const [expandedKnowledge, setExpandedKnowledge] = useState<string | false>(false)
+  const [expandedPractical, setExpandedPractical] = useState<string | false>(false)
+  const [expandedEmergency, setExpandedEmergency] = useState<string | false>(false)
+
   // Notification state
   const [notification, setNotification] = useState<{
     open: boolean
@@ -224,15 +233,40 @@ const CreateAssessmentPage: React.FC = () => {
     createAssessmentMutation.mutate(formData)
   }
 
+  // Accordion handlers
+  const handleKnowledgeAccordionChange = (panel: string) => (event: React.SyntheticEvent, isExpanded: boolean) => {
+    setExpandedKnowledge(isExpanded ? panel : false)
+  }
+
+  const handlePracticalAccordionChange = (panel: string) => (event: React.SyntheticEvent, isExpanded: boolean) => {
+    setExpandedPractical(isExpanded ? panel : false)
+  }
+
+  const handleEmergencyAccordionChange = (panel: string) => (event: React.SyntheticEvent, isExpanded: boolean) => {
+    setExpandedEmergency(isExpanded ? panel : false)
+  }
+
+  // Reset accordion states when switching steps
+  const handleStepChange = (step: number) => {
+    setActiveStep(step)
+    // Collapse all accordions when switching steps
+    setExpandedKnowledge(false)
+    setExpandedPractical(false)
+    setExpandedEmergency(false)
+  }
+
   // Knowledge Questions handlers
   const addKnowledgeQuestion = () => {
+    const newIndex = formData.knowledgeQuestions.length
     setFormData(prev => ({
       ...prev,
       knowledgeQuestions: [
         ...prev.knowledgeQuestions,
-        { question: '', modelAnswer: '', order: prev.knowledgeQuestions.length + 1 }
+        { question: '', modelAnswer: '', order: newIndex + 1 }
       ]
     }))
+    // Expand the new question and collapse others
+    setExpandedKnowledge(`knowledge-${newIndex}`)
   }
 
   const updateKnowledgeQuestion = (index: number, field: keyof KnowledgeQuestion, value: string | number) => {
@@ -254,13 +288,16 @@ const CreateAssessmentPage: React.FC = () => {
 
   // Practical Skills handlers
   const addPracticalSkill = () => {
+    const newIndex = formData.practicalSkills.length
     setFormData(prev => ({
       ...prev,
       practicalSkills: [
         ...prev.practicalSkills,
-        { skillDescription: '', canBeNotApplicable: false, order: prev.practicalSkills.length + 1 }
+        { skillDescription: '', canBeNotApplicable: false, order: newIndex + 1 }
       ]
     }))
+    // Expand the new skill and collapse others
+    setExpandedPractical(`practical-${newIndex}`)
   }
 
   const updatePracticalSkill = (index: number, field: keyof PracticalSkill, value: string | boolean | number) => {
@@ -282,13 +319,16 @@ const CreateAssessmentPage: React.FC = () => {
 
   // Emergency Questions handlers
   const addEmergencyQuestion = () => {
+    const newIndex = formData.emergencyQuestions.length
     setFormData(prev => ({
       ...prev,
       emergencyQuestions: [
         ...prev.emergencyQuestions,
-        { question: '', modelAnswer: '', order: prev.emergencyQuestions.length + 1 }
+        { question: '', modelAnswer: '', order: newIndex + 1 }
       ]
     }))
+    // Expand the new question and collapse others
+    setExpandedEmergency(`emergency-${newIndex}`)
   }
 
   const updateEmergencyQuestion = (index: number, field: keyof EmergencyQuestion, value: string | number) => {
@@ -441,7 +481,7 @@ const CreateAssessmentPage: React.FC = () => {
               {/* Step 1: Basic Information */}
               <Step>
                 <StepLabel 
-                  onClick={() => setActiveStep(0)}
+                  onClick={() => handleStepChange(0)}
                   sx={{ cursor: 'pointer' }}
                 >
                   <Box display="flex" alignItems="center" gap={1}>
@@ -502,7 +542,7 @@ const CreateAssessmentPage: React.FC = () => {
               {/* Step 2: Knowledge Questions */}
               <Step>
                 <StepLabel 
-                  onClick={() => setActiveStep(1)}
+                  onClick={() => handleStepChange(1)}
                   sx={{ cursor: 'pointer' }}
                 >
                   <Box display="flex" alignItems="center" gap={1}>
@@ -513,19 +553,36 @@ const CreateAssessmentPage: React.FC = () => {
                 <StepContent>
                   <Box sx={{ mb: 2 }}>
                     {formData.knowledgeQuestions.map((question, index) => (
-                      <Card key={index} variant="outlined" sx={{ mb: 2 }}>
-                        <CardContent>
-                          <Box display="flex" justifyContent="space-between" alignItems="center" mb={1}>
-                            <Typography variant="h6">Question {index + 1}</Typography>
+                      <Accordion
+                        key={index}
+                        expanded={expandedKnowledge === `knowledge-${index}`}
+                        onChange={handleKnowledgeAccordionChange(`knowledge-${index}`)}
+                        sx={{ mb: 1 }}
+                      >
+                        <AccordionSummary
+                          expandIcon={<ExpandMoreIcon />}
+                          aria-controls={`knowledge-${index}-content`}
+                          id={`knowledge-${index}-header`}
+                        >
+                          <Box display="flex" justifyContent="space-between" alignItems="center" width="100%">
+                            <Typography variant="h6">
+                              Question {index + 1}
+                              {question.question && `: ${question.question.substring(0, 50)}${question.question.length > 50 ? '...' : ''}`}
+                            </Typography>
                             <IconButton
                               size="small"
                               color="error"
-                              onClick={() => removeKnowledgeQuestion(index)}
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                removeKnowledgeQuestion(index)
+                              }}
+                              sx={{ ml: 1 }}
                             >
                               <DeleteIcon />
                             </IconButton>
                           </Box>
-                          
+                        </AccordionSummary>
+                        <AccordionDetails>
                           <TextField
                             fullWidth
                             label="Question"
@@ -544,8 +601,8 @@ const CreateAssessmentPage: React.FC = () => {
                             multiline
                             rows={3}
                           />
-                        </CardContent>
-                      </Card>
+                        </AccordionDetails>
+                      </Accordion>
                     ))}
 
                     <Button
@@ -576,7 +633,7 @@ const CreateAssessmentPage: React.FC = () => {
               {/* Step 3: Practical Skills */}
               <Step>
                 <StepLabel 
-                  onClick={() => setActiveStep(2)}
+                  onClick={() => handleStepChange(2)}
                   sx={{ cursor: 'pointer' }}
                 >
                   <Box display="flex" alignItems="center" gap={1}>
@@ -587,19 +644,36 @@ const CreateAssessmentPage: React.FC = () => {
                 <StepContent>
                   <Box sx={{ mb: 2 }}>
                     {formData.practicalSkills.map((skill, index) => (
-                      <Card key={index} variant="outlined" sx={{ mb: 2 }}>
-                        <CardContent>
-                          <Box display="flex" justifyContent="space-between" alignItems="center" mb={1}>
-                            <Typography variant="h6">Skill {index + 1}</Typography>
+                      <Accordion
+                        key={index}
+                        expanded={expandedPractical === `practical-${index}`}
+                        onChange={handlePracticalAccordionChange(`practical-${index}`)}
+                        sx={{ mb: 1 }}
+                      >
+                        <AccordionSummary
+                          expandIcon={<ExpandMoreIcon />}
+                          aria-controls={`practical-${index}-content`}
+                          id={`practical-${index}-header`}
+                        >
+                          <Box display="flex" justifyContent="space-between" alignItems="center" width="100%">
+                            <Typography variant="h6">
+                              Skill {index + 1}
+                              {skill.skillDescription && `: ${skill.skillDescription.substring(0, 50)}${skill.skillDescription.length > 50 ? '...' : ''}`}
+                            </Typography>
                             <IconButton
                               size="small"
                               color="error"
-                              onClick={() => removePracticalSkill(index)}
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                removePracticalSkill(index)
+                              }}
+                              sx={{ ml: 1 }}
                             >
                               <DeleteIcon />
                             </IconButton>
                           </Box>
-                          
+                        </AccordionSummary>
+                        <AccordionDetails>
                           <TextField
                             fullWidth
                             label="Skill Description"
@@ -619,8 +693,8 @@ const CreateAssessmentPage: React.FC = () => {
                             }
                             label="Can be marked as 'Not Applicable'"
                           />
-                        </CardContent>
-                      </Card>
+                        </AccordionDetails>
+                      </Accordion>
                     ))}
 
                     <Button
@@ -651,7 +725,7 @@ const CreateAssessmentPage: React.FC = () => {
               {/* Step 4: Emergency Questions */}
               <Step>
                 <StepLabel 
-                  onClick={() => setActiveStep(3)}
+                  onClick={() => handleStepChange(3)}
                   sx={{ cursor: 'pointer' }}
                 >
                   <Box display="flex" alignItems="center" gap={1}>
@@ -662,19 +736,36 @@ const CreateAssessmentPage: React.FC = () => {
                 <StepContent>
                   <Box sx={{ mb: 2 }}>
                     {formData.emergencyQuestions.map((question, index) => (
-                      <Card key={index} variant="outlined" sx={{ mb: 2 }}>
-                        <CardContent>
-                          <Box display="flex" justifyContent="space-between" alignItems="center" mb={1}>
-                            <Typography variant="h6">Emergency Scenario {index + 1}</Typography>
+                      <Accordion
+                        key={index}
+                        expanded={expandedEmergency === `emergency-${index}`}
+                        onChange={handleEmergencyAccordionChange(`emergency-${index}`)}
+                        sx={{ mb: 1 }}
+                      >
+                        <AccordionSummary
+                          expandIcon={<ExpandMoreIcon />}
+                          aria-controls={`emergency-${index}-content`}
+                          id={`emergency-${index}-header`}
+                        >
+                          <Box display="flex" justifyContent="space-between" alignItems="center" width="100%">
+                            <Typography variant="h6">
+                              Emergency Scenario {index + 1}
+                              {question.question && `: ${question.question.substring(0, 50)}${question.question.length > 50 ? '...' : ''}`}
+                            </Typography>
                             <IconButton
                               size="small"
                               color="error"
-                              onClick={() => removeEmergencyQuestion(index)}
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                removeEmergencyQuestion(index)
+                              }}
+                              sx={{ ml: 1 }}
                             >
                               <DeleteIcon />
                             </IconButton>
                           </Box>
-                          
+                        </AccordionSummary>
+                        <AccordionDetails>
                           <TextField
                             fullWidth
                             label="Emergency Question/Scenario"
@@ -693,8 +784,8 @@ const CreateAssessmentPage: React.FC = () => {
                             multiline
                             rows={3}
                           />
-                        </CardContent>
-                      </Card>
+                        </AccordionDetails>
+                      </Accordion>
                     ))}
 
                     <Button
@@ -725,7 +816,7 @@ const CreateAssessmentPage: React.FC = () => {
               {/* Step 5: Task Coverage */}
               <Step>
                 <StepLabel 
-                  onClick={() => setActiveStep(4)}
+                  onClick={() => handleStepChange(4)}
                   sx={{ cursor: 'pointer' }}
                 >
                   <Box display="flex" alignItems="center" gap={1}>
