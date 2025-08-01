@@ -39,7 +39,7 @@ export function audit(action: AuditAction, entityType: string) {
     const originalJson = res.json;
     res.json = function(body: any) {
       // Log audit data after successful response
-      if (res.statusCode >= 200 && res.statusCode < 300 && req.admin) {
+      if (res.statusCode >= 200 && res.statusCode < 300 && req.user) {
         const entityId = req.params.id || body?.data?.id || 'unknown';
         
         auditService.log({
@@ -48,8 +48,8 @@ export function audit(action: AuditAction, entityType: string) {
           entityId,
           oldValues: req.auditData?.oldValues,
           newValues: req.auditData?.newValues || body?.data,
-          performedByAdminId: req.admin.id,
-          performedByAdminName: req.admin.name,
+          performedByAdminId: req.user.id,
+          performedByAdminName: req.user.name,
           ipAddress: req.ip || req.connection.remoteAddress,
           userAgent: req.get('User-Agent')
         }).catch(error => {
@@ -80,7 +80,7 @@ export function auditWithOldValues(action: AuditAction, entityType: string, getO
       const originalJson = res.json;
       res.json = function(body: any) {
         // Log audit data after successful response
-        if (res.statusCode >= 200 && res.statusCode < 300 && req.admin) {
+        if (res.statusCode >= 200 && res.statusCode < 300 && req.user) {
           const entityId = req.params.id || body?.data?.id || 'unknown';
           
           auditService.log({
@@ -89,8 +89,8 @@ export function auditWithOldValues(action: AuditAction, entityType: string, getO
             entityId,
             oldValues: req.auditData?.oldValues,
             newValues: body?.data,
-            performedByAdminId: req.admin.id,
-            performedByAdminName: req.admin.name,
+            performedByAdminId: req.user.id,
+            performedByAdminName: req.user.name,
             ipAddress: req.ip || req.connection.remoteAddress,
             userAgent: req.get('User-Agent')
           }).catch(error => {

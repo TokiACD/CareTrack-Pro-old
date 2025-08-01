@@ -98,7 +98,7 @@ router.post('/admins',
           name,
           passwordHash,
           isActive: true,
-          invitedBy: req.admin!.id
+          invitedBy: req.user!.id
         },
         select: {
           id: true,
@@ -146,7 +146,13 @@ router.put('/admins/:id',
       }
 
       const { id } = req.params;
-      const updates = req.body;
+      const { name, email, isActive } = req.body;
+      
+      // Only allow updating valid AdminUser fields
+      const updates: any = {};
+      if (name !== undefined) updates.name = name;
+      if (email !== undefined) updates.email = email;
+      if (isActive !== undefined) updates.isActive = isActive;
 
       // Check if admin exists
       const existingAdmin = await prisma.adminUser.findFirst({
@@ -232,7 +238,7 @@ router.delete('/admins/:id',
       }
 
       // Prevent self-deletion
-      if (id === req.admin!.id) {
+      if (id === req.user!.id) {
         return res.status(400).json({
           success: false,
           message: 'Cannot delete your own account'
@@ -456,13 +462,16 @@ router.put('/carers/:id',
       }
 
       const { id } = req.params;
-      const { firstName, lastName, ...otherUpdates } = req.body;
+      const { firstName, lastName, email, phone, isActive } = req.body;
       
-      // Convert firstName/lastName to single name field
-      const updates: any = { ...otherUpdates };
+      // Only allow updating valid Carer fields
+      const updates: any = {};
       if (firstName || lastName) {
         updates.name = `${firstName || ''} ${lastName || ''}`.trim();
       }
+      if (email !== undefined) updates.email = email;
+      if (phone !== undefined) updates.phone = phone || null; // Allow null for optional phone
+      if (isActive !== undefined) updates.isActive = isActive;
 
       // Check if carer exists
       const existingCarer = await prisma.carer.findFirst({
@@ -546,30 +555,27 @@ router.delete('/carers/:id',
       }
 
       // Check for dependencies
-      const [futureShifts, currentAssignments, competencyRatings] = await Promise.all([
-        prisma.shift.count({
+      const [shiftAssignments, currentAssignments, competencyRatings] = await Promise.all([
+        prisma.shiftAssignment.count({
           where: {
-            carerId: id,
-            shiftDate: { gt: new Date() },
-            deletedAt: null
+            carerId: id
           }
         }),
         prisma.carerPackageAssignment.count({
           where: {
             carerId: id,
-            deletedAt: null
+            isActive: true
           }
         }),
         prisma.competencyRating.count({
           where: {
-            carerId: id,
-            deletedAt: null
+            carerId: id
           }
         })
       ]);
 
       const warnings = [];
-      if (futureShifts > 0) warnings.push(`${futureShifts} future shifts will be cancelled`);
+      if (shiftAssignments > 0) warnings.push(`${shiftAssignments} shift assignments will be cancelled`);
       if (currentAssignments > 0) warnings.push(`${currentAssignments} package assignments will be removed`);
       if (competencyRatings > 0) warnings.push(`${competencyRatings} competency ratings will be archived`);
 

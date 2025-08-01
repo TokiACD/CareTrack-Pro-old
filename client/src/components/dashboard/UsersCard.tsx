@@ -184,7 +184,10 @@ const UsersCard: React.FC = () => {
     queryFn: async () => {
       const params = searchTerm ? { search: searchTerm } : undefined;
       return await apiService.get<AdminUser[]>(`${API_ENDPOINTS.USERS.ADMINS}`, params);
-    }
+    },
+    staleTime: 30000, // Consider data stale after 30 seconds
+    refetchOnWindowFocus: true, // Refetch when user returns to tab
+    refetchInterval: 60000 // Refetch every minute
   });
 
   // Fetch carers
@@ -216,7 +219,10 @@ const UsersCard: React.FC = () => {
       params.status = invitationStatusFilter;
       
       return await apiService.get<Invitation[]>(`${API_ENDPOINTS.INVITATIONS.LIST}`, params);
-    }
+    },
+    staleTime: 30000, // Consider data stale after 30 seconds
+    refetchOnWindowFocus: true, // Refetch when user returns to tab
+    refetchInterval: 60000 // Refetch every minute
   });
 
   // Fetch all pending invitations for tab count
@@ -226,7 +232,10 @@ const UsersCard: React.FC = () => {
     queryKey: ['invitations-pending-count'],
     queryFn: async () => {
       return await apiService.get<Invitation[]>(`${API_ENDPOINTS.INVITATIONS.LIST}`, { status: 'PENDING' });
-    }
+    },
+    staleTime: 30000, // Consider data stale after 30 seconds
+    refetchOnWindowFocus: true, // Refetch when user returns to tab
+    refetchInterval: 60000 // Refetch every minute
   });
 
   // Send invitation mutation

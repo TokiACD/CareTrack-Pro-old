@@ -2,10 +2,12 @@ import { Router } from 'express';
 import { body, validationResult } from 'express-validator';
 import bcrypt from 'bcrypt';
 import crypto from 'crypto';
+import jwt from 'jsonwebtoken';
 import { prisma } from '../index';
 import { requireAuth } from '../middleware/auth';
 import { audit, AuditAction } from '../middleware/audit';
 import { emailService } from '../services/emailService';
+import { auditService } from '../services/auditService';
 import { InvitationType, InvitationStatus } from '@caretrack/shared';
 
 const router = Router();
@@ -244,31 +246,25 @@ router.post('/carer',
   }
 );
 
-// Accept invitation
-router.post('/accept',
-  [
-    body('token').notEmpty().withMessage('Invitation token is required'),
-    body('password').isLength({ min: 8 }).withMessage('Password must be at least 8 characters long')
-  ],
+// Get invitation details (for accept page)
+router.get('/accept',
   async (req, res) => {
     try {
-      const errors = validationResult(req);
-      if (!errors.isEmpty()) {
+      const { token } = req.query;
+
+      if (!token) {
         return res.status(400).json({
           success: false,
-          message: 'Validation failed',
-          errors: errors.array()
+          message: 'Invitation token is required'
         });
       }
 
-      const { token, password } = req.body;
-
       // Find invitation
       const invitation = await prisma.invitation.findUnique({
-        where: { token },
+        where: { token: token as string },
         include: {
           invitedByAdmin: {
-            select: { id: true, name: true }
+            select: { name: true }
           }
         }
       });
@@ -301,12 +297,105 @@ router.post('/accept',
         });
       }
 
+      // Return invitation details (without token for security)
+      res.json({
+        success: true,
+        data: {
+          email: invitation.email,
+          name: invitation.name,
+          firstName: invitation.firstName,
+          lastName: invitation.lastName,
+          userType: invitation.userType,
+          invitedByName: invitation.invitedByAdmin.name,
+          expiresAt: invitation.expiresAt
+        }
+      });
+    } catch (error) {
+      console.error('Error fetching invitation details:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to fetch invitation details'
+      });
+    }
+  }
+);
+
+// Accept invitation
+router.post('/accept',
+  [
+    body('token').notEmpty().withMessage('Invitation token is required'),
+    body('password').isLength({ min: 8 }).withMessage('Password must be at least 8 characters long')
+  ],
+  async (req, res) => {
+    try {
+      console.log('🔍 Accept invitation request:', { token: req.body.token ? 'present' : 'missing', password: req.body.password ? 'present' : 'missing' });
+      
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        console.log('❌ Validation errors:', errors.array());
+        return res.status(400).json({
+          success: false,
+          message: 'Validation failed',
+          errors: errors.array()
+        });
+      }
+
+      const { token, password } = req.body;
+
+      // Find invitation
+      console.log('🔍 Looking for invitation with token...');
+      const invitation = await prisma.invitation.findUnique({
+        where: { token },
+        include: {
+          invitedByAdmin: {
+            select: { id: true, name: true }
+          }
+        }
+      });
+
+      if (!invitation) {
+        console.log('❌ Invitation not found');
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid invitation token'
+        });
+      }
+
+      console.log('✅ Invitation found:', { email: invitation.email, status: invitation.status, userType: invitation.userType });
+
+      // Check if invitation is still valid
+      if (invitation.status !== InvitationStatus.PENDING) {
+        console.log('❌ Invitation not pending:', invitation.status);
+        return res.status(400).json({
+          success: false,
+          message: 'This invitation has already been processed'
+        });
+      }
+
+      if (new Date() > invitation.expiresAt) {
+        console.log('❌ Invitation expired:', invitation.expiresAt);
+        // Mark as expired
+        await prisma.invitation.update({
+          where: { id: invitation.id },
+          data: { status: InvitationStatus.EXPIRED }
+        });
+
+        return res.status(400).json({
+          success: false,
+          message: 'This invitation has expired'
+        });
+      }
+
+      console.log('✅ Invitation is valid, proceeding with user creation');
+
       // Hash password
+      console.log('🔐 Hashing password...');
       const passwordHash = await bcrypt.hash(password, 12);
 
       let newUser;
 
       if (invitation.userType === InvitationType.ADMIN) {
+        console.log('👤 Creating admin user...');
         // Create admin user
         newUser = await prisma.adminUser.create({
           data: {
@@ -362,10 +451,18 @@ router.post('/accept',
         }
       });
     } catch (error) {
-      console.error('Error accepting invitation:', error);
+      console.error('❌ Error accepting invitation:', error);
+      
+      // More detailed error logging
+      if (error instanceof Error) {
+        console.error('Error message:', error.message);
+        console.error('Error stack:', error.stack);
+      }
+      
       res.status(500).json({
         success: false,
-        message: 'Failed to accept invitation'
+        message: 'Failed to accept invitation',
+        error: process.env.NODE_ENV === 'development' ? (error instanceof Error ? error.message : 'Unknown error') : undefined
       });
     }
   }

@@ -4,6 +4,7 @@ import helmet from 'helmet'
 import morgan from 'morgan'
 import compression from 'compression'
 import rateLimit from 'express-rate-limit'
+import path from 'path'
 import { PrismaClient } from '@prisma/client'
 
 import { errorHandler } from './middleware/errorHandler'
@@ -33,7 +34,7 @@ export const prisma = new PrismaClient({
 const app = express()
 
 // Environment variables
-const PORT = process.env.PORT || 3001
+const PORT = process.env.PORT || 3000
 const NODE_ENV = process.env.NODE_ENV || 'development'
 
 // Rate limiting
@@ -116,6 +117,26 @@ app.use('/api/rota', rotaRoutes)
 app.use('/api/recycle-bin', recycleBinRoutes)
 app.use('/api/audit', auditRoutes)
 app.use('/api/dashboard', dashboardRoutes)
+
+// Serve frontend static files in production
+if (NODE_ENV === 'production') {
+  app.use(express.static(path.join(__dirname, '../../client/dist')))
+  
+  // Catch-all handler: send back index.html for non-API routes
+  app.get('*', (req, res) => {
+    res.sendFile(path.join(__dirname, '../../client/dist/index.html'))
+  })
+} else {
+  // In development, redirect invitation URLs to frontend
+  app.get('/invitation/accept', (req, res) => {
+    const { token } = req.query
+    if (token) {
+      res.redirect(`http://localhost:3001/invitation/accept?token=${token}`)
+    } else {
+      res.redirect('http://localhost:3001')
+    }
+  })
+}
 
 // Error handlers (must be last)
 app.use(notFoundHandler)
