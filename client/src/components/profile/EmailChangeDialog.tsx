@@ -15,9 +15,9 @@ import {
   Security as SecurityIcon,
   Email as EmailIcon
 } from '@mui/icons-material';
-import { useMutation } from '@tanstack/react-query';
 import { apiService } from '../../services/api';
 import { API_ENDPOINTS } from '@caretrack/shared';
+import { useSmartMutation } from '../../hooks/useSmartMutation';
 
 interface EmailChangeDialogProps {
   open: boolean;
@@ -91,28 +91,31 @@ const EmailChangeDialog: React.FC<EmailChangeDialogProps> = ({
     }
   };
 
-  const emailChangeRequest = useMutation({
-    mutationFn: async (data: EmailChangeRequest) => {
+  const emailChangeRequest = useSmartMutation<any, Error, EmailChangeRequest>(
+    async (data: EmailChangeRequest) => {
       return await apiService.post(API_ENDPOINTS.EMAIL_CHANGE.REQUEST, data);
     },
-    onSuccess: () => {
-      setMessage({
-        type: 'success',
-        text: 'Email change request sent! Please check both your old and new email addresses for further instructions.'
-      });
-      setNewEmail('');
-      // Close dialog after showing success message briefly
-      setTimeout(() => {
-        handleClose();
-      }, 2000);
-    },
-    onError: (error: any) => {
-      setMessage({
-        type: 'error',
-        text: error.message || 'Failed to request email change'
-      });
+    {
+      mutationType: 'users.email-change',
+      onSuccess: () => {
+        setMessage({
+          type: 'success',
+          text: 'Email change request sent! Please check both your old and new email addresses for further instructions.'
+        });
+        setNewEmail('');
+        // Close dialog after showing success message briefly
+        setTimeout(() => {
+          handleClose();
+        }, 2000);
+      },
+      onError: (error: any) => {
+        setMessage({
+          type: 'error',
+          text: error.message || 'Failed to request email change'
+        });
+      }
     }
-  });
+  );
 
   const handleClose = () => {
     setNewEmail('');

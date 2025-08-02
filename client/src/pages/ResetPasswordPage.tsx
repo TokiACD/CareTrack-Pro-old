@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import { useState, useEffect } from 'react'
 import {
   Box,
   Button,
@@ -13,7 +13,7 @@ import {
   IconButton,
   InputAdornment
 } from '@mui/material'
-import { ArrowBack, Visibility, VisibilityOff } from '@mui/icons-material'
+import { Visibility, VisibilityOff } from '@mui/icons-material'
 import { useForm } from 'react-hook-form'
 import { useNotification } from '../contexts/NotificationContext'
 import { apiService } from '../services/api'
@@ -38,8 +38,7 @@ export function ResetPasswordPage() {
     register,
     handleSubmit,
     formState: { errors },
-    watch,
-    getValues
+    watch
   } = useForm<ResetPasswordFormData>()
 
   const password = watch('password')

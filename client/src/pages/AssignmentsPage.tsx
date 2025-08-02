@@ -51,11 +51,12 @@ import {
   TaskAlt as TaskAltIcon,
   AccountBox as PackageIcon
 } from '@mui/icons-material'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { apiService } from '../services/api'
 import { API_ENDPOINTS, CarePackage, Carer, Task, CarerPackageAssignment, PackageTaskAssignment } from '@caretrack/shared'
 import { useAuth } from '../contexts/AuthContext'
+import { useSmartMutation } from '../hooks/useSmartMutation'
 
 // Extended types for assignments
 interface ExtendedCarePackage extends CarePackage {
@@ -88,7 +89,6 @@ function TabPanel(props: TabPanelProps) {
 const AssignmentsPage: React.FC = () => {
   const navigate = useNavigate()
   const { user } = useAuth()
-  const queryClient = useQueryClient()
 
   // State management
   const [selectedPackage, setSelectedPackage] = useState<ExtendedCarePackage | null>(null)
@@ -157,8 +157,8 @@ const AssignmentsPage: React.FC = () => {
   })
 
   // Assign multiple carers to package mutation
-  const assignCarersMutation = useMutation({
-    mutationFn: async ({ carerIds, packageId }: { carerIds: string[]; packageId: string }) => {
+  const assignCarersMutation = useSmartMutation<any, Error, { carerIds: string[]; packageId: string }>(
+    async ({ carerIds, packageId }: { carerIds: string[]; packageId: string }) => {
       const results = await Promise.allSettled(
         carerIds.map(carerId => 
           apiService.post(API_ENDPOINTS.ASSIGNMENTS.CARER_TO_PACKAGE, {
@@ -173,50 +173,54 @@ const AssignmentsPage: React.FC = () => {
       
       return { successful, failed, total: carerIds.length }
     },
-    onSuccess: (data: any) => {
-      queryClient.invalidateQueries({ queryKey: ['assignments'] })
-      queryClient.invalidateQueries({ queryKey: ['available-carers'] })
-      setCarerDialogOpen(false)
-      setSelectedCarerIds([])
-      setCarerSearchTerm('')
-      
-      if (data.failed === 0) {
-        showNotification(`${data.successful} carer(s) assigned successfully`, 'success')
-      } else {
+    {
+      mutationType: 'assignments.create',
+      customInvalidations: ['available-carers'],
+      onSuccess: (data: any) => {
+        setCarerDialogOpen(false)
+        setSelectedCarerIds([])
+        setCarerSearchTerm('')
+        
+        if (data.failed === 0) {
+          showNotification(`${data.successful} carer(s) assigned successfully`, 'success')
+        } else {
+          showNotification(
+            `${data.successful} carer(s) assigned successfully, ${data.failed} failed`, 
+            data.successful > 0 ? 'success' : 'error'
+          )
+        }
+      },
+      onError: (error: any) => {
         showNotification(
-          `${data.successful} carer(s) assigned successfully, ${data.failed} failed`, 
-          data.successful > 0 ? 'success' : 'error'
+          error.message || 'Failed to assign carers',
+          'error'
         )
       }
-    },
-    onError: (error: any) => {
-      showNotification(
-        error.message || 'Failed to assign carers',
-        'error'
-      )
     }
-  })
+  )
 
   // Remove carer from package mutation
-  const removeCarerMutation = useMutation({
-    mutationFn: async ({ carerId, packageId }: { carerId: string; packageId: string }) => {
+  const removeCarerMutation = useSmartMutation<any, Error, { carerId: string; packageId: string }>(
+    async ({ carerId, packageId }: { carerId: string; packageId: string }) => {
       return await apiService.delete(API_ENDPOINTS.ASSIGNMENTS.CARER_TO_PACKAGE, { carerId, packageId })
     },
-    onSuccess: (data: any) => {
-      queryClient.invalidateQueries({ queryKey: ['assignments'] })
-      showNotification(data.message || 'Carer removed successfully', 'success')
-    },
-    onError: (error: any) => {
-      showNotification(
-        error.message || 'Failed to remove carer',
-        'error'
-      )
+    {
+      mutationType: 'assignments.delete',
+      onSuccess: (data: any) => {
+        showNotification(data.message || 'Carer removed successfully', 'success')
+      },
+      onError: (error: any) => {
+        showNotification(
+          error.message || 'Failed to remove carer',
+          'error'
+        )
+      }
     }
-  })
+  )
 
   // Assign multiple tasks to package mutation
-  const assignTasksMutation = useMutation({
-    mutationFn: async ({ taskIds, packageId }: { taskIds: string[]; packageId: string }) => {
+  const assignTasksMutation = useSmartMutation<any, Error, { taskIds: string[]; packageId: string }>(
+    async ({ taskIds, packageId }: { taskIds: string[]; packageId: string }) => {
       const results = await Promise.allSettled(
         taskIds.map(taskId => 
           apiService.post(API_ENDPOINTS.ASSIGNMENTS.TASK_TO_PACKAGE, {
@@ -231,46 +235,50 @@ const AssignmentsPage: React.FC = () => {
       
       return { successful, failed, total: taskIds.length }
     },
-    onSuccess: (data: any) => {
-      queryClient.invalidateQueries({ queryKey: ['assignments'] })
-      queryClient.invalidateQueries({ queryKey: ['available-tasks'] })
-      setTaskDialogOpen(false)
-      setSelectedTaskIds([])
-      setTaskSearchTerm('')
-      
-      if (data.failed === 0) {
-        showNotification(`${data.successful} task(s) assigned successfully`, 'success')
-      } else {
+    {
+      mutationType: 'assignments.create',
+      customInvalidations: ['available-tasks'],
+      onSuccess: (data: any) => {
+        setTaskDialogOpen(false)
+        setSelectedTaskIds([])
+        setTaskSearchTerm('')
+        
+        if (data.failed === 0) {
+          showNotification(`${data.successful} task(s) assigned successfully`, 'success')
+        } else {
+          showNotification(
+            `${data.successful} task(s) assigned successfully, ${data.failed} failed`, 
+            data.successful > 0 ? 'success' : 'error'
+          )
+        }
+      },
+      onError: (error: any) => {
         showNotification(
-          `${data.successful} task(s) assigned successfully, ${data.failed} failed`, 
-          data.successful > 0 ? 'success' : 'error'
+          error.message || 'Failed to assign tasks',
+          'error'
         )
       }
-    },
-    onError: (error: any) => {
-      showNotification(
-        error.message || 'Failed to assign tasks',
-        'error'
-      )
     }
-  })
+  )
 
   // Remove task from package mutation
-  const removeTaskMutation = useMutation({
-    mutationFn: async ({ taskId, packageId }: { taskId: string; packageId: string }) => {
+  const removeTaskMutation = useSmartMutation<any, Error, { taskId: string; packageId: string }>(
+    async ({ taskId, packageId }: { taskId: string; packageId: string }) => {
       return await apiService.delete(API_ENDPOINTS.ASSIGNMENTS.TASK_TO_PACKAGE, { taskId, packageId })
     },
-    onSuccess: (data: any) => {
-      queryClient.invalidateQueries({ queryKey: ['assignments'] })
-      showNotification(data.message || 'Task removed successfully', 'success')
-    },
-    onError: (error: any) => {
-      showNotification(
-        error.message || 'Failed to remove task',
-        'error'
-      )
+    {
+      mutationType: 'assignments.delete',
+      onSuccess: (data: any) => {
+        showNotification(data.message || 'Task removed successfully', 'success')
+      },
+      onError: (error: any) => {
+        showNotification(
+          error.message || 'Failed to remove task',
+          'error'
+        )
+      }
     }
-  })
+  )
 
   // Filter packages
   const filteredPackages = useMemo(() => {

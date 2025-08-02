@@ -25,7 +25,6 @@ import {
   Select,
   MenuItem,
   Chip,
-  OutlinedInput,
   FormControlLabel,
   Checkbox,
   Divider,
@@ -52,7 +51,8 @@ import {
   Warning as WarningIcon
 } from '@mui/icons-material'
 import { useNavigate, useParams } from 'react-router-dom'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useQuery } from '@tanstack/react-query'
+import { useSmartMutation } from '../hooks/useSmartMutation'
 import { apiService } from '../services/api'
 import { API_ENDPOINTS, Task } from '@caretrack/shared'
 import { useAuth } from '../contexts/AuthContext'
@@ -141,7 +141,6 @@ const EditAssessmentPage: React.FC = () => {
   const navigate = useNavigate()
   const { id } = useParams<{ id: string }>()
   const { user } = useAuth()
-  const queryClient = useQueryClient()
   
   const [activeStep, setActiveStep] = useState(0)
   const [taskSearchTerm, setTaskSearchTerm] = useState('')
@@ -234,21 +233,23 @@ const EditAssessmentPage: React.FC = () => {
   }, [assessmentData])
 
   // Update assessment mutation
-  const updateAssessmentMutation = useMutation({
-    mutationFn: async (data: AssessmentFormData) => {
+  const updateAssessmentMutation = useSmartMutation<any, Error, AssessmentFormData>(
+    async (data: AssessmentFormData) => {
       if (!id) throw new Error('Assessment ID is required')
       return await apiService.patch(`${API_ENDPOINTS.ASSESSMENTS.UPDATE}/${id}`, data)
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['assessments'] })
-      queryClient.invalidateQueries({ queryKey: ['assessment', id] })
-      showNotification('Assessment updated successfully', 'success')
-      setTimeout(() => navigate('/assessments'), 1500)
-    },
-    onError: (error: any) => {
-      showNotification(error.message || 'Failed to update assessment', 'error')
+    {
+      mutationType: 'assessments.update',
+      customInvalidations: [`assessment-${id}`], // Invalidate specific assessment
+      onSuccess: () => {
+        showNotification('Assessment updated successfully', 'success')
+        setTimeout(() => navigate('/assessments'), 1500)
+      },
+      onError: (error: any) => {
+        showNotification(error.message || 'Failed to update assessment', 'error')
+      }
     }
-  })
+  )
 
   const handleNext = () => {
     setActiveStep(prev => prev + 1)

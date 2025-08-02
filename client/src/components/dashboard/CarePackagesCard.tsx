@@ -37,9 +37,10 @@ import {
   Group as GroupIcon,
   Assignment as AssignmentIcon
 } from '@mui/icons-material';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { apiService } from '../../services/api';
 import { API_ENDPOINTS } from '@caretrack/shared';
+import { useSmartMutation } from '../../hooks/useSmartMutation';
 
 interface CarePackage {
   id: string;
@@ -84,7 +85,6 @@ const CarePackagesCard: React.FC = () => {
     severity: 'success'
   });
 
-  const queryClient = useQueryClient();
 
   // Helper function to show notifications
   const showNotification = (message: string, severity: 'success' | 'error') => {
@@ -116,80 +116,79 @@ const CarePackagesCard: React.FC = () => {
   });
 
   // Create package mutation
-  const createPackageMutation = useMutation({
-    mutationFn: async (packageData: PackageFormData) => {
+  const createPackageMutation = useSmartMutation<any, Error, PackageFormData>(
+    async (packageData: PackageFormData) => {
       console.log('🚀 Creating care package:', packageData);
       const result = await apiService.post(API_ENDPOINTS.CARE_PACKAGES.CREATE, packageData);
       console.log('✅ Package created:', result);
       return result;
     },
-    onSuccess: (data) => {
-      console.log('🔄 Invalidating cache after successful creation', data);
-      // Invalidate all care-packages queries regardless of search term
-      queryClient.invalidateQueries({ 
-        predicate: (query) => query.queryKey[0] === 'care-packages'
-      });
-      setDialogOpen(false);
-      resetForm();
-      showNotification('✅ Care package created successfully!', 'success');
-    },
-    onError: (error: any) => {
-      console.error('❌ Failed to create care package:', error);
-      console.error('❌ Error details:', {
-        message: error.message,
-        response: error.response,
-        request: error.request
-      });
-      const errorMessage = error.response?.data?.message || error.message || 'Failed to create care package';
-      showNotification(`❌ ${errorMessage}`, 'error');
+    {
+      mutationType: 'packages.create',
+      onSuccess: (data) => {
+        console.log('🔄 Smart invalidation after successful creation', data);
+        setDialogOpen(false);
+        resetForm();
+        showNotification('✅ Care package created successfully!', 'success');
+      },
+      onError: (error: any) => {
+        console.error('❌ Failed to create care package:', error);
+        console.error('❌ Error details:', {
+          message: error.message,
+          response: error.response,
+          request: error.request
+        });
+        const errorMessage = error.response?.data?.message || error.message || 'Failed to create care package';
+        showNotification(`❌ ${errorMessage}`, 'error');
+      }
     }
-  });
+  );
 
   // Update package mutation
-  const updatePackageMutation = useMutation({
-    mutationFn: async ({ id, packageData }: { id: string; packageData: Partial<PackageFormData> }) => {
+  const updatePackageMutation = useSmartMutation<any, Error, { id: string; packageData: Partial<PackageFormData> }>(
+    async ({ id, packageData }: { id: string; packageData: Partial<PackageFormData> }) => {
       return await apiService.put(`${API_ENDPOINTS.CARE_PACKAGES.UPDATE}/${id}`, packageData);
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ 
-        predicate: (query) => query.queryKey[0] === 'care-packages'
-      });
-      setDialogOpen(false);
-      resetForm();
-      showNotification('✅ Care package updated successfully!', 'success');
-    },
-    onError: (error: any) => {
-      console.error('Failed to update care package:', error);
-      const errorMessage = error.response?.data?.message || 'Failed to update care package';
-      showNotification(`❌ ${errorMessage}`, 'error');
+    {
+      mutationType: 'packages.update',
+      onSuccess: () => {
+        setDialogOpen(false);
+        resetForm();
+        showNotification('✅ Care package updated successfully!', 'success');
+      },
+      onError: (error: any) => {
+        console.error('Failed to update care package:', error);
+        const errorMessage = error.response?.data?.message || 'Failed to update care package';
+        showNotification(`❌ ${errorMessage}`, 'error');
+      }
     }
-  });
+  );
 
   // Delete package mutation
-  const deletePackageMutation = useMutation({
-    mutationFn: async (id: string) => {
+  const deletePackageMutation = useSmartMutation<any, Error, string>(
+    async (id: string) => {
       return await apiService.delete(`${API_ENDPOINTS.CARE_PACKAGES.DELETE}/${id}`);
     },
-    onSuccess: (data: any) => {
-      queryClient.invalidateQueries({ 
-        predicate: (query) => query.queryKey[0] === 'care-packages'
-      });
-      handleMenuClose();
-      
-      // Show warnings if any
-      const warnings = data?.warnings;
-      if (warnings && warnings.length > 0) {
-        showNotification(`✅ Care package deleted. Note: ${warnings.join(', ')}`, 'success');
-      } else {
-        showNotification('✅ Care package deleted successfully!', 'success');
+    {
+      mutationType: 'packages.delete',
+      onSuccess: (data: any) => {
+        handleMenuClose();
+        
+        // Show warnings if any
+        const warnings = data?.warnings;
+        if (warnings && warnings.length > 0) {
+          showNotification(`✅ Care package deleted. Note: ${warnings.join(', ')}`, 'success');
+        } else {
+          showNotification('✅ Care package deleted successfully!', 'success');
+        }
+      },
+      onError: (error: any) => {
+        console.error('Failed to delete care package:', error);
+        const errorMessage = error.response?.data?.message || 'Failed to delete care package';
+        showNotification(`❌ ${errorMessage}`, 'error');
       }
-    },
-    onError: (error: any) => {
-      console.error('Failed to delete care package:', error);
-      const errorMessage = error.response?.data?.message || 'Failed to delete care package';
-      showNotification(`❌ ${errorMessage}`, 'error');
     }
-  });
+  );
 
   const resetForm = () => {
     setFormData({

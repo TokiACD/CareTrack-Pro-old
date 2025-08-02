@@ -25,7 +25,6 @@ import {
   Select,
   MenuItem,
   Chip,
-  OutlinedInput,
   FormControlLabel,
   Checkbox,
   Divider,
@@ -55,7 +54,8 @@ import {
   ExpandMore as ExpandMoreIcon
 } from '@mui/icons-material'
 import { useNavigate } from 'react-router-dom'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useQuery } from '@tanstack/react-query'
+import { useSmartMutation } from '../hooks/useSmartMutation'
 import { apiService } from '../services/api'
 import { API_ENDPOINTS, Task } from '@caretrack/shared'
 import { useAuth } from '../contexts/AuthContext'
@@ -143,7 +143,6 @@ const TaskItem: React.FC<{
 const CreateAssessmentPage: React.FC = () => {
   const navigate = useNavigate()
   const { user } = useAuth()
-  const queryClient = useQueryClient()
   
   const [activeStep, setActiveStep] = useState(0)
   const [taskSearchTerm, setTaskSearchTerm] = useState('')
@@ -201,19 +200,21 @@ const CreateAssessmentPage: React.FC = () => {
   })
 
   // Create assessment mutation
-  const createAssessmentMutation = useMutation({
-    mutationFn: async (data: AssessmentFormData) => {
+  const createAssessmentMutation = useSmartMutation<any, Error, AssessmentFormData>(
+    async (data: AssessmentFormData) => {
       return await apiService.post(API_ENDPOINTS.ASSESSMENTS.CREATE, data)
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['assessments'] })
-      showNotification('Assessment created successfully', 'success')
-      setTimeout(() => navigate('/assessments'), 1500)
-    },
-    onError: (error: any) => {
-      showNotification(error.message || 'Failed to create assessment', 'error')
+    {
+      mutationType: 'assessments.create',
+      onSuccess: () => {
+        showNotification('Assessment created successfully', 'success')
+        setTimeout(() => navigate('/assessments'), 1500)
+      },
+      onError: (error: any) => {
+        showNotification(error.message || 'Failed to create assessment', 'error')
+      }
     }
-  })
+  )
 
   const handleNext = () => {
     setActiveStep(prev => prev + 1)
@@ -234,15 +235,15 @@ const CreateAssessmentPage: React.FC = () => {
   }
 
   // Accordion handlers
-  const handleKnowledgeAccordionChange = (panel: string) => (event: React.SyntheticEvent, isExpanded: boolean) => {
+  const handleKnowledgeAccordionChange = (panel: string) => (_event: React.SyntheticEvent, isExpanded: boolean) => {
     setExpandedKnowledge(isExpanded ? panel : false)
   }
 
-  const handlePracticalAccordionChange = (panel: string) => (event: React.SyntheticEvent, isExpanded: boolean) => {
+  const handlePracticalAccordionChange = (panel: string) => (_event: React.SyntheticEvent, isExpanded: boolean) => {
     setExpandedPractical(isExpanded ? panel : false)
   }
 
-  const handleEmergencyAccordionChange = (panel: string) => (event: React.SyntheticEvent, isExpanded: boolean) => {
+  const handleEmergencyAccordionChange = (panel: string) => (_event: React.SyntheticEvent, isExpanded: boolean) => {
     setExpandedEmergency(isExpanded ? panel : false)
   }
 

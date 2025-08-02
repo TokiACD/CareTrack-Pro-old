@@ -31,7 +31,6 @@ import {
   Toolbar,
   Breadcrumbs,
   Link,
-  Tooltip,
 } from '@mui/material'
 import {
   Search as SearchIcon,
@@ -44,28 +43,22 @@ import {
   ArrowBack as ArrowBackIcon,
   Home as HomeIcon
 } from '@mui/icons-material'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { apiService } from '../services/api'
 import { API_ENDPOINTS, Task } from '@caretrack/shared'
 import { useAuth } from '../contexts/AuthContext'
+import { useSmartMutation } from '../hooks/useSmartMutation'
 
 interface TaskFormData {
   name: string
   targetCount: number
 }
 
-interface TaskUsage {
-  packageCount: number
-  competencyRatingCount: number
-  assessmentCount: number
-  progressRecordCount: number
-}
 
 const TasksPage: React.FC = () => {
   const navigate = useNavigate()
   const { user } = useAuth()
-  const queryClient = useQueryClient()
 
   // State management
   const [searchTerm, setSearchTerm] = useState('')
@@ -105,83 +98,90 @@ const TasksPage: React.FC = () => {
   }
 
   // Fetch tasks (only active tasks, deleted ones managed via Recycle Bin)
-  const { data: tasksData, isLoading, error } = useQuery({
+  const { data: tasksData, isLoading, error } = useQuery<{ data: Task[] }>({
     queryKey: ['tasks', searchTerm],
-    queryFn: async () => {
+    queryFn: async (): Promise<{ data: Task[] }> => {
       const params = new URLSearchParams()
       if (searchTerm) params.append('search', searchTerm)
       
       const response = await apiService.get(`${API_ENDPOINTS.TASKS.LIST}?${params}`)
-      return response
+      return response as { data: Task[] }
     }
   })
 
   // Fetch task usage
-  const { data: taskUsage } = useQuery({
+  const { data: taskUsage } = useQuery<{ data: { packageCount: number; assessmentCount: number; competencyRatingCount: number; progressRecordCount: number } } | null>({
     queryKey: ['task-usage', selectedTask?.id],
     queryFn: async () => {
       if (!selectedTask?.id) return null
-      return await apiService.get(`${API_ENDPOINTS.TASKS.LIST}/${selectedTask.id}/usage`)
+      const response = await apiService.get(`${API_ENDPOINTS.TASKS.LIST}/${selectedTask.id}/usage`)
+      return response as { data: { packageCount: number; assessmentCount: number; competencyRatingCount: number; progressRecordCount: number } }
     },
     enabled: !!selectedTask?.id && usageDialogOpen
   })
 
   // Create task mutation
-  const createTaskMutation = useMutation({
-    mutationFn: async (data: TaskFormData) => {
+  const createTaskMutation = useSmartMutation<any, Error, TaskFormData>(
+    async (data: TaskFormData) => {
       return await apiService.post(API_ENDPOINTS.TASKS.CREATE, data)
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['tasks'] })
-      setDialogOpen(false)
-      resetForm()
-      showNotification('Task created successfully', 'success')
-    },
-    onError: (error: any) => {
-      showNotification(
-        error.message || 'Failed to create task',
-        'error'
-      )
+    {
+      mutationType: 'tasks.create',
+      onSuccess: () => {
+        setDialogOpen(false)
+        resetForm()
+        showNotification('Task created successfully', 'success')
+      },
+      onError: (error: any) => {
+        showNotification(
+          error.message || 'Failed to create task',
+          'error'
+        )
+      }
     }
-  })
+  )
 
   // Update task mutation
-  const updateTaskMutation = useMutation({
-    mutationFn: async ({ id, data }: { id: string; data: Partial<TaskFormData> }) => {
+  const updateTaskMutation = useSmartMutation<any, Error, { id: string; data: Partial<TaskFormData> }>(
+    async ({ id, data }: { id: string; data: Partial<TaskFormData> }) => {
       return await apiService.put(`${API_ENDPOINTS.TASKS.UPDATE}/${id}`, data)
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['tasks'] })
-      setDialogOpen(false)
-      setEditingTask(null)
-      resetForm()
-      showNotification('Task updated successfully', 'success')
-    },
-    onError: (error: any) => {
-      showNotification(
-        error.message || 'Failed to update task',
-        'error'
-      )
+    {
+      mutationType: 'tasks.update',
+      onSuccess: () => {
+        setDialogOpen(false)
+        setEditingTask(null)
+        resetForm()
+        showNotification('Task updated successfully', 'success')
+      },
+      onError: (error: any) => {
+        showNotification(
+          error.message || 'Failed to update task',
+          'error'
+        )
+      }
     }
-  })
+  )
 
   // Delete task mutation
-  const deleteTaskMutation = useMutation({
-    mutationFn: async (id: string) => {
+  const deleteTaskMutation = useSmartMutation<any, Error, string>(
+    async (id: string) => {
       return await apiService.delete(`${API_ENDPOINTS.TASKS.DELETE}/${id}`)
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['tasks'] })
-      handleMenuClose()
-      showNotification('Task deleted successfully', 'success')
-    },
-    onError: (error: any) => {
-      showNotification(
-        error.message || 'Failed to delete task',
-        'error'
-      )
+    {
+      mutationType: 'tasks.delete',
+      onSuccess: () => {
+        handleMenuClose()
+        showNotification('Task deleted successfully', 'success')
+      },
+      onError: (error: any) => {
+        showNotification(
+          error.message || 'Failed to delete task',
+          'error'
+        )
+      }
     }
-  })
+  )
 
 
   // Form handlers
@@ -255,8 +255,8 @@ const TasksPage: React.FC = () => {
 
   // Filter tasks
   const filteredTasks = useMemo(() => {
-    if (!tasksData) return []
-    return tasksData
+    if (!tasksData?.data) return []
+    return tasksData.data
   }, [tasksData])
 
   // Form validation
@@ -497,25 +497,25 @@ const TasksPage: React.FC = () => {
               <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 2, mb: 3 }}>
                 <Box sx={{ textAlign: 'center', p: 2, bgcolor: 'action.hover', borderRadius: 1 }}>
                   <Typography variant="h4" color="primary">
-                    {taskUsage.summary?.packageCount || 0}
+                    {taskUsage?.data?.packageCount || 0}
                   </Typography>
                   <Typography variant="body2">Packages</Typography>
                 </Box>
                 <Box sx={{ textAlign: 'center', p: 2, bgcolor: 'action.hover', borderRadius: 1 }}>
                   <Typography variant="h4" color="primary">
-                    {taskUsage.summary?.assessmentCount || 0}
+                    {taskUsage?.data?.assessmentCount || 0}
                   </Typography>
                   <Typography variant="body2">Assessments</Typography>
                 </Box>
                 <Box sx={{ textAlign: 'center', p: 2, bgcolor: 'action.hover', borderRadius: 1 }}>
                   <Typography variant="h4" color="primary">
-                    {taskUsage.summary?.competencyRatingCount || 0}
+                    {taskUsage?.data?.competencyRatingCount || 0}
                   </Typography>
                   <Typography variant="body2">Competency Ratings</Typography>
                 </Box>
                 <Box sx={{ textAlign: 'center', p: 2, bgcolor: 'action.hover', borderRadius: 1 }}>
                   <Typography variant="h4" color="primary">
-                    {taskUsage.summary?.progressRecordCount || 0}
+                    {taskUsage?.data?.progressRecordCount || 0}
                   </Typography>
                   <Typography variant="body2">Progress Records</Typography>
                 </Box>

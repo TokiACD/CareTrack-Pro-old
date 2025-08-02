@@ -54,11 +54,12 @@ import {
   LocalHospital as EmergencyIcon,
   CheckCircle as CheckCircleIcon
 } from '@mui/icons-material'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { apiService } from '../services/api'
 import { API_ENDPOINTS, CompetencyLevel } from '@caretrack/shared'
 import { useAuth } from '../contexts/AuthContext'
+import { useSmartMutation } from '../hooks/useSmartMutation'
 
 // Extended assessment interface with relations
 interface ExtendedAssessment {
@@ -137,7 +138,6 @@ function TabPanel(props: TabPanelProps) {
 const AssessmentsPage: React.FC = () => {
   const navigate = useNavigate()
   const { user } = useAuth()
-  const queryClient = useQueryClient()
 
   // State management
   const [selectedAssessment, setSelectedAssessment] = useState<ExtendedAssessment | null>(null)
@@ -180,26 +180,28 @@ const AssessmentsPage: React.FC = () => {
   })
 
   // Delete assessment mutation
-  const deleteAssessmentMutation = useMutation({
-    mutationFn: async (assessmentId: string) => {
+  const deleteAssessmentMutation = useSmartMutation<any, Error, string>(
+    async (assessmentId: string) => {
       return await apiService.delete(`${API_ENDPOINTS.ASSESSMENTS.DELETE}/${assessmentId}`)
     },
-    onSuccess: (data: any) => {
-      queryClient.invalidateQueries({ queryKey: ['assessments'] })
-      setDeleteDialogOpen(false)
-      setAssessmentToDelete(null)
-      if (selectedAssessment && selectedAssessment.id === assessmentToDelete?.id) {
-        setSelectedAssessment(null)
+    {
+      mutationType: 'assessments.delete',
+      onSuccess: (data: any) => {
+        setDeleteDialogOpen(false)
+        setAssessmentToDelete(null)
+        if (selectedAssessment && selectedAssessment.id === assessmentToDelete?.id) {
+          setSelectedAssessment(null)
+        }
+        showNotification(data.message || 'Assessment deleted successfully', 'success')
+      },
+      onError: (error: any) => {
+        showNotification(
+          error.message || 'Failed to delete assessment',
+          'error'
+        )
       }
-      showNotification(data.message || 'Assessment deleted successfully', 'success')
-    },
-    onError: (error: any) => {
-      showNotification(
-        error.message || 'Failed to delete assessment',
-        'error'
-      )
     }
-  })
+  )
 
   // Filter assessments
   const filteredAssessments = useMemo(() => {

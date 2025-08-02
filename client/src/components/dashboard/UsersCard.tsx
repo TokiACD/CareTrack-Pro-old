@@ -45,11 +45,12 @@ import {
   Refresh as RefreshIcon,
   Cancel as CancelIcon
 } from '@mui/icons-material';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiService } from '../../services/api';
 import { API_ENDPOINTS } from '@caretrack/shared';
 import EmailChangeDialog from '../profile/EmailChangeDialog';
 import { useAuth } from '../../contexts/AuthContext';
+import { useSmartMutation } from '../../hooks/useSmartMutation';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -281,8 +282,8 @@ const UsersCard: React.FC = () => {
   });
 
   // Send invitation mutation
-  const sendInvitationMutation = useMutation({
-    mutationFn: async (userData: UserFormData) => {
+  const sendInvitationMutation = useSmartMutation<any, Error, UserFormData>(
+    async (userData: UserFormData) => {
       const endpoint = userType === 'admin' ? API_ENDPOINTS.INVITATIONS.SEND_ADMIN : API_ENDPOINTS.INVITATIONS.SEND_CARER;
       
       if (userType === 'admin') {
@@ -297,93 +298,99 @@ const UsersCard: React.FC = () => {
         });
       }
     },
-    onSuccess: () => {
-      // Invalidate both users and invitations queries including the pending count
-      queryClient.invalidateQueries({ 
-        predicate: (query) => query.queryKey[0] === 'users' || query.queryKey[0] === 'invitations' || query.queryKey[0] === 'invitations-pending-count'
-      });
-      setDialogOpen(false);
-      resetForm();
-      showNotification(`✅ ${userType === 'admin' ? 'Admin' : 'Carer'} invitation sent successfully!`, 'success');
-    },
-    onError: (error) => {
-      console.error('Failed to send invitation:', error);
-      showNotification(`❌ Failed to send invitation: ${error.message}`, 'error');
+    {
+      mutationType: 'invitations.create',
+      customInvalidations: ['invitations-pending-count'], // Add custom query for pending count
+      onSuccess: () => {
+        setDialogOpen(false);
+        resetForm();
+        showNotification(`✅ ${userType === 'admin' ? 'Admin' : 'Carer'} invitation sent successfully!`, 'success');
+      },
+      onError: (error) => {
+        console.error('Failed to send invitation:', error);
+        showNotification(`❌ Failed to send invitation: ${error.message}`, 'error');
+      }
     }
-  });
+  );
 
   // Update user mutation
-  const updateUserMutation = useMutation({
-    mutationFn: async ({ id, userData }: { id: string; userData: Partial<UserFormData> }) => {
+  const updateUserMutation = useSmartMutation<any, Error, { id: string; userData: Partial<UserFormData> }>(
+    async ({ id, userData }: { id: string; userData: Partial<UserFormData> }) => {
       const endpoint = userType === 'admin' 
         ? `${API_ENDPOINTS.USERS.UPDATE_ADMIN}/${id}`
         : `${API_ENDPOINTS.USERS.UPDATE_CARER}/${id}`;
       return await apiService.put(endpoint, userData);
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['users'] });
-      setDialogOpen(false);
-      resetForm();
-      showNotification(`✅ ${userType === 'admin' ? 'Admin' : 'Carer'} updated successfully!`, 'success');
-    },
-    onError: (error) => {
-      console.error('Failed to update user:', error);
-      showNotification(`❌ Failed to update user: ${error.message}`, 'error');
+    {
+      mutationType: 'users.update',
+      onSuccess: () => {
+        setDialogOpen(false);
+        resetForm();
+        showNotification(`✅ ${userType === 'admin' ? 'Admin' : 'Carer'} updated successfully!`, 'success');
+      },
+      onError: (error) => {
+        console.error('Failed to update user:', error);
+        showNotification(`❌ Failed to update user: ${error.message}`, 'error');
+      }
     }
-  });
+  );
 
   // Delete user mutation
-  const deleteUserMutation = useMutation({
-    mutationFn: async (id: string) => {
+  const deleteUserMutation = useSmartMutation<any, Error, string>(
+    async (id: string) => {
       const endpoint = userType === 'admin'
         ? `${API_ENDPOINTS.USERS.DELETE_ADMIN}/${id}`
         : `${API_ENDPOINTS.USERS.DELETE_CARER}/${id}`;
       return await apiService.delete(endpoint);
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['users'] });
-      handleMenuClose();
-      showNotification(`✅ ${userType === 'admin' ? 'Admin' : 'Carer'} deleted successfully!`, 'success');
-    },
-    onError: (error) => {
-      console.error('Failed to delete user:', error);
-      showNotification(`❌ Failed to delete user: ${error.message}`, 'error');
+    {
+      mutationType: 'users.delete',
+      onSuccess: () => {
+        handleMenuClose();
+        showNotification(`✅ ${userType === 'admin' ? 'Admin' : 'Carer'} deleted successfully!`, 'success');
+      },
+      onError: (error) => {
+        console.error('Failed to delete user:', error);
+        showNotification(`❌ Failed to delete user: ${error.message}`, 'error');
+      }
     }
-  });
+  );
 
   // Resend invitation mutation
-  const resendInvitationMutation = useMutation({
-    mutationFn: async (invitationId: string) => {
+  const resendInvitationMutation = useSmartMutation<any, Error, string>(
+    async (invitationId: string) => {
       return await apiService.post(`${API_ENDPOINTS.INVITATIONS.RESEND}/${invitationId}`);
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ 
-        predicate: (query) => query.queryKey[0] === 'invitations' || query.queryKey[0] === 'invitations-pending-count'
-      });
-      showNotification('✅ Invitation resent successfully!', 'success');
-    },
-    onError: (error) => {
-      console.error('Failed to resend invitation:', error);
-      showNotification(`❌ Failed to resend invitation: ${error.message}`, 'error');
+    {
+      mutationType: 'invitations.resend',
+      customInvalidations: ['invitations-pending-count'],
+      onSuccess: () => {
+        showNotification('✅ Invitation resent successfully!', 'success');
+      },
+      onError: (error) => {
+        console.error('Failed to resend invitation:', error);
+        showNotification(`❌ Failed to resend invitation: ${error.message}`, 'error');
+      }
     }
-  });
+  );
 
   // Cancel invitation mutation
-  const cancelInvitationMutation = useMutation({
-    mutationFn: async (invitationId: string) => {
+  const cancelInvitationMutation = useSmartMutation<any, Error, string>(
+    async (invitationId: string) => {
       return await apiService.delete(`${API_ENDPOINTS.INVITATIONS.DELETE}/${invitationId}`);
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ 
-        predicate: (query) => query.queryKey[0] === 'invitations' || query.queryKey[0] === 'invitations-pending-count'
-      });
-      showNotification('✅ Invitation cancelled successfully!', 'success');
-    },
-    onError: (error) => {
-      console.error('Failed to cancel invitation:', error);
-      showNotification(`❌ Failed to cancel invitation: ${error.message}`, 'error');
+    {
+      mutationType: 'invitations.delete',
+      customInvalidations: ['invitations-pending-count'],
+      onSuccess: () => {
+        showNotification('✅ Invitation cancelled successfully!', 'success');
+      },
+      onError: (error) => {
+        console.error('Failed to cancel invitation:', error);
+        showNotification(`❌ Failed to cancel invitation: ${error.message}`, 'error');
+      }
     }
-  });
+  );
 
   const resetForm = () => {
     setFormData({
