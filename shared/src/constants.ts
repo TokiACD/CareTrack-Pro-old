@@ -115,6 +115,12 @@ export const API_ENDPOINTS = {
   },
   DASHBOARD: {
     SUMMARY: '/api/dashboard/summary'
+  },
+  EMAIL_CHANGE: {
+    REQUEST: '/api/email-change/request',
+    VERIFY: '/api/email-change/verify',
+    CANCEL: '/api/email-change/cancel',
+    DETAILS: '/api/email-change/details'
   }
 } as const;
 

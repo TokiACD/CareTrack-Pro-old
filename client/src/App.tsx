@@ -13,6 +13,7 @@ import AssignmentsPage from './pages/AssignmentsPage'
 import AssessmentsPage from './pages/AssessmentsPage'
 import CreateAssessmentPage from './pages/CreateAssessmentPage'
 import EditAssessmentPage from './pages/EditAssessmentPage'
+import EmailChangeVerification from './pages/EmailChangeVerification'
 import { ProtectedRoute } from './components/auth/ProtectedRoute'
 
 function App() {
@@ -35,6 +36,14 @@ function App() {
         <Route 
           path="/invitation/accept" 
           element={<AcceptInvitationPage />} 
+        />
+        <Route 
+          path="/email-change/verify" 
+          element={<EmailChangeVerification />} 
+        />
+        <Route 
+          path="/email-change/cancel" 
+          element={<EmailChangeVerification />} 
         />
         <Route 
           path="/forgot-password" 

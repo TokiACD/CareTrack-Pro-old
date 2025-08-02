@@ -24,6 +24,7 @@ import { rotaRoutes } from './routes/rotaRoutes'
 import { recycleBinRoutes } from './routes/recycleBinRoutes'
 import { auditRoutes } from './routes/auditRoutes'
 import { dashboardRoutes } from './routes/dashboardRoutes'
+import { emailChangeRoutes } from './routes/emailChangeRoutes'
 
 // Initialize Prisma Client
 export const prisma = new PrismaClient({
@@ -117,6 +118,7 @@ app.use('/api/rota', rotaRoutes)
 app.use('/api/recycle-bin', recycleBinRoutes)
 app.use('/api/audit', auditRoutes)
 app.use('/api/dashboard', dashboardRoutes)
+app.use('/api/email-change', emailChangeRoutes)
 
 // Serve frontend static files in production
 if (NODE_ENV === 'production') {

@@ -13,8 +13,7 @@ interface AdminInvitationData {
 
 interface CarerInvitationData {
   to: string
-  firstName: string
-  lastName: string
+  carerName: string
   invitedByName: string
   invitationToken: string
   acceptUrl: string
@@ -25,6 +24,25 @@ interface PasswordResetData {
   to: string
   name: string
   resetUrl: string
+}
+
+interface EmailChangeNotificationData {
+  to: string
+  name: string
+  newEmail: string
+  cancelUrl: string
+  initiatedByAdmin?: string
+  isAdminChange?: boolean
+}
+
+interface EmailChangeVerificationData {
+  to: string
+  name: string
+  oldEmail: string
+  verifyUrl: string
+  expiresAt: Date
+  initiatedByAdmin?: string
+  isAdminChange?: boolean
 }
 
 class EmailService {
@@ -76,7 +94,7 @@ class EmailService {
   }
 
   async sendCarerInvitation(data: CarerInvitationData): Promise<void> {
-    const { to, firstName, lastName, invitedByName, acceptUrl, expiresAt } = data
+    const { to, carerName, invitedByName, acceptUrl, expiresAt } = data
 
     const mailData = {
       from: process.env.SMTP_FROM || 'CareTrack Pro <noreply@caretrack.com>',
@@ -102,6 +120,42 @@ class EmailService {
       subject: '🔐 CareTrack Pro - Password Reset Request',
       html: this.getPasswordResetHTML(data),
       text: this.getPasswordResetText(data),
+    }
+
+    if (this.useSendGrid) {
+      await sgMail.send(mailData)
+    } else {
+      await this.transporter!.sendMail(mailData)
+    }
+  }
+
+  async sendEmailChangeNotification(data: EmailChangeNotificationData): Promise<void> {
+    const { to, name, newEmail, cancelUrl } = data
+
+    const mailData = {
+      from: process.env.SMTP_FROM || 'CareTrack Pro <noreply@caretrack.com>',
+      to,
+      subject: '⚠️ CareTrack Pro - Email Change Request',
+      html: this.getEmailChangeNotificationHTML(data),
+      text: this.getEmailChangeNotificationText(data),
+    }
+
+    if (this.useSendGrid) {
+      await sgMail.send(mailData)
+    } else {
+      await this.transporter!.sendMail(mailData)
+    }
+  }
+
+  async sendEmailChangeVerification(data: EmailChangeVerificationData): Promise<void> {
+    const { to, name, oldEmail, verifyUrl, expiresAt } = data
+
+    const mailData = {
+      from: process.env.SMTP_FROM || 'CareTrack Pro <noreply@caretrack.com>',
+      to,
+      subject: '✅ CareTrack Pro - Verify Email Change',
+      html: this.getEmailChangeVerificationHTML(data),
+      text: this.getEmailChangeVerificationText(data),
     }
 
     if (this.useSendGrid) {
@@ -184,7 +238,7 @@ class EmailService {
   }
 
   private getCarerInvitationHTML(data: CarerInvitationData): string {
-    const { firstName, lastName, invitedByName, acceptUrl, expiresAt } = data
+    const { carerName, invitedByName, acceptUrl, expiresAt } = data
     const expiryDate = expiresAt.toLocaleDateString('en-GB', { 
       weekday: 'long', 
       year: 'numeric', 
@@ -210,7 +264,7 @@ class EmailService {
         </div>
         
         <div class="content">
-          <h2>Welcome to CareTrack Pro, ${firstName} ${lastName}!</h2>
+          <h2>Welcome to CareTrack Pro, ${carerName}!</h2>
           
           <p>You have been invited by <strong>${invitedByName}</strong> to join CareTrack Pro as a carer.</p>
           
@@ -398,11 +452,11 @@ class EmailService {
   }
 
   private getCarerInvitationText(data: CarerInvitationData): string {
-    const { firstName, lastName, invitedByName, acceptUrl, expiresAt } = data
+    const { carerName, invitedByName, acceptUrl, expiresAt } = data
     const expiryDate = expiresAt.toLocaleDateString('en-GB')
     
     return `
-      Welcome to CareTrack Pro, ${firstName} ${lastName}!
+      Welcome to CareTrack Pro, ${carerName}!
       
       You have been invited by ${invitedByName} to join CareTrack Pro as a carer.
       
@@ -502,6 +556,189 @@ class EmailService {
       Security Note: For your protection, this link can only be used once and will expire shortly.
       
       If you continue to have trouble accessing your account, please contact your system administrator.
+      
+      © ${new Date().getFullYear()} CareTrack Pro. All rights reserved.
+    `
+  }
+
+  private getEmailChangeNotificationHTML(data: EmailChangeNotificationData): string {
+    const { name, newEmail, cancelUrl, initiatedByAdmin, isAdminChange } = data
+
+    return `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>CareTrack Pro - Email Change Request</title>
+        ${this.getEmailStyles()}
+      </head>
+      <body>
+        <div class="header">
+          <h1>🏥 CareTrack Pro</h1>
+          <p>Care Management System</p>
+        </div>
+        
+        <div class="content">
+          <h2>Email Change Request</h2>
+          
+          <p>Hello ${name},</p>
+          
+          <p>${isAdminChange ? `<strong>${initiatedByAdmin}</strong> has requested` : 'We received a request'} to change your email address to <strong>${newEmail}</strong>.</p>
+          
+          <div class="warning">
+            <h4>⚠️ Security Alert</h4>
+            <p>If you did not request this email change, please take immediate action to secure your account.</p>
+          </div>
+          
+          <div class="invitation-box">
+            <h3>🔐 What Happens Next</h3>
+            <p>A verification email has been sent to <strong>${newEmail}</strong>. The email change will only be completed after the new email address is verified.</p>
+            <p>If you did not request this change, click the button below to cancel it immediately:</p>
+            <a href="${cancelUrl}" class="button" style="background: linear-gradient(135deg, #d32f2f 0%, #b71c1c 100%);">Cancel Email Change</a>
+          </div>
+          
+          <h3>🛡️ Security Tips:</h3>
+          <ul>
+            <li><strong>Check your account:</strong> Review recent login activity</li>
+            <li><strong>Update your password:</strong> If you suspect unauthorized access</li>
+            <li><strong>Contact support:</strong> If you need immediate assistance</li>
+          </ul>
+          
+          <p>This email change request will expire automatically if not verified within 24 hours.</p>
+        </div>
+        
+        <div class="footer">
+          <p>This email was sent by CareTrack Pro Care Management System</p>
+          <p>© ${new Date().getFullYear()} CareTrack Pro. All rights reserved.</p>
+        </div>
+      </body>
+      </html>
+    `
+  }
+
+  private getEmailChangeVerificationHTML(data: EmailChangeVerificationData): string {
+    const { name, oldEmail, verifyUrl, expiresAt, initiatedByAdmin, isAdminChange } = data
+    const expiryDate = expiresAt.toLocaleDateString('en-GB', { 
+      weekday: 'long', 
+      year: 'numeric', 
+      month: 'long', 
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    })
+
+    return `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>CareTrack Pro - Verify Email Change</title>
+        ${this.getEmailStyles()}
+      </head>
+      <body>
+        <div class="header">
+          <h1>🏥 CareTrack Pro</h1>
+          <p>Care Management System</p>
+        </div>
+        
+        <div class="content">
+          <h2>Verify Your New Email Address</h2>
+          
+          <p>Hello ${name},</p>
+          
+          <p>${isAdminChange ? `${initiatedByAdmin} has requested` : 'You requested'} to change your email address from <strong>${oldEmail}</strong> to this email address.</p>
+          
+          <div class="invitation-box">
+            <h3>✅ Complete Email Change</h3>
+            <p>Click the button below to verify this email address and complete the change:</p>
+            <a href="${verifyUrl}" class="button">Verify Email Change</a>
+          </div>
+          
+          <div class="warning">
+            <h4>⏰ Important</h4>
+            <p>This verification link expires on <strong>${expiryDate}</strong>. Please verify before then.</p>
+            <p>If you did not request this email change, you can safely ignore this email or contact support.</p>
+          </div>
+          
+          <p>If the button doesn't work, copy and paste this link into your browser:</p>
+          <div class="url-box">
+            <a href="${verifyUrl}">${verifyUrl}</a>
+          </div>
+          
+          <h3>🔒 What This Means:</h3>
+          <ul>
+            <li><strong>Account Security:</strong> Your account email will be updated only after verification</li>
+            <li><strong>Future Communications:</strong> All system emails will be sent to the new address</li>
+            <li><strong>Login Changes:</strong> You'll use the new email to log in</li>
+          </ul>
+          
+          <p>If you have any questions or concerns, please contact your system administrator.</p>
+        </div>
+        
+        <div class="footer">
+          <p>This email was sent by CareTrack Pro Care Management System</p>
+          <p>© ${new Date().getFullYear()} CareTrack Pro. All rights reserved.</p>
+        </div>
+      </body>
+      </html>
+    `
+  }
+
+  private getEmailChangeNotificationText(data: EmailChangeNotificationData): string {
+    const { name, newEmail, cancelUrl, initiatedByAdmin, isAdminChange } = data
+    
+    return `
+      CareTrack Pro - Email Change Request
+      
+      Hello ${name},
+      
+      ${isAdminChange ? `${initiatedByAdmin} has requested` : 'We received a request'} to change your email address to ${newEmail}.
+      
+      SECURITY ALERT: If you did not request this email change, please take immediate action to secure your account.
+      
+      What Happens Next:
+      A verification email has been sent to ${newEmail}. The email change will only be completed after the new email address is verified.
+      
+      If you did not request this change, cancel it immediately by visiting:
+      ${cancelUrl}
+      
+      Security Tips:
+      • Check your account: Review recent login activity
+      • Update your password: If you suspect unauthorized access
+      • Contact support: If you need immediate assistance
+      
+      This email change request will expire automatically if not verified within 24 hours.
+      
+      © ${new Date().getFullYear()} CareTrack Pro. All rights reserved.
+    `
+  }
+
+  private getEmailChangeVerificationText(data: EmailChangeVerificationData): string {
+    const { name, oldEmail, verifyUrl, expiresAt, initiatedByAdmin, isAdminChange } = data
+    const expiryDate = expiresAt.toLocaleDateString('en-GB')
+    
+    return `
+      CareTrack Pro - Verify Your New Email Address
+      
+      Hello ${name},
+      
+      ${isAdminChange ? `${initiatedByAdmin} has requested` : 'You requested'} to change your email address from ${oldEmail} to this email address.
+      
+      To complete the email change, please verify this email address by visiting:
+      ${verifyUrl}
+      
+      IMPORTANT: This verification link expires on ${expiryDate}. Please verify before then.
+      
+      If you did not request this email change, you can safely ignore this email or contact support.
+      
+      What This Means:
+      • Account Security: Your account email will be updated only after verification
+      • Future Communications: All system emails will be sent to the new address
+      • Login Changes: You'll use the new email to log in
+      
+      If you have any questions or concerns, please contact your system administrator.
       
       © ${new Date().getFullYear()} CareTrack Pro. All rights reserved.
     `

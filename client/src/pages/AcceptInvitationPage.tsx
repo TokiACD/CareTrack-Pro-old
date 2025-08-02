@@ -25,19 +25,14 @@ import {
 import { apiService } from '../services/api';
 import { API_ENDPOINTS } from '@caretrack/shared';
 
-// interface InvitationData {
-//   id: string;
-//   email: string;
-//   userType: 'ADMIN' | 'CARER';
-//   name?: string;
-//   firstName?: string;
-//   lastName?: string;
-//   phone?: string;
-//   invitedByAdmin: {
-//     name: string;
-//   };
-//   expiresAt: string;
-// }
+interface InvitationData {
+  email: string;
+  name?: string;
+  phone?: string;
+  userType: 'ADMIN' | 'CARER';
+  invitedByName: string;
+  expiresAt: string;
+}
 
 const AcceptInvitationPage: React.FC = () => {
   const [searchParams] = useSearchParams();
@@ -45,9 +40,11 @@ const AcceptInvitationPage: React.FC = () => {
   const token = searchParams.get('token');
 
   const [activeStep, setActiveStep] = useState(0);
-  // const [invitation, setInvitation] = useState<InvitationData | null>(null);
+  const [invitation, setInvitation] = useState<InvitationData | null>(null);
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [phone, setPhone] = useState('');
+  const [phoneError, setPhoneError] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -69,14 +66,54 @@ const AcceptInvitationPage: React.FC = () => {
 
   const fetchInvitationDetails = async () => {
     try {
-      // We'll need to add an endpoint to get invitation details by token
-      // For now, we'll proceed to step 1 and let the accept API handle validation
+      const response = await apiService.get<InvitationData>(
+        `${API_ENDPOINTS.INVITATIONS.ACCEPT}?token=${token}`
+      );
+      setInvitation(response);
+      // Pre-fill phone if provided in invitation
+      if (response.phone) {
+        setPhone(response.phone);
+        validatePhone(response.phone);
+      }
       setActiveStep(1);
       setLoading(false);
-    } catch (error) {
-      setError('Failed to load invitation details');
+    } catch (error: any) {
+      setError(error.message || 'Failed to load invitation details');
       setLoading(false);
     }
+  };
+
+  const validatePhone = (phoneNumber: string) => {
+    if (!phoneNumber) {
+      setPhoneError('Phone number is required');
+      return false;
+    }
+
+    // Remove all non-digit characters for validation
+    const digitsOnly = phoneNumber.replace(/\D/g, '');
+    
+    // Check for common phone number patterns (7-15 digits)
+    if (digitsOnly.length < 7 || digitsOnly.length > 15) {
+      setPhoneError('Phone number must be between 7-15 digits');
+      return false;
+    }
+
+    // Comprehensive phone validation - accepts various international formats
+    const cleanPhone = phoneNumber.replace(/[\s\-\.\(\)]/g, '');
+    const validFormatRegex = /^(\+\d{1,3}\d+|\d+)$/;
+    
+    if (!validFormatRegex.test(cleanPhone)) {
+      setPhoneError('Please enter a valid phone number (e.g., +44 20 1234 5678)');
+      return false;
+    }
+
+    setPhoneError('');
+    return true;
+  };
+
+  const handlePhoneChange = (phoneNumber: string) => {
+    setPhone(phoneNumber);
+    validatePhone(phoneNumber);
   };
 
   const handleAcceptInvitation = async () => {
@@ -90,14 +127,24 @@ const AcceptInvitationPage: React.FC = () => {
       return;
     }
 
+    // Validate phone - required for all users
+    if (!validatePhone(phone)) {
+      return;
+    }
+
     setSubmitting(true);
     setError('');
 
     try {
-      await apiService.post(API_ENDPOINTS.INVITATIONS.ACCEPT, {
+      const requestData: any = {
         token,
         password
-      });
+      };
+
+      // Include phone number for all users (required)
+      requestData.phone = phone;
+
+      await apiService.post(API_ENDPOINTS.INVITATIONS.ACCEPT, requestData);
 
       setSuccess(true);
       setActiveStep(2);
@@ -197,8 +244,12 @@ const AcceptInvitationPage: React.FC = () => {
               <Typography variant="h5" gutterBottom textAlign="center">
                 Set Your Password
               </Typography>
-              <Typography variant="body2" color="textSecondary" textAlign="center" mb={4}>
-                Please create a secure password for your CareTrack Pro account
+              <Typography variant="body2" color="textSecondary" textAlign="center" mb={2}>
+                Welcome{invitation?.userType === 'ADMIN' ? ' Admin' : ' Carer'}{invitation?.name ? `, ${invitation.name.split(' ')[0]}!` : '!'} 
+                {' '}Please create a secure password for your CareTrack Pro account.
+              </Typography>
+              <Typography variant="body2" color="primary" textAlign="center" mb={4}>
+                📱 Please provide your phone number below - this is required to ensure we can reach you for important updates.
               </Typography>
 
               <Box component="form" onSubmit={(e) => { e.preventDefault(); handleAcceptInvitation(); }}>
@@ -255,6 +306,20 @@ const AcceptInvitationPage: React.FC = () => {
                   }}
                 />
 
+                {/* Phone number field - required for all users */}
+                <TextField
+                  fullWidth
+                  label="Phone Number (Required)"
+                  type="tel"
+                  value={phone}
+                  onChange={(e) => handlePhoneChange(e.target.value)}
+                  margin="normal"
+                  required
+                  error={!!phoneError}
+                  helperText={phoneError || 'Enter your phone number with country code (e.g., +44 20 1234 5678)'}
+                  placeholder="+44 20 1234 5678"
+                />
+
                 <Box mt={4} display="flex" gap={2} justifyContent="center">
                   <Button
                     variant="outlined"
@@ -266,7 +331,7 @@ const AcceptInvitationPage: React.FC = () => {
                   <Button
                     type="submit"
                     variant="contained"
-                    disabled={submitting || !password || !confirmPassword || password !== confirmPassword}
+                    disabled={submitting || !password || !confirmPassword || password !== confirmPassword || !!phoneError || !phone}
                     startIcon={submitting ? <CircularProgress size={20} /> : null}
                   >
                     {submitting ? 'Creating Account...' : 'Accept & Create Account'}

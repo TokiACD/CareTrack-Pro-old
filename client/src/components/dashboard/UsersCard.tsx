@@ -48,6 +48,8 @@ import {
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiService } from '../../services/api';
 import { API_ENDPOINTS } from '@caretrack/shared';
+import EmailChangeDialog from '../profile/EmailChangeDialog';
+import { useAuth } from '../../contexts/AuthContext';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -75,6 +77,7 @@ interface AdminUser {
   id: string;
   email: string;
   name: string;
+  phone: string;
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
@@ -84,10 +87,9 @@ interface AdminUser {
 
 interface Carer {
   id: string;
-  firstName: string;
-  lastName: string;
+  name: string;
   email: string;
-  phone?: string;
+  phone: string;
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
@@ -101,8 +103,6 @@ interface Invitation {
   id: string;
   email: string;
   name?: string;
-  firstName?: string;
-  lastName?: string;
   phone?: string;
   userType: 'ADMIN' | 'CARER';
   token: string;
@@ -128,6 +128,7 @@ interface UserFormData {
 }
 
 const UsersCard: React.FC = () => {
+  const { user: currentUser } = useAuth();
   const [activeTab, setActiveTab] = useState(0);
   const [searchTerm, setSearchTerm] = useState('');
   const [showFullyAssessedOnly, setShowFullyAssessedOnly] = useState(false);
@@ -135,6 +136,10 @@ const UsersCard: React.FC = () => {
   const [editingUser, setEditingUser] = useState<AdminUser | Carer | null>(null);
   const [userType, setUserType] = useState<'admin' | 'carer'>('admin');
   const [invitationStatusFilter, setInvitationStatusFilter] = useState<'PENDING' | 'ACCEPTED'>('PENDING');
+  const [emailChangeDialogOpen, setEmailChangeDialogOpen] = useState(false);
+  const [emailChangeUser, setEmailChangeUser] = useState<{ user: AdminUser | Carer; type: 'ADMIN' | 'CARER' } | null>(null);
+  const [emailValidationError, setEmailValidationError] = useState<string>('');
+  const [phoneValidationError, setPhoneValidationError] = useState<string>('');
   
   const [formData, setFormData] = useState<UserFormData>({
     email: '',
@@ -173,6 +178,43 @@ const UsersCard: React.FC = () => {
   const handleCloseNotification = () => {
     setNotification(prev => ({ ...prev, open: false }));
   };
+
+  // Listen for email changes from verification page
+  React.useEffect(() => {
+    const checkEmailChangeSuccess = () => {
+      const emailChangeData = localStorage.getItem('emailChangeSuccess');
+      if (emailChangeData) {
+        try {
+          const parsedData = JSON.parse(emailChangeData);
+          // Only process if it's recent (within last 30 seconds)
+          if (Date.now() - parsedData.timestamp < 30000) {
+            // Invalidate queries to refresh user data
+            queryClient.invalidateQueries({ queryKey: ['users'] });
+            showNotification(`✅ Email updated to ${parsedData.newEmail}`, 'success');
+            // Clear the flag
+            localStorage.removeItem('emailChangeSuccess');
+          }
+        } catch (error) {
+          console.error('Error parsing email change data:', error);
+        }
+      }
+    };
+
+    // Check on mount and when tab becomes visible
+    checkEmailChangeSuccess();
+    
+    const handleVisibilityChange = () => {
+      if (!document.hidden) {
+        checkEmailChangeSuccess();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [queryClient, showNotification]);
 
   // Fetch admin users
   const {
@@ -251,9 +293,7 @@ const UsersCard: React.FC = () => {
       } else {
         return await apiService.post(endpoint, {
           email: userData.email,
-          firstName: userData.firstName,
-          lastName: userData.lastName,
-          phone: userData.phone
+          name: userData.name
         });
       }
     },
@@ -356,6 +396,65 @@ const UsersCard: React.FC = () => {
       isActive: true
     });
     setEditingUser(null);
+    setEmailValidationError('');
+    setPhoneValidationError('');
+  };
+
+  const validateEmailField = (email: string) => {
+    if (!email) {
+      setEmailValidationError('');
+      return true; // Empty is okay, required validation is handled separately
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      setEmailValidationError('Please enter a valid email address');
+      return false;
+    }
+
+    setEmailValidationError('');
+    return true;
+  };
+
+  const handleEmailChange = (email: string) => {
+    setFormData({ ...formData, email });
+    validateEmailField(email);
+  };
+
+  const validatePhoneField = (phone: string) => {
+    if (!phone) {
+      setPhoneValidationError('');
+      return true; // Empty is okay since phone is optional
+    }
+
+    // Remove all non-digit characters for validation
+    const digitsOnly = phone.replace(/\D/g, '');
+    
+    // Check for common phone number patterns
+    // UK: 10-11 digits, International: 7-15 digits
+    if (digitsOnly.length < 7 || digitsOnly.length > 15) {
+      setPhoneValidationError('Phone number must be between 7-15 digits');
+      return false;
+    }
+
+    // Comprehensive phone validation - accepts various international formats
+    // Supports: +44 20 1234 5678, 07123456789, +1 (555) 123-4567, etc.
+    const cleanPhone = phone.replace(/[\s\-\.\(\)]/g, '');
+    
+    // Check if it starts with + followed by digits, or just digits
+    const validFormatRegex = /^(\+\d{1,3}\d+|\d+)$/;
+    if (!validFormatRegex.test(cleanPhone)) {
+      setPhoneValidationError('Please enter a valid phone number (e.g., +44 20 1234 5678 or 07123456789)');
+      return false;
+    }
+
+    setPhoneValidationError('');
+    return true;
+  };
+
+  const handlePhoneChange = (phone: string) => {
+    setFormData({ ...formData, phone });
+    validatePhoneField(phone);
   };
 
   const handleTabChange = (_event: React.SyntheticEvent, newValue: number) => {
@@ -384,21 +483,21 @@ const UsersCard: React.FC = () => {
       setFormData({
         name: admin.name,
         email: admin.email,
+        phone: admin.phone,
         isActive: admin.isActive,
         tempPassword: '',
         firstName: '',
-        lastName: '',
-        phone: ''
+        lastName: ''
       });
     } else {
       const carer = user as Carer;
       setFormData({
-        firstName: carer.firstName,
-        lastName: carer.lastName,
+        name: carer.name,
         email: carer.email,
-        phone: carer.phone || '',
+        phone: carer.phone,
         isActive: carer.isActive,
-        name: '',
+        firstName: '',
+        lastName: '',
         tempPassword: ''
       });
     }
@@ -413,10 +512,16 @@ const UsersCard: React.FC = () => {
     }
   };
 
+
   const handleSubmit = () => {
     // Basic validation
     if (!formData.email) {
       showNotification('❌ Email is required', 'error');
+      return;
+    }
+    
+    if (editingUser && !formData.phone) {
+      showNotification('❌ Phone number is required for editing', 'error');
       return;
     }
     
@@ -425,15 +530,36 @@ const UsersCard: React.FC = () => {
       return;
     }
     
-    if (userType === 'carer' && (!formData.firstName || !formData.lastName)) {
-      showNotification('❌ First name and last name are required for carers', 'error');
+    if (userType === 'carer' && !editingUser && !formData.name) {
+      showNotification('❌ Full name is required for carers', 'error');
+      return;
+    }
+    
+    if (userType === 'carer' && editingUser && !formData.name) {
+      showNotification('❌ Full name is required when editing carers', 'error');
       return;
     }
     
     if (editingUser) {
+      // Check if email is being changed
+      const emailChanged = formData.email !== editingUser.email;
+      
+      if (emailChanged) {
+        // Use secure email change process
+        setEmailChangeUser({
+          user: editingUser,
+          type: userType === 'admin' ? 'ADMIN' : 'CARER'
+        });
+        setEmailChangeDialogOpen(true);
+        setDialogOpen(false); // Close edit dialog
+        return;
+      }
+      
+      // Update other fields normally (excluding email)
+      const { email, firstName, lastName, tempPassword, ...updateData } = formData;
       updateUserMutation.mutate({
         id: editingUser.id,
-        userData: formData
+        userData: updateData
       });
     } else {
       sendInvitationMutation.mutate(formData);
@@ -631,6 +757,7 @@ const UsersCard: React.FC = () => {
                   <TableRow>
                     <TableCell>Name</TableCell>
                     <TableCell>Email</TableCell>
+                    <TableCell>Phone</TableCell>
                     <TableCell>Status</TableCell>
                     <TableCell>Last Login</TableCell>
                     <TableCell>Created</TableCell>
@@ -642,6 +769,7 @@ const UsersCard: React.FC = () => {
                     <TableRow key={admin.id} hover>
                       <TableCell>{admin.name}</TableCell>
                       <TableCell>{admin.email}</TableCell>
+                      <TableCell>{admin.phone}</TableCell>
                       <TableCell>
                         <Chip 
                           size="small"
@@ -665,7 +793,7 @@ const UsersCard: React.FC = () => {
                   ))}
                   {filteredAdmins.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={6} align="center">
+                      <TableCell colSpan={7} align="center">
                         <Typography color="textSecondary">
                           No admin users found
                         </Typography>
@@ -705,9 +833,9 @@ const UsersCard: React.FC = () => {
                 <TableBody>
                   {filteredCarers.map((carer: Carer) => (
                     <TableRow key={carer.id} hover>
-                      <TableCell>{`${carer.firstName} ${carer.lastName}`}</TableCell>
+                      <TableCell>{carer.name}</TableCell>
                       <TableCell>{carer.email}</TableCell>
-                      <TableCell>{carer.phone || 'N/A'}</TableCell>
+                      <TableCell>{carer.phone}</TableCell>
                       <TableCell>{getCompetencyChip(carer.competencyStatus)}</TableCell>
                       <TableCell>
                         <Box display="flex" gap={0.5} flexWrap="wrap">
@@ -787,10 +915,7 @@ const UsersCard: React.FC = () => {
                   {filteredInvitations.map((invitation: Invitation) => (
                     <TableRow key={invitation.id} hover>
                       <TableCell>
-                        {invitation.userType === 'ADMIN' 
-                          ? invitation.name 
-                          : `${invitation.firstName} ${invitation.lastName}`
-                        }
+                        {invitation.name}
                       </TableCell>
                       <TableCell>{invitation.email}</TableCell>
                       <TableCell>
@@ -913,29 +1038,36 @@ const UsersCard: React.FC = () => {
                     label="Email"
                     type="email"
                     value={formData.email}
-                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                    onChange={(e) => handleEmailChange(e.target.value)}
                     fullWidth
                     required
+                    error={!!emailValidationError}
+                    helperText={emailValidationError}
                   />
+                  {editingUser && (
+                    <TextField
+                      label="Phone Number"
+                      value={formData.phone || ''}
+                      onChange={(e) => handlePhoneChange(e.target.value)}
+                      fullWidth
+                      required
+                      error={!!phoneValidationError}
+                      helperText={phoneValidationError || 'Enter phone number with country code (e.g., +44 20 1234 5678)'}
+                      placeholder="+44 20 1234 5678"
+                    />
+                  )}
                   {!editingUser && (
                     <Alert severity="info" sx={{ mt: 1 }}>
-                      An invitation email will be sent with instructions to set up their password.
+                      An invitation email will be sent with instructions to set up their password. Users will enter their phone number during account setup.
                     </Alert>
                   )}
                 </>
               ) : (
                 <>
                   <TextField
-                    label="First Name"
-                    value={formData.firstName || ''}
-                    onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
-                    fullWidth
-                    required
-                  />
-                  <TextField
-                    label="Last Name"
-                    value={formData.lastName || ''}
-                    onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
+                    label="Full Name"
+                    value={formData.name || ''}
+                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                     fullWidth
                     required
                   />
@@ -943,19 +1075,27 @@ const UsersCard: React.FC = () => {
                     label="Email"
                     type="email"
                     value={formData.email}
-                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                    onChange={(e) => handleEmailChange(e.target.value)}
                     fullWidth
                     required
+                    error={!!emailValidationError}
+                    helperText={emailValidationError}
                   />
-                  <TextField
-                    label="Phone Number"
-                    value={formData.phone || ''}
-                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                    fullWidth
-                  />
+                  {editingUser && (
+                    <TextField
+                      label="Phone Number"
+                      value={formData.phone || ''}
+                      onChange={(e) => handlePhoneChange(e.target.value)}
+                      fullWidth
+                      required
+                      error={!!phoneValidationError}
+                      helperText={phoneValidationError || 'Enter phone number with country code (e.g., +44 20 1234 5678)'}
+                      placeholder="+44 20 1234 5678"
+                    />
+                  )}
                   {!editingUser && (
                     <Alert severity="info" sx={{ mt: 1 }}>
-                      An invitation email will be sent with instructions to set up their password.
+                      An invitation email will be sent with instructions to set up their password. Users will enter their phone number during account setup.
                     </Alert>
                   )}
                 </>
@@ -977,7 +1117,7 @@ const UsersCard: React.FC = () => {
             <Button 
               onClick={handleSubmit}
               variant="contained"
-              disabled={sendInvitationMutation.isPending || updateUserMutation.isPending}
+              disabled={sendInvitationMutation.isPending || updateUserMutation.isPending || !!emailValidationError || !!phoneValidationError}
             >
               {sendInvitationMutation.isPending || updateUserMutation.isPending ? (
                 <CircularProgress size={20} />
@@ -1004,6 +1144,27 @@ const UsersCard: React.FC = () => {
             {notification.message}
           </Alert>
         </Snackbar>
+
+        {/* Email Change Dialog */}
+        {emailChangeUser && currentUser && (
+          <EmailChangeDialog
+            open={emailChangeDialogOpen}
+            onClose={() => {
+              setEmailChangeDialogOpen(false);
+              setEmailChangeUser(null);
+            }}
+            currentEmail={emailChangeUser.user.email}
+            userType={emailChangeUser.type}
+            currentUserName={currentUser.name}
+            targetUserName={emailChangeUser.type === 'ADMIN' 
+              ? (emailChangeUser.user as AdminUser).name 
+              : (emailChangeUser.user as Carer).name
+            }
+            prefilledNewEmail={formData.email}
+            isAdminChangingOtherUser={true}
+            targetUserId={emailChangeUser.user.id}
+          />
+        )}
       </CardContent>
     </Card>
   );

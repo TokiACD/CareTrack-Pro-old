@@ -29,6 +29,7 @@ router.get('/admins', requireAuth, async (req, res) => {
         id: true,
         email: true,
         name: true,
+        phone: true,
         isActive: true,
         createdAt: true,
         updatedAt: true,
@@ -166,22 +167,12 @@ router.put('/admins/:id',
         });
       }
 
-      // Check email uniqueness if email is being updated
+      // Prevent direct email updates - use email change system instead
       if (updates.email && updates.email !== existingAdmin.email) {
-        const emailExists = await prisma.adminUser.findFirst({
-          where: { 
-            email: updates.email,
-            deletedAt: null,
-            id: { not: id }
-          }
+        return res.status(400).json({
+          success: false,
+          message: 'Email changes must be done through the secure email change process. Use the email change feature in your account settings.'
         });
-
-        if (emailExists) {
-          return res.status(400).json({
-            success: false,
-            message: 'Email already in use by another admin'
-          });
-        }
       }
 
       const updatedAdmin = await prisma.adminUser.update({
@@ -332,8 +323,7 @@ router.get('/carers', requireAuth, async (req, res) => {
     // Format response data
     const formattedCarers = filteredCarers.map(carer => ({
       id: carer.id,
-      firstName: carer.name.split(' ')[0] || '',
-      lastName: carer.name.split(' ').slice(1).join(' ') || '',
+      name: carer.name,
       email: carer.email,
       phone: carer.phone,
       isActive: carer.isActive,
@@ -443,8 +433,7 @@ router.post('/carers',
 router.put('/carers/:id',
   requireAuth,
   [
-    body('firstName').optional().notEmpty().withMessage('First name cannot be empty'),
-    body('lastName').optional().notEmpty().withMessage('Last name cannot be empty'),
+    body('name').optional().notEmpty().withMessage('Full name cannot be empty'),
     body('email').optional().isEmail().withMessage('Valid email is required'),
     body('phone').optional().isMobilePhone('any').withMessage('Valid phone number required'),
     body('isActive').optional().isBoolean().withMessage('isActive must be boolean')
@@ -452,8 +441,12 @@ router.put('/carers/:id',
   audit(AuditAction.UPDATE, 'Carer'),
   async (req, res) => {
     try {
+      console.log('🔍 PUT /carers/:id - Request body:', req.body);
+      console.log('🔍 PUT /carers/:id - Params:', req.params);
+      
       const errors = validationResult(req);
       if (!errors.isEmpty()) {
+        console.log('❌ Validation errors:', errors.array());
         return res.status(400).json({
           success: false,
           message: 'Validation failed',
@@ -462,13 +455,13 @@ router.put('/carers/:id',
       }
 
       const { id } = req.params;
-      const { firstName, lastName, email, phone, isActive } = req.body;
+      const { name, email, phone, isActive } = req.body;
       
       // Only allow updating valid Carer fields
       const updates: any = {};
-      if (firstName || lastName) {
-        updates.name = `${firstName || ''} ${lastName || ''}`.trim();
-      }
+      
+      // Handle name field directly (database has name field, not firstName/lastName)
+      if (name !== undefined) updates.name = name;
       if (email !== undefined) updates.email = email;
       if (phone !== undefined) updates.phone = phone || null; // Allow null for optional phone
       if (isActive !== undefined) updates.isActive = isActive;
@@ -485,22 +478,12 @@ router.put('/carers/:id',
         });
       }
 
-      // Check email uniqueness if email is being updated
+      // Prevent direct email updates - use email change system instead
       if (updates.email && updates.email !== existingCarer.email) {
-        const emailExists = await prisma.carer.findFirst({
-          where: { 
-            email: updates.email,
-            deletedAt: null,
-            id: { not: id }
-          }
+        return res.status(400).json({
+          success: false,
+          message: 'Email changes must be done through the secure email change process. Use the email change feature in your account settings.'
         });
-
-        if (emailExists) {
-          return res.status(400).json({
-            success: false,
-            message: 'Email already in use by another carer'
-          });
-        }
       }
 
       const updatedCarer = await prisma.carer.update({
