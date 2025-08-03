@@ -182,7 +182,7 @@ const AssessmentsPage: React.FC = () => {
   // Delete assessment mutation
   const deleteAssessmentMutation = useSmartMutation<any, Error, string>(
     async (assessmentId: string) => {
-      return await apiService.delete(`${API_ENDPOINTS.ASSESSMENTS.DELETE}/${assessmentId}`)
+      return await apiService.deleteWithResponse(`${API_ENDPOINTS.ASSESSMENTS.DELETE}/${assessmentId}`)
     },
     {
       mutationType: 'assessments.delete',

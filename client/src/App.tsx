@@ -13,6 +13,7 @@ import AssignmentsPage from './pages/AssignmentsPage'
 import AssessmentsPage from './pages/AssessmentsPage'
 import CreateAssessmentPage from './pages/CreateAssessmentPage'
 import EditAssessmentPage from './pages/EditAssessmentPage'
+import RecycleBinPage from './pages/RecycleBinPage'
 import EmailChangeVerification from './pages/EmailChangeVerification'
 import { ProtectedRoute } from './components/auth/ProtectedRoute'
 
@@ -104,6 +105,14 @@ function App() {
           element={
             <ProtectedRoute>
               <EditAssessmentPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/recycle-bin"
+          element={
+            <ProtectedRoute>
+              <RecycleBinPage />
             </ProtectedRoute>
           }
         />

@@ -105,7 +105,7 @@ const CarePackagesCard: React.FC = () => {
     isLoading: packagesLoading,
     error: packagesError
   } = useQuery({
-    queryKey: ['care-packages', searchTerm],
+    queryKey: ['packages', searchTerm],
     queryFn: async () => {
       console.log('🔍 Fetching care packages with search term:', searchTerm);
       const params = searchTerm ? { search: searchTerm } : undefined;
@@ -167,7 +167,7 @@ const CarePackagesCard: React.FC = () => {
   // Delete package mutation
   const deletePackageMutation = useSmartMutation<any, Error, string>(
     async (id: string) => {
-      return await apiService.delete(`${API_ENDPOINTS.CARE_PACKAGES.DELETE}/${id}`);
+      return await apiService.deleteWithResponse(`${API_ENDPOINTS.CARE_PACKAGES.DELETE}/${id}`);
     },
     {
       mutationType: 'packages.delete',

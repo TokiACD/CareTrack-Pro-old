@@ -98,14 +98,14 @@ const TasksPage: React.FC = () => {
   }
 
   // Fetch tasks (only active tasks, deleted ones managed via Recycle Bin)
-  const { data: tasksData, isLoading, error } = useQuery<{ data: Task[] }>({
+  const { data: tasksData, isLoading, error } = useQuery<Task[]>({
     queryKey: ['tasks', searchTerm],
-    queryFn: async (): Promise<{ data: Task[] }> => {
+    queryFn: async (): Promise<Task[]> => {
       const params = new URLSearchParams()
       if (searchTerm) params.append('search', searchTerm)
       
       const response = await apiService.get(`${API_ENDPOINTS.TASKS.LIST}?${params}`)
-      return response as { data: Task[] }
+      return response as Task[]
     }
   })
 
@@ -166,7 +166,7 @@ const TasksPage: React.FC = () => {
   // Delete task mutation
   const deleteTaskMutation = useSmartMutation<any, Error, string>(
     async (id: string) => {
-      return await apiService.delete(`${API_ENDPOINTS.TASKS.DELETE}/${id}`)
+      return await apiService.deleteWithResponse(`${API_ENDPOINTS.TASKS.DELETE}/${id}`)
     },
     {
       mutationType: 'tasks.delete',
@@ -255,8 +255,7 @@ const TasksPage: React.FC = () => {
 
   // Filter tasks
   const filteredTasks = useMemo(() => {
-    if (!tasksData?.data) return []
-    return tasksData.data
+    return tasksData || []
   }, [tasksData])
 
   // Form validation

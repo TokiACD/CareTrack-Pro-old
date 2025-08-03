@@ -22,6 +22,11 @@ export class AssessmentController {
           orderBy: { order: 'asc' }
         },
         tasksCovered: {
+          where: {
+            task: {
+              deletedAt: null
+            }
+          },
           include: {
             task: {
               select: {
@@ -78,6 +83,11 @@ export class AssessmentController {
           orderBy: { order: 'asc' }
         },
         tasksCovered: {
+          where: {
+            task: {
+              deletedAt: null
+            }
+          },
           include: {
             task: {
               select: {

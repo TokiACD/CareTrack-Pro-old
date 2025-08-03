@@ -92,6 +92,11 @@ class ApiService {
     return response.data.data!
   }
 
+  async deleteWithResponse<T>(url: string, data?: any): Promise<ApiResponse<T>> {
+    const response = await this.api.delete<ApiResponse<T>>(url, { data })
+    return response.data
+  }
+
   // File upload
   async uploadFile<T>(url: string, file: File, onProgress?: (progress: number) => void): Promise<T> {
     const formData = new FormData()
@@ -127,6 +132,12 @@ class ApiService {
     link.click()
     link.remove()
     window.URL.revokeObjectURL(downloadUrl)
+  }
+
+  // Get full response (for cases like pagination)
+  async getFullResponse<T>(url: string, params?: any): Promise<ApiResponse<T>> {
+    const response = await this.api.get<ApiResponse<T>>(url, { params })
+    return response.data
   }
 }
 

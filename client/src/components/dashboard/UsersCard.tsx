@@ -341,7 +341,7 @@ const UsersCard: React.FC = () => {
       const endpoint = userType === 'admin'
         ? `${API_ENDPOINTS.USERS.DELETE_ADMIN}/${id}`
         : `${API_ENDPOINTS.USERS.DELETE_CARER}/${id}`;
-      return await apiService.delete(endpoint);
+      return await apiService.deleteWithResponse(endpoint);
     },
     {
       mutationType: 'users.delete',
@@ -377,7 +377,7 @@ const UsersCard: React.FC = () => {
   // Cancel invitation mutation
   const cancelInvitationMutation = useSmartMutation<any, Error, string>(
     async (invitationId: string) => {
-      return await apiService.delete(`${API_ENDPOINTS.INVITATIONS.DELETE}/${invitationId}`);
+      return await apiService.deleteWithResponse(`${API_ENDPOINTS.INVITATIONS.DELETE}/${invitationId}`);
     },
     {
       mutationType: 'invitations.delete',

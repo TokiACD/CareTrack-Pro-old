@@ -304,7 +304,7 @@ export class TaskController {
       throw createError(400, 'Task is already deleted')
     }
 
-    // Check dependencies
+    // Check for dependencies that require soft delete
     const dependencies = []
     if (task._count.packageAssignments > 0) {
       dependencies.push(`${task._count.packageAssignments} package assignment(s)`)
@@ -319,11 +319,7 @@ export class TaskController {
       dependencies.push(`${task._count.taskProgress} progress record(s)`)
     }
 
-    if (dependencies.length > 0) {
-      throw createError(409, `Cannot delete task. It is referenced in: ${dependencies.join(', ')}. Please remove these references first or use soft delete.`)
-    }
-
-    // Soft delete the task
+    // Soft delete the task (preserve references when dependencies exist)
     const deletedTask = await prisma.task.update({
       where: { id },
       data: { 
@@ -331,6 +327,11 @@ export class TaskController {
         isActive: false
       }
     })
+
+    // Determine message based on dependencies
+    const message = dependencies.length > 0 
+      ? `Task deleted successfully. Preserved references to: ${dependencies.join(', ')}.`
+      : 'Task deleted successfully'
 
     // Log the deletion
     await auditService.log({
@@ -351,7 +352,7 @@ export class TaskController {
     res.json({
       success: true,
       data: deletedTask,
-      message: 'Task deleted successfully'
+      message
     })
   })
 

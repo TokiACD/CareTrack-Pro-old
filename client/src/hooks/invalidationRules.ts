@@ -16,8 +16,13 @@ export const INVALIDATION_RULES = {
   // User-related mutations
   'users.update': ['users', 'invitations', 'audit-logs'],
   'users.create': ['users', 'invitations'],
-  'users.delete': ['users', 'invitations', 'assignments', 'audit-logs'],
+  'users.delete': ['users', 'invitations', 'assignments', 'audit-logs', 'recycle-bin', 'recycle-bin-summary'],
   'users.email-change': ['users', 'invitations'],
+  
+  // Carer-specific mutations
+  'carers.create': ['carers', 'users', 'assignments'],
+  'carers.update': ['carers', 'users', 'assignments', 'competencies'],
+  'carers.delete': ['carers', 'users', 'assignments', 'recycle-bin', 'recycle-bin-summary'],
   
   // Invitation mutations
   'invitations.create': ['invitations'],
@@ -29,7 +34,7 @@ export const INVALIDATION_RULES = {
   // Care Package mutations
   'packages.create': ['packages', 'assignments'],
   'packages.update': ['packages', 'assignments', 'schedules', 'assessments'],
-  'packages.delete': ['packages', 'assignments', 'schedules'],
+  'packages.delete': ['packages', 'assignments', 'schedules', 'recycle-bin', 'recycle-bin-summary'],
   
   // Service User mutations
   'service-users.create': ['service-users', 'care-plans'],
@@ -39,24 +44,29 @@ export const INVALIDATION_RULES = {
   // Task mutations
   'tasks.create': ['tasks', 'schedules'],
   'tasks.update': ['tasks', 'schedules', 'assignments', 'assessments'],
-  'tasks.delete': ['tasks', 'schedules', 'assignments'],
+  'tasks.delete': ['tasks', 'schedules', 'assignments', 'recycle-bin', 'recycle-bin-summary'],
   
   // Assignment mutations
-  'assignments.create': ['assignments', 'schedules'],
-  'assignments.update': ['assignments', 'schedules'],
-  'assignments.delete': ['assignments', 'schedules'],
+  'assignments.create': ['assignments', 'available-carers', 'available-tasks', 'schedules'],
+  'assignments.update': ['assignments', 'available-carers', 'available-tasks', 'schedules'],
+  'assignments.delete': ['assignments', 'available-carers', 'available-tasks', 'schedules'],
   
   // Assessment mutations
   'assessments.create': ['assessments', 'competencies', 'assignments'],
   'assessments.update': ['assessments', 'competencies', 'assignments'],
-  'assessments.delete': ['assessments', 'competencies'],
+  'assessments.delete': ['assessments', 'competencies', 'recycle-bin', 'recycle-bin-summary'],
   
   // Competency mutations
   'competencies.update': ['competencies', 'assessments', 'assignments'],
   'competencies.create': ['competencies', 'assessments'],
   
   // Audit log mutations (usually read-only, but included for completeness)
-  'audit-logs.create': ['audit-logs']
+  'audit-logs.create': ['audit-logs'],
+  
+  // Recycle bin mutations
+  'recycle-bin.restore': ['recycle-bin', 'recycle-bin-summary', 'users', 'carers', 'packages', 'tasks', 'assessments', 'admin-users', 'assignments'],
+  'recycle-bin.delete': ['recycle-bin', 'recycle-bin-summary'],
+  'recycle-bin.cleanup': ['recycle-bin', 'recycle-bin-summary']
 } as const;
 
 // Helper function to get queries to invalidate for a mutation

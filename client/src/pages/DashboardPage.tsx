@@ -29,6 +29,7 @@ import { useNotification } from '../contexts/NotificationContext'
 import { DashboardCard } from '../components/dashboard/DashboardCard'
 import UsersCard from '../components/dashboard/UsersCard'
 import CarePackagesCard from '../components/dashboard/CarePackagesCard'
+import RecycleBinCard from '../components/dashboard/RecycleBinCard'
 
 // Dashboard card configurations
 const DASHBOARD_CARDS = [
@@ -143,6 +144,11 @@ export function DashboardPage() {
       return
     }
     
+    if (cardId === 'recycle-bin') {
+      navigate('/recycle-bin')
+      return
+    }
+    
     // For other cards, use the existing internal navigation
     setActiveCard(cardId)
   }
@@ -162,6 +168,8 @@ export function DashboardPage() {
         return <UsersCard />
       case 'care-packages':
         return <CarePackagesCard />
+      case 'recycle-bin':
+        return <RecycleBinCard />
       default:
         return (
           <Box textAlign="center" py={8}>

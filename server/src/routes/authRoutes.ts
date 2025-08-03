@@ -74,7 +74,7 @@ router.get('/debug/user/:email', async (req, res) => {
       } : null
     })
   } catch (error) {
-    res.json({ success: false, error: error.message })
+    res.json({ success: false, error: error instanceof Error ? error.message : 'Unknown error' })
   }
 })
 
@@ -113,7 +113,7 @@ router.post('/debug/reset-password', async (req, res) => {
       user: updatedUser
     })
   } catch (error) {
-    res.json({ success: false, error: error.message })
+    res.json({ success: false, error: error instanceof Error ? error.message : 'Unknown error' })
   }
 })
 

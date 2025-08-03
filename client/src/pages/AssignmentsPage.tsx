@@ -51,7 +51,7 @@ import {
   TaskAlt as TaskAltIcon,
   AccountBox as PackageIcon
 } from '@mui/icons-material'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { apiService } from '../services/api'
 import { API_ENDPOINTS, CarePackage, Carer, Task, CarerPackageAssignment, PackageTaskAssignment } from '@caretrack/shared'
@@ -89,6 +89,7 @@ function TabPanel(props: TabPanelProps) {
 const AssignmentsPage: React.FC = () => {
   const navigate = useNavigate()
   const { user } = useAuth()
+  const queryClient = useQueryClient()
 
   // State management
   const [selectedPackage, setSelectedPackage] = useState<ExtendedCarePackage | null>(null)
@@ -175,11 +176,34 @@ const AssignmentsPage: React.FC = () => {
     },
     {
       mutationType: 'assignments.create',
-      customInvalidations: ['available-carers'],
-      onSuccess: (data: any) => {
+      skipAutoInvalidation: true,
+      onSuccess: async (data: any) => {
+        // Force complete cache reset for assignments
+        queryClient.removeQueries({ 
+          queryKey: ['assignments'],
+          exact: false 
+        });
+        
+        // Force immediate refetch
+        const newData = await queryClient.fetchQuery({
+          queryKey: ['assignments', 'packages'],
+          queryFn: async () => {
+            const response = await apiService.get(API_ENDPOINTS.ASSIGNMENTS.LIST)
+            return response || []
+          }
+        });
+        
         setCarerDialogOpen(false)
         setSelectedCarerIds([])
         setCarerSearchTerm('')
+        
+        // Update selectedPackage state with fresh data
+        if (selectedPackage) {
+          const updatedPackage = newData.find(pkg => pkg.id === selectedPackage.id);
+          if (updatedPackage) {
+            setSelectedPackage(updatedPackage);
+          }
+        }
         
         if (data.failed === 0) {
           showNotification(`${data.successful} carer(s) assigned successfully`, 'success')
@@ -202,11 +226,35 @@ const AssignmentsPage: React.FC = () => {
   // Remove carer from package mutation
   const removeCarerMutation = useSmartMutation<any, Error, { carerId: string; packageId: string }>(
     async ({ carerId, packageId }: { carerId: string; packageId: string }) => {
-      return await apiService.delete(API_ENDPOINTS.ASSIGNMENTS.CARER_TO_PACKAGE, { carerId, packageId })
+      return await apiService.deleteWithResponse(API_ENDPOINTS.ASSIGNMENTS.CARER_TO_PACKAGE, { carerId, packageId })
     },
     {
       mutationType: 'assignments.delete',
-      onSuccess: (data: any) => {
+      skipAutoInvalidation: true,
+      onSuccess: async (data: any) => {
+        // Force complete cache reset for assignments
+        queryClient.removeQueries({ 
+          queryKey: ['assignments'],
+          exact: false 
+        });
+        
+        // Force immediate refetch
+        const newData = await queryClient.fetchQuery({
+          queryKey: ['assignments', 'packages'],
+          queryFn: async () => {
+            const response = await apiService.get(API_ENDPOINTS.ASSIGNMENTS.LIST)
+            return response || []
+          }
+        });
+        
+        // Update selectedPackage state with fresh data
+        if (selectedPackage) {
+          const updatedPackage = newData.find(pkg => pkg.id === selectedPackage.id);
+          if (updatedPackage) {
+            setSelectedPackage(updatedPackage);
+          }
+        }
+        
         showNotification(data.message || 'Carer removed successfully', 'success')
       },
       onError: (error: any) => {
@@ -237,11 +285,34 @@ const AssignmentsPage: React.FC = () => {
     },
     {
       mutationType: 'assignments.create',
-      customInvalidations: ['available-tasks'],
-      onSuccess: (data: any) => {
+      skipAutoInvalidation: true,
+      onSuccess: async (data: any) => {
+        // Force complete cache reset for assignments
+        queryClient.removeQueries({ 
+          queryKey: ['assignments'],
+          exact: false 
+        });
+        
+        // Force immediate refetch
+        const newData = await queryClient.fetchQuery({
+          queryKey: ['assignments', 'packages'],
+          queryFn: async () => {
+            const response = await apiService.get(API_ENDPOINTS.ASSIGNMENTS.LIST)
+            return response || []
+          }
+        });
+        
         setTaskDialogOpen(false)
         setSelectedTaskIds([])
         setTaskSearchTerm('')
+        
+        // Update selectedPackage state with fresh data
+        if (selectedPackage) {
+          const updatedPackage = newData.find(pkg => pkg.id === selectedPackage.id);
+          if (updatedPackage) {
+            setSelectedPackage(updatedPackage);
+          }
+        }
         
         if (data.failed === 0) {
           showNotification(`${data.successful} task(s) assigned successfully`, 'success')
@@ -264,11 +335,35 @@ const AssignmentsPage: React.FC = () => {
   // Remove task from package mutation
   const removeTaskMutation = useSmartMutation<any, Error, { taskId: string; packageId: string }>(
     async ({ taskId, packageId }: { taskId: string; packageId: string }) => {
-      return await apiService.delete(API_ENDPOINTS.ASSIGNMENTS.TASK_TO_PACKAGE, { taskId, packageId })
+      return await apiService.deleteWithResponse(API_ENDPOINTS.ASSIGNMENTS.TASK_TO_PACKAGE, { taskId, packageId })
     },
     {
       mutationType: 'assignments.delete',
-      onSuccess: (data: any) => {
+      skipAutoInvalidation: true,
+      onSuccess: async (data: any) => {
+        // Force complete cache reset for assignments
+        queryClient.removeQueries({ 
+          queryKey: ['assignments'],
+          exact: false 
+        });
+        
+        // Force immediate refetch
+        const newData = await queryClient.fetchQuery({
+          queryKey: ['assignments', 'packages'],
+          queryFn: async () => {
+            const response = await apiService.get(API_ENDPOINTS.ASSIGNMENTS.LIST)
+            return response || []
+          }
+        });
+        
+        // Update selectedPackage state with fresh data
+        if (selectedPackage) {
+          const updatedPackage = newData.find(pkg => pkg.id === selectedPackage.id);
+          if (updatedPackage) {
+            setSelectedPackage(updatedPackage);
+          }
+        }
+        
         showNotification(data.message || 'Task removed successfully', 'success')
       },
       onError: (error: any) => {

@@ -105,6 +105,7 @@ export const API_ENDPOINTS = {
   },
   RECYCLE_BIN: {
     LIST: '/api/recycle-bin',
+    SUMMARY: '/api/recycle-bin/summary',
     RESTORE: '/api/recycle-bin/restore',
     PERMANENT_DELETE: '/api/recycle-bin/permanent-delete',
     CLEANUP: '/api/recycle-bin/cleanup'

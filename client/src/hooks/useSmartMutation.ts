@@ -48,7 +48,7 @@ export const useSmartMutation = <TData = unknown, TError = Error, TVariables = v
         
         // Invalidate all relevant queries
         const invalidationPromises = uniqueQueries.map(queryKey => 
-          queryClient.invalidateQueries({ queryKey: [queryKey] })
+          queryClient.invalidateQueries({ queryKey: [queryKey], exact: false })
         );
         
         await Promise.all(invalidationPromises);
@@ -75,7 +75,7 @@ export const useQueryInvalidation = () => {
     const uniqueQueries = Array.from(new Set(allQueries));
 
     const invalidationPromises = uniqueQueries.map(queryKey => 
-      queryClient.invalidateQueries({ queryKey: [queryKey] })
+      queryClient.invalidateQueries({ queryKey: [queryKey], exact: false })
     );
     
     await Promise.all(invalidationPromises);
@@ -87,7 +87,7 @@ export const useQueryInvalidation = () => {
 
   const invalidateQueries = async (queryKeys: string[]) => {
     const invalidationPromises = queryKeys.map(queryKey => 
-      queryClient.invalidateQueries({ queryKey: [queryKey] })
+      queryClient.invalidateQueries({ queryKey: [queryKey], exact: false })
     );
     
     await Promise.all(invalidationPromises);

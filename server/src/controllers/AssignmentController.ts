@@ -24,7 +24,12 @@ export class AssignmentController {
         }
       },
       taskAssignments: {
-        where: { isActive: true },
+        where: { 
+          isActive: true,
+          task: {
+            deletedAt: null
+          }
+        },
         include: {
           task: {
             select: {
@@ -41,6 +46,11 @@ export class AssignmentController {
     // Include progress data if requested
     if (includeProgress === 'true') {
       includeOptions.taskProgress = {
+        where: {
+          task: {
+            deletedAt: null
+          }
+        },
         include: {
           carer: {
             select: { id: true, name: true }
@@ -76,6 +86,7 @@ export class AssignmentController {
         orderBy: { name: 'asc' }
       })
     }
+
 
     res.json({
       success: true,
@@ -404,6 +415,7 @@ export class AssignmentController {
       }
     })
 
+
     if (!assignment || !assignment.isActive) {
       throw createError(404, 'Assignment not found or already inactive')
     }
@@ -546,17 +558,11 @@ export class AssignmentController {
   // Get assignment summary for dashboard
   getAssignmentSummary = asyncHandler(async (req: Request, res: Response): Promise<void> => {
     const [
-      totalAssignments,
       activeCarerAssignments,
       activeTaskAssignments,
       packagesWithCarers,
       packagesWithTasks
     ] = await Promise.all([
-      prisma.carerPackageAssignment.count({
-        where: { isActive: true }
-      }) + prisma.packageTaskAssignment.count({
-        where: { isActive: true }
-      }),
       prisma.carerPackageAssignment.count({
         where: { isActive: true }
       }),
@@ -580,6 +586,8 @@ export class AssignmentController {
         }
       })
     ])
+
+    const totalAssignments = activeCarerAssignments + activeTaskAssignments
 
     res.json({
       success: true,

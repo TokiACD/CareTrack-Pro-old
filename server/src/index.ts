@@ -72,7 +72,7 @@ app.use(cors({
     'http://localhost:3002',
     'http://localhost:3003',
     process.env.FRONTEND_URL
-  ].filter(Boolean),
+  ].filter((url): url is string => Boolean(url)),
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
