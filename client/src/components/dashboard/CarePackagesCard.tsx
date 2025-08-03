@@ -41,6 +41,8 @@ import { useQuery } from '@tanstack/react-query';
 import { apiService } from '../../services/api';
 import { API_ENDPOINTS } from '@caretrack/shared';
 import { useSmartMutation } from '../../hooks/useSmartMutation';
+import ConfirmationDialog from '../common/ConfirmationDialog';
+import { useConfirmation } from '../../hooks/useConfirmation';
 
 interface CarePackage {
   id: string;
@@ -67,6 +69,9 @@ const CarePackagesCard: React.FC = () => {
   const [editingPackage, setEditingPackage] = useState<CarePackage | null>(null);
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const [selectedPackage, setSelectedPackage] = useState<CarePackage | null>(null);
+  
+  // Confirmation dialog for deletions
+  const { confirmationState, showConfirmation, hideConfirmation, handleConfirm } = useConfirmation();
   
   const [formData, setFormData] = useState<PackageFormData>({
     name: '',
@@ -217,15 +222,23 @@ const CarePackagesCard: React.FC = () => {
 
   const handleDeletePackage = (pkg: CarePackage) => {
     const hasAssignments = pkg.carerCount > 0 || pkg.taskCount > 0;
-    const warningText = hasAssignments 
-      ? `This package has ${pkg.carerCount} carers and ${pkg.taskCount} tasks assigned. All assignments will be deactivated.`
-      : '';
+    const warnings = hasAssignments 
+      ? [`This package has ${pkg.carerCount} carers and ${pkg.taskCount} tasks assigned`, 'All assignments will be deactivated']
+      : [];
     
-    const confirmMessage = `Are you sure you want to delete "${pkg.name}"? This action cannot be undone. ${warningText}`;
-    
-    if (window.confirm(confirmMessage)) {
-      deletePackageMutation.mutate(pkg.id);
-    }
+    showConfirmation(
+      {
+        title: 'Delete Care Package',
+        message: `Are you sure you want to delete "${pkg.name}"?`,
+        details: 'This action cannot be undone. The package will be moved to the recycle bin.',
+        confirmText: 'Delete',
+        severity: 'error',
+        warnings
+      },
+      () => {
+        deletePackageMutation.mutate(pkg.id);
+      }
+    );
   };
 
   const validatePostcode = (value: string): string | null => {
@@ -579,6 +592,21 @@ const CarePackagesCard: React.FC = () => {
             {notification.message}
           </Alert>
         </Snackbar>
+
+        {/* Confirmation Dialog */}
+        <ConfirmationDialog
+          open={confirmationState.open}
+          onClose={hideConfirmation}
+          onConfirm={handleConfirm}
+          title={confirmationState.title}
+          message={confirmationState.message}
+          details={confirmationState.details}
+          confirmText={confirmationState.confirmText}
+          cancelText={confirmationState.cancelText}
+          severity={confirmationState.severity}
+          isLoading={confirmationState.isLoading}
+          warnings={confirmationState.warnings}
+        />
       </CardContent>
     </Card>
   );

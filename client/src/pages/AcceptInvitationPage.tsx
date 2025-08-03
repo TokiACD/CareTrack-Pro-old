@@ -24,6 +24,8 @@ import {
 } from '@mui/icons-material';
 import { apiService } from '../services/api';
 import { API_ENDPOINTS } from '@caretrack/shared';
+import ConfirmationDialog from '../components/common/ConfirmationDialog';
+import { useConfirmation } from '../hooks/useConfirmation';
 
 interface InvitationData {
   email: string;
@@ -45,6 +47,9 @@ const AcceptInvitationPage: React.FC = () => {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [phone, setPhone] = useState('');
   const [phoneError, setPhoneError] = useState('');
+  
+  // Confirmation dialog for decline invitation
+  const { confirmationState, showConfirmation, hideConfirmation, handleConfirm } = useConfirmation();
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -164,21 +169,28 @@ const AcceptInvitationPage: React.FC = () => {
     }
   };
 
-  const handleDeclineInvitation = async () => {
-    if (!window.confirm('Are you sure you want to decline this invitation?')) {
-      return;
-    }
-
-    try {
-      await apiService.post(API_ENDPOINTS.INVITATIONS.DECLINE, { token });
-      navigate('/login', { 
-        state: { 
-          message: 'Invitation declined successfully.' 
+  const handleDeclineInvitation = () => {
+    showConfirmation(
+      {
+        title: 'Decline Invitation',
+        message: 'Are you sure you want to decline this invitation?',
+        details: 'This action cannot be undone. You will not be able to accept this invitation later.',
+        confirmText: 'Decline',
+        severity: 'warning'
+      },
+      async () => {
+        try {
+          await apiService.post(API_ENDPOINTS.INVITATIONS.DECLINE, { token });
+          navigate('/login', { 
+            state: { 
+              message: 'Invitation declined successfully.' 
+            }
+          });
+        } catch (error: any) {
+          setError(error.message || 'Failed to decline invitation');
         }
-      });
-    } catch (error: any) {
-      setError(error.message || 'Failed to decline invitation');
-    }
+      }
+    );
   };
 
   if (loading) {
@@ -381,6 +393,21 @@ const AcceptInvitationPage: React.FC = () => {
           Need help? Contact your system administrator
         </Typography>
       </Box>
+
+      {/* Confirmation Dialog */}
+      <ConfirmationDialog
+        open={confirmationState.open}
+        onClose={hideConfirmation}
+        onConfirm={handleConfirm}
+        title={confirmationState.title}
+        message={confirmationState.message}
+        details={confirmationState.details}
+        confirmText={confirmationState.confirmText}
+        cancelText={confirmationState.cancelText}
+        severity={confirmationState.severity}
+        isLoading={confirmationState.isLoading}
+        warnings={confirmationState.warnings}
+      />
     </Container>
   );
 };

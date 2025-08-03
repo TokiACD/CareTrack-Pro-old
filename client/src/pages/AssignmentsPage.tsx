@@ -57,6 +57,8 @@ import { apiService } from '../services/api'
 import { API_ENDPOINTS, CarePackage, Carer, Task, CarerPackageAssignment, PackageTaskAssignment } from '@caretrack/shared'
 import { useAuth } from '../contexts/AuthContext'
 import { useSmartMutation } from '../hooks/useSmartMutation'
+import ConfirmationDialog from '../components/common/ConfirmationDialog'
+import { useConfirmation } from '../hooks/useConfirmation'
 
 // Extended types for assignments
 interface ExtendedCarePackage extends CarePackage {
@@ -101,6 +103,9 @@ const AssignmentsPage: React.FC = () => {
   const [selectedTaskIds, setSelectedTaskIds] = useState<string[]>([])
   const [carerSearchTerm, setCarerSearchTerm] = useState('')
   const [taskSearchTerm, setTaskSearchTerm] = useState('')
+  
+  // Confirmation dialog for unassignments
+  const { confirmationState, showConfirmation, hideConfirmation, handleConfirm } = useConfirmation()
   
   // Notification state
   const [notification, setNotification] = useState<{
@@ -178,9 +183,13 @@ const AssignmentsPage: React.FC = () => {
       mutationType: 'assignments.create',
       skipAutoInvalidation: true,
       onSuccess: async (data: any) => {
-        // Force complete cache reset for assignments
+        // Force complete cache reset for assignments AND packages
         queryClient.removeQueries({ 
           queryKey: ['assignments'],
+          exact: false 
+        });
+        queryClient.removeQueries({ 
+          queryKey: ['packages'],
           exact: false 
         });
         
@@ -232,9 +241,13 @@ const AssignmentsPage: React.FC = () => {
       mutationType: 'assignments.delete',
       skipAutoInvalidation: true,
       onSuccess: async (data: any) => {
-        // Force complete cache reset for assignments
+        // Force complete cache reset for assignments AND packages
         queryClient.removeQueries({ 
           queryKey: ['assignments'],
+          exact: false 
+        });
+        queryClient.removeQueries({ 
+          queryKey: ['packages'],
           exact: false 
         });
         
@@ -287,9 +300,13 @@ const AssignmentsPage: React.FC = () => {
       mutationType: 'assignments.create',
       skipAutoInvalidation: true,
       onSuccess: async (data: any) => {
-        // Force complete cache reset for assignments
+        // Force complete cache reset for assignments AND packages
         queryClient.removeQueries({ 
           queryKey: ['assignments'],
+          exact: false 
+        });
+        queryClient.removeQueries({ 
+          queryKey: ['packages'],
           exact: false 
         });
         
@@ -341,9 +358,13 @@ const AssignmentsPage: React.FC = () => {
       mutationType: 'assignments.delete',
       skipAutoInvalidation: true,
       onSuccess: async (data: any) => {
-        // Force complete cache reset for assignments
+        // Force complete cache reset for assignments AND packages
         queryClient.removeQueries({ 
           queryKey: ['assignments'],
+          exact: false 
+        });
+        queryClient.removeQueries({ 
+          queryKey: ['packages'],
           exact: false 
         });
         
@@ -471,22 +492,50 @@ const AssignmentsPage: React.FC = () => {
 
   // Handle remove carer
   const handleRemoveCarer = (carerId: string) => {
-    if (selectedPackage) {
-      removeCarerMutation.mutate({
-        carerId,
-        packageId: selectedPackage.id
-      })
-    }
+    if (!selectedPackage) return
+    
+    const carerAssignment = selectedPackage.carerAssignments?.find((a: any) => a.carerId === carerId)
+    const carerName = carerAssignment?.carer?.name || 'this carer'
+    
+    showConfirmation(
+      {
+        title: 'Remove Carer Assignment',
+        message: `Are you sure you want to remove "${carerName}" from "${selectedPackage.name}"?`,
+        details: 'This will remove the carer from this care package. The carer will remain active but will no longer be assigned to this package.',
+        confirmText: 'Remove Assignment',
+        severity: 'warning'
+      },
+      () => {
+        removeCarerMutation.mutate({
+          carerId,
+          packageId: selectedPackage.id
+        })
+      }
+    )
   }
 
   // Handle remove task
   const handleRemoveTask = (taskId: string) => {
-    if (selectedPackage) {
-      removeTaskMutation.mutate({
-        taskId,
-        packageId: selectedPackage.id
-      })
-    }
+    if (!selectedPackage) return
+    
+    const taskAssignment = selectedPackage.taskAssignments?.find((a: any) => a.taskId === taskId)
+    const taskName = taskAssignment?.task?.name || 'this task'
+    
+    showConfirmation(
+      {
+        title: 'Remove Task Assignment',
+        message: `Are you sure you want to remove "${taskName}" from "${selectedPackage.name}"?`,
+        details: 'This will remove the task from this care package. The task will remain active but will no longer be assigned to this package.',
+        confirmText: 'Remove Assignment',
+        severity: 'warning'
+      },
+      () => {
+        removeTaskMutation.mutate({
+          taskId,
+          packageId: selectedPackage.id
+        })
+      }
+    )
   }
 
   if (packagesError) {
@@ -1006,6 +1055,21 @@ const AssignmentsPage: React.FC = () => {
           {notification.message}
         </Alert>
       </Snackbar>
+
+      {/* Confirmation Dialog */}
+      <ConfirmationDialog
+        open={confirmationState.open}
+        onClose={hideConfirmation}
+        onConfirm={handleConfirm}
+        title={confirmationState.title}
+        message={confirmationState.message}
+        details={confirmationState.details}
+        confirmText={confirmationState.confirmText}
+        cancelText={confirmationState.cancelText}
+        severity={confirmationState.severity}
+        isLoading={confirmationState.isLoading}
+        warnings={confirmationState.warnings}
+      />
     </Box>
   )
 }

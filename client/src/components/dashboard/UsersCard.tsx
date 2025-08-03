@@ -51,6 +51,8 @@ import { API_ENDPOINTS } from '@caretrack/shared';
 import EmailChangeDialog from '../profile/EmailChangeDialog';
 import { useAuth } from '../../contexts/AuthContext';
 import { useSmartMutation } from '../../hooks/useSmartMutation';
+import ConfirmationDialog from '../common/ConfirmationDialog';
+import { useConfirmation } from '../../hooks/useConfirmation';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -141,6 +143,9 @@ const UsersCard: React.FC = () => {
   const [emailChangeUser, setEmailChangeUser] = useState<{ user: AdminUser | Carer; type: 'ADMIN' | 'CARER' } | null>(null);
   const [emailValidationError, setEmailValidationError] = useState<string>('');
   const [phoneValidationError, setPhoneValidationError] = useState<string>('');
+  
+  // Confirmation dialog for deletions
+  const { confirmationState, showConfirmation, hideConfirmation, handleConfirm } = useConfirmation();
   
   const [formData, setFormData] = useState<UserFormData>({
     email: '',
@@ -513,10 +518,19 @@ const UsersCard: React.FC = () => {
   };
 
   const handleDeleteUser = (user: AdminUser | Carer, type: 'admin' | 'carer') => {
-    if (window.confirm(`Are you sure you want to delete this ${type}? This action cannot be undone.`)) {
-      setUserType(type);
-      deleteUserMutation.mutate(user.id);
-    }
+    showConfirmation(
+      {
+        title: `Delete ${type === 'admin' ? 'Admin User' : 'Carer'}`,
+        message: `Are you sure you want to delete "${user.name}"?`,
+        details: 'This action cannot be undone. The user will be moved to the recycle bin.',
+        confirmText: 'Delete',
+        severity: 'error'
+      },
+      () => {
+        setUserType(type);
+        deleteUserMutation.mutate(user.id);
+      }
+    );
   };
 
 
@@ -639,15 +653,33 @@ const UsersCard: React.FC = () => {
   };
 
   const handleResendInvitation = (invitationId: string) => {
-    if (window.confirm('Are you sure you want to resend this invitation?')) {
-      resendInvitationMutation.mutate(invitationId);
-    }
+    showConfirmation(
+      {
+        title: 'Resend Invitation',
+        message: 'Are you sure you want to resend this invitation?',
+        details: 'A new invitation email will be sent to the user.',
+        confirmText: 'Resend',
+        severity: 'info'
+      },
+      () => {
+        resendInvitationMutation.mutate(invitationId);
+      }
+    );
   };
 
   const handleCancelInvitation = (invitationId: string) => {
-    if (window.confirm('Are you sure you want to cancel this invitation? This action cannot be undone.')) {
-      cancelInvitationMutation.mutate(invitationId);
-    }
+    showConfirmation(
+      {
+        title: 'Cancel Invitation',
+        message: 'Are you sure you want to cancel this invitation?',
+        details: 'This action cannot be undone. The invitation will be permanently cancelled.',
+        confirmText: 'Cancel Invitation',
+        severity: 'warning'
+      },
+      () => {
+        cancelInvitationMutation.mutate(invitationId);
+      }
+    );
   };
 
   return (
@@ -1172,6 +1204,21 @@ const UsersCard: React.FC = () => {
             targetUserId={emailChangeUser.user.id}
           />
         )}
+
+      {/* Confirmation Dialog */}
+      <ConfirmationDialog
+        open={confirmationState.open}
+        onClose={hideConfirmation}
+        onConfirm={handleConfirm}
+        title={confirmationState.title}
+        message={confirmationState.message}
+        details={confirmationState.details}
+        confirmText={confirmationState.confirmText}
+        cancelText={confirmationState.cancelText}
+        severity={confirmationState.severity}
+        isLoading={confirmationState.isLoading}
+        warnings={confirmationState.warnings}
+      />
       </CardContent>
     </Card>
   );
