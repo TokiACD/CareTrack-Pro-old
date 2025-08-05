@@ -87,6 +87,7 @@ export const API_ENDPOINTS = {
     SUBMIT_RESPONSE: '/api/assessments/:id/responses'
   },
   PROGRESS: {
+    LIST: '/api/progress',
     UPDATE: '/api/progress/update',
     BULK_UPDATE: '/api/progress/bulk-update',
     GENERATE_PDF: '/api/progress/:carerId/pdf'

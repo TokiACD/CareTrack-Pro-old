@@ -48,10 +48,6 @@ router.post(
       .isString()
       .isLength({ min: 1, max: 255 })
       .withMessage('Assessment name is required and must be less than 255 characters'),
-    body('displayTaskId')
-      .optional()
-      .isString()
-      .withMessage('Display task ID must be a string'),
     body('knowledgeQuestions')
       .optional()
       .isArray()
@@ -111,10 +107,6 @@ router.patch(
       .isString()
       .isLength({ min: 1, max: 255 })
       .withMessage('Assessment name must be less than 255 characters'),
-    body('displayTaskId')
-      .optional()
-      .isString()
-      .withMessage('Display task ID must be a string'),
     body('isActive')
       .optional()
       .isBoolean()

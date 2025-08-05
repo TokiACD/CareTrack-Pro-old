@@ -77,7 +77,6 @@ interface EmergencyQuestion {
 
 interface AssessmentFormData {
   name: string
-  displayTaskId: string
   isActive: boolean
   knowledgeQuestions: KnowledgeQuestion[]
   practicalSkills: PracticalSkill[]
@@ -148,7 +147,6 @@ const EditAssessmentPage: React.FC = () => {
   const [taskToWarning, setTaskToWarning] = useState<Task | null>(null)
   const [formData, setFormData] = useState<AssessmentFormData>({
     name: '',
-    displayTaskId: '',
     isActive: true,
     knowledgeQuestions: [],
     practicalSkills: [],
@@ -210,7 +208,6 @@ const EditAssessmentPage: React.FC = () => {
       const data = assessmentData as any
       setFormData({
         name: data.name || '',
-        displayTaskId: data.displayTaskId || '',
         isActive: data.isActive ?? true,
         knowledgeQuestions: data.knowledgeQuestions?.map((q: any) => ({
           question: q.question,
@@ -385,8 +382,6 @@ const EditAssessmentPage: React.FC = () => {
   
   // Get tasks that are already covered by other assessments (excluding current one)
   const coveredTaskIds = new Set<string>()
-  // Get tasks that are already used as display tasks (excluding current one)
-  const usedDisplayTaskIds = new Set<string>()
   
   if (assessmentsData && id) {
     (assessmentsData as any[]).forEach((assessment: any) => {
@@ -398,16 +393,9 @@ const EditAssessmentPage: React.FC = () => {
             coveredTaskIds.add(taskCoverage.taskId)
           })
         }
-        // Track tasks used as display tasks
-        if (assessment.displayTaskId) {
-          usedDisplayTaskIds.add(assessment.displayTaskId)
-        }
       }
     })
   }
-  
-  // Filter available display tasks (exclude already used ones)
-  const availableDisplayTasks = availableTasks.filter(task => !usedDisplayTaskIds.has(task.id))
   
   // Group tasks into available and already covered
   const uncoveredTasks = availableTasks.filter(task => !coveredTaskIds.has(task.id))
@@ -534,27 +522,6 @@ const EditAssessmentPage: React.FC = () => {
                       required
                     />
                     
-                    <FormControl fullWidth sx={{ mb: 2 }}>
-                      <InputLabel>Display Task (Optional)</InputLabel>
-                      <Select
-                        value={formData.displayTaskId}
-                        onChange={(e) => setFormData(prev => ({ ...prev, displayTaskId: e.target.value }))}
-                        label="Display Task (Optional)"
-                      >
-                        <MenuItem value="">None</MenuItem>
-                        {availableDisplayTasks.map((task: Task) => (
-                          <MenuItem key={task.id} value={task.id}>
-                            {task.name}
-                          </MenuItem>
-                        ))}
-                      </Select>
-                    </FormControl>
-
-                    {availableDisplayTasks.length === 0 && availableTasks.length > 0 && (
-                      <Typography variant="body2" sx={{ mb: 2, color: '#f57c00', fontWeight: 500 }}>
-                        All tasks are already used as display tasks by other assessments.
-                      </Typography>
-                    )}
 
                     <FormControlLabel
                       control={

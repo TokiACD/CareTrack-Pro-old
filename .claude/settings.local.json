@@ -3,7 +3,9 @@
     "allow": [
       "Bash(taskkill:*)",
       "Bash(true)",
-      "Bash(npx ts-node:*)"
+      "Bash(npx ts-node:*)",
+      "Bash(git add:*)",
+      "Bash(PORT=3000 npx tsx src/index.ts)"
     ],
     "deny": []
   }

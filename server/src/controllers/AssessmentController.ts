@@ -132,7 +132,6 @@ export class AssessmentController {
   createAssessment = asyncHandler(async (req: Request, res: Response): Promise<void> => {
     const {
       name,
-      displayTaskId,
       knowledgeQuestions,
       practicalSkills,
       emergencyQuestions,
@@ -150,8 +149,7 @@ export class AssessmentController {
       // Create the assessment
       const newAssessment = await tx.assessment.create({
         data: {
-          name: name.trim(),
-          displayTaskId: displayTaskId || null
+          name: name.trim()
         }
       })
 
@@ -209,7 +207,7 @@ export class AssessmentController {
       action: 'CREATE_ASSESSMENT',
       entityType: 'Assessment',
       entityId: assessment.id,
-      newValues: { name, displayTaskId },
+      newValues: { name },
       performedByAdminId: admin.id,
       performedByAdminName: admin.name,
       ipAddress: req.ip,
@@ -245,7 +243,6 @@ export class AssessmentController {
     const { id } = req.params
     const {
       name,
-      displayTaskId,
       isActive,
       knowledgeQuestions,
       practicalSkills,
@@ -270,7 +267,6 @@ export class AssessmentController {
         where: { id },
         data: {
           ...(name && { name: name.trim() }),
-          ...(displayTaskId !== undefined && { displayTaskId: displayTaskId || null }),
           ...(isActive !== undefined && { isActive }),
           updatedAt: new Date()
         }
@@ -357,7 +353,7 @@ export class AssessmentController {
       entityType: 'Assessment',
       entityId: id,
       oldValues: { name: existingAssessment.name },
-      newValues: { name, displayTaskId, isActive },
+      newValues: { name, isActive },
       performedByAdminId: admin.id,
       performedByAdminName: admin.name,
       ipAddress: req.ip,

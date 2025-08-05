@@ -1,17 +1,26 @@
 import { Router } from 'express'
 import { requireAuth } from '../middleware/auth'
+import { progressController } from '../controllers/ProgressController'
 
 const router = Router()
 router.use(requireAuth)
 
-router.post('/update', (req, res) => {
-  res.json({ success: true, message: 'Update progress endpoint - coming soon' })
-})
+// Get all carers with progress summaries
+router.get('/', progressController.getCarerProgressSummaries.bind(progressController))
 
-router.post('/bulk-update', (req, res) => {
-  res.json({ success: true, message: 'Bulk update progress endpoint - coming soon' })
-})
+// Get detailed progress for a specific carer
+router.get('/carer/:carerId', progressController.getCarerDetailedProgress.bind(progressController))
 
+// Update task progress for a carer
+router.put('/update', progressController.updateTaskProgress.bind(progressController))
+
+// Reset task progress for a carer
+router.put('/reset', progressController.resetTaskProgress.bind(progressController))
+
+// Set manual competency rating
+router.put('/competency', progressController.setManualCompetency.bind(progressController))
+
+// Generate PDF report (placeholder for future implementation)
 router.get('/:carerId/pdf', (req, res) => {
   res.json({ success: true, message: 'Generate PDF endpoint - coming soon' })
 })

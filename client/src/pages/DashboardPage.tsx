@@ -30,6 +30,7 @@ import { DashboardCard } from '../components/dashboard/DashboardCard'
 import UsersCard from '../components/dashboard/UsersCard'
 import CarePackagesCard from '../components/dashboard/CarePackagesCard'
 import RecycleBinCard from '../components/dashboard/RecycleBinCard'
+import ProgressCard from '../components/dashboard/ProgressCard'
 
 // Dashboard card configurations
 const DASHBOARD_CARDS = [
@@ -149,6 +150,11 @@ export function DashboardPage() {
       return
     }
     
+    if (cardId === 'progress') {
+      navigate('/progress')
+      return
+    }
+    
     // For other cards, use the existing internal navigation
     setActiveCard(cardId)
   }
@@ -170,6 +176,8 @@ export function DashboardPage() {
         return <CarePackagesCard />
       case 'recycle-bin':
         return <RecycleBinCard />
+      case 'progress':
+        return <ProgressCard />
       default:
         return (
           <Box textAlign="center" py={8}>
