@@ -87,10 +87,5 @@ router.post(
   recycleBinController.cleanupOldItems
 )
 
-// DEBUG: GET /api/recycle-bin/debug-carers - Check deleted carers directly
-router.get(
-  '/debug-carers',
-  recycleBinController.debugDeletedCarers
-)
 
 export { router as recycleBinRoutes }

@@ -341,37 +341,177 @@ export class RecycleBinController {
       throw createError(400, `${entityConfig.name} is not soft-deleted. Cannot permanently delete active items.`)
     }
 
-    // Check if item has dependencies (implement basic checks)
-    // This is a safety measure to prevent data integrity issues
-    if (entityType === 'carers') {
-      const assignments = await prisma.carerPackageAssignment.count({
-        where: { carerId: entityId }
-      })
-      const competencies = await prisma.competencyRating.count({
-        where: { carerId: entityId }
-      })
-      
-      if (assignments > 0 || competencies > 0) {
-        throw createError(409, `Cannot permanently delete carer. Has ${assignments} assignment(s) and ${competencies} competency rating(s).`)
+    // Perform cascade deletion for entities with dependencies
+    await prisma.$transaction(async (tx) => {
+      if (entityType === 'carers') {
+        // Delete all carer-related records
+        console.log(`🗑️ Permanently deleting carer ${entityId} and all related records...`)
+        
+        // Delete task progress
+        await tx.taskProgress.deleteMany({
+          where: { carerId: entityId }
+        })
+        
+        // Delete competency ratings
+        await tx.competencyRating.deleteMany({
+          where: { carerId: entityId }
+        })
+        
+        // Delete assessment responses
+        await tx.assessmentResponse.deleteMany({
+          where: { carerId: entityId }
+        })
+        
+        // Delete shift assignments
+        await tx.shiftAssignment.deleteMany({
+          where: { carerId: entityId }
+        })
+        
+        // Delete rota entries
+        await tx.rotaEntry.deleteMany({
+          where: { carerId: entityId }
+        })
+        
+        // Delete carer package assignments
+        await tx.carerPackageAssignment.deleteMany({
+          where: { carerId: entityId }
+        })
+        
+        console.log(`✅ Deleted all related records for carer ${entityId}`)
       }
-    }
 
-    if (entityType === 'tasks') {
-      const assignments = await prisma.packageTaskAssignment.count({
-        where: { taskId: entityId }
-      })
-      const competencies = await prisma.competencyRating.count({
-        where: { taskId: entityId }
-      })
-      
-      if (assignments > 0 || competencies > 0) {
-        throw createError(409, `Cannot permanently delete task. Has ${assignments} assignment(s) and ${competencies} competency rating(s).`)
+      if (entityType === 'tasks') {
+        // Delete all task-related records
+        console.log(`🗑️ Permanently deleting task ${entityId} and all related records...`)
+        
+        // Delete task progress
+        await tx.taskProgress.deleteMany({
+          where: { taskId: entityId }
+        })
+        
+        // Delete competency ratings
+        await tx.competencyRating.deleteMany({
+          where: { taskId: entityId }
+        })
+        
+        // Delete package task assignments
+        await tx.packageTaskAssignment.deleteMany({
+          where: { taskId: entityId }
+        })
+        
+        // Delete assessment task coverages
+        await tx.assessmentTaskCoverage.deleteMany({
+          where: { taskId: entityId }
+        })
+        
+        console.log(`✅ Deleted all related records for task ${entityId}`)
       }
-    }
 
-    // Permanently delete the item
-    await entityConfig.model.delete({
-      where: { id: entityId }
+      if (entityType === 'care-packages') {
+        // Delete all care package-related records
+        console.log(`🗑️ Permanently deleting care package ${entityId} and all related records...`)
+        
+        // Delete task progress
+        await tx.taskProgress.deleteMany({
+          where: { packageId: entityId }
+        })
+        
+        // Delete carer package assignments
+        await tx.carerPackageAssignment.deleteMany({
+          where: { packageId: entityId }
+        })
+        
+        // Delete package task assignments
+        await tx.packageTaskAssignment.deleteMany({
+          where: { packageId: entityId }
+        })
+        
+        // Delete rota entries
+        await tx.rotaEntry.deleteMany({
+          where: { packageId: entityId }
+        })
+        
+        // Delete shifts and their assignments
+        const shifts = await tx.shift.findMany({
+          where: { packageId: entityId },
+          select: { id: true }
+        })
+        
+        for (const shift of shifts) {
+          await tx.shiftAssignment.deleteMany({
+            where: { shiftId: shift.id }
+          })
+        }
+        
+        await tx.shift.deleteMany({
+          where: { packageId: entityId }
+        })
+        
+        console.log(`✅ Deleted all related records for care package ${entityId}`)
+      }
+
+      if (entityType === 'assessments') {
+        // Delete all assessment-related records
+        console.log(`🗑️ Permanently deleting assessment ${entityId} and all related records...`)
+        
+        // Get all assessment responses
+        const responses = await tx.assessmentResponse.findMany({
+          where: { assessmentId: entityId },
+          select: { id: true }
+        })
+        
+        // Delete response details for each response
+        for (const response of responses) {
+          await tx.knowledgeResponse.deleteMany({
+            where: { assessmentResponseId: response.id }
+          })
+          await tx.practicalResponse.deleteMany({
+            where: { assessmentResponseId: response.id }
+          })
+          await tx.emergencyResponse.deleteMany({
+            where: { assessmentResponseId: response.id }
+          })
+        }
+        
+        // Delete assessment responses
+        await tx.assessmentResponse.deleteMany({
+          where: { assessmentId: entityId }
+        })
+        
+        // Delete assessment structure
+        await tx.knowledgeQuestion.deleteMany({
+          where: { assessmentId: entityId }
+        })
+        await tx.practicalSkill.deleteMany({
+          where: { assessmentId: entityId }
+        })
+        await tx.emergencyQuestion.deleteMany({
+          where: { assessmentId: entityId }
+        })
+        await tx.assessmentTaskCoverage.deleteMany({
+          where: { assessmentId: entityId }
+        })
+        
+        console.log(`✅ Deleted all related records for assessment ${entityId}`)
+      }
+
+      // Finally, delete the main entity
+      if (entityType === 'carers') {
+        await tx.carer.delete({ where: { id: entityId } })
+      } else if (entityType === 'tasks') {
+        await tx.task.delete({ where: { id: entityId } })
+      } else if (entityType === 'care-packages') {
+        await tx.carePackage.delete({ where: { id: entityId } })
+      } else if (entityType === 'assessments') {
+        await tx.assessment.delete({ where: { id: entityId } })
+      } else if (entityType === 'admin-users') {
+        await tx.adminUser.delete({ where: { id: entityId } })
+      } else {
+        // For other entity types, use the config model
+        await entityConfig.model.delete({ where: { id: entityId } })
+      }
+      
+      console.log(`✅ Permanently deleted ${entityConfig.name} ${entityId}`)
     })
 
     // Log the permanent deletion
@@ -479,23 +619,4 @@ export class RecycleBinController {
     })
   })
 
-  // Debug endpoint to check deleted carers directly
-  debugDeletedCarers = asyncHandler(async (req: Request, res: Response): Promise<void> => {
-    const deletedCarers = await prisma.carer.findMany({
-      where: { deletedAt: { not: null } },
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        deletedAt: true,
-        isActive: true
-      }
-    })
-
-    res.json({
-      success: true,
-      data: deletedCarers,
-      count: deletedCarers.length
-    })
-  })
 }

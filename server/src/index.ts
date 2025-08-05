@@ -67,8 +67,8 @@ app.use(helmet({
 
 app.use(cors({
   origin: [
-    'http://localhost:3000',
-    'http://localhost:3001', 
+    'http://localhost:3001',
+    'http://localhost:3000', 
     'http://localhost:3002',
     'http://localhost:3003',
     process.env.FRONTEND_URL
@@ -133,9 +133,9 @@ if (NODE_ENV === 'production') {
   app.get('/invitation/accept', (req, res) => {
     const { token } = req.query
     if (token) {
-      res.redirect(`http://localhost:3001/invitation/accept?token=${token}`)
+      res.redirect(`${process.env.FRONTEND_URL}/invitation/accept?token=${token}`)
     } else {
-      res.redirect('http://localhost:3001')
+      res.redirect(process.env.FRONTEND_URL || 'http://localhost:3001')
     }
   })
 }

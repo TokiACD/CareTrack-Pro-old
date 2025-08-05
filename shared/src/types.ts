@@ -3,6 +3,7 @@ export interface AdminUser {
   id: string;
   email: string;
   name: string;
+  phone: string;
   isActive: boolean;
   createdAt: Date;
   updatedAt: Date;

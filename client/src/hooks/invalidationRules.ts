@@ -55,6 +55,7 @@ export const INVALIDATION_RULES = {
   'assessments.create': ['assessments', 'competencies', 'assignments'],
   'assessments.update': ['assessments', 'competencies', 'assignments'],
   'assessments.delete': ['assessments', 'competencies', 'recycle-bin', 'recycle-bin-summary'],
+  'assessments.submitResponse': ['assessments', 'competencies', 'assignments', 'carer-progress', 'carers'],
   
   // Competency mutations
   'competencies.update': ['competencies', 'assessments', 'assignments'],

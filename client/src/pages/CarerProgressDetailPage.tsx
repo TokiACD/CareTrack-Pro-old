@@ -43,7 +43,6 @@ import {
   CheckCircle,
   Info,
   Lock,
-  Schedule,
   CheckCircleOutline,
   Home as HomeIcon,
   TrendingUp as ProgressIcon,
@@ -593,8 +592,8 @@ const CarerProgressDetailPage: React.FC = () => {
                                       disabled={assessmentState.disabled}
                                       onClick={() => {
                                         if (assessmentState.state === 'ready') {
-                                          // Navigate to assessment
-                                          navigate(`/assessments/${group.assessmentId}/take`);
+                                          // Navigate to take assessment page
+                                          navigate(`/assessments/${group.assessmentId}/take/${carerId}`);
                                         }
                                       }}
                                       sx={{ minWidth: 160 }}

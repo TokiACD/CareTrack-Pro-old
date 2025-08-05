@@ -104,26 +104,6 @@ export class AuthController {
     })
   })
 
-  // Debug endpoint to list all admin users (temporary)
-  listAdmins = asyncHandler(async (req: Request, res: Response): Promise<void> => {
-    const users = await prisma.adminUser.findMany({
-      select: {
-        id: true,
-        email: true,
-        name: true,
-        isActive: true,
-        deletedAt: true,
-        createdAt: true,
-        invitedBy: true
-      }
-    })
-    
-    res.json({
-      success: true,
-      data: users,
-      total: users.length
-    })
-  })
 
   verifyToken = asyncHandler(async (req: Request, res: Response): Promise<void> => {
     // User is already attached to request by auth middleware

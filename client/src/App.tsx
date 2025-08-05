@@ -16,6 +16,7 @@ import EditAssessmentPage from './pages/EditAssessmentPage'
 import RecycleBinPage from './pages/RecycleBinPage'
 import ProgressPage from './pages/ProgressPage'
 import CarerProgressDetailPage from './pages/CarerProgressDetailPage'
+import TakeAssessmentPage from './pages/TakeAssessmentPage'
 import EmailChangeVerification from './pages/EmailChangeVerification'
 import { ProtectedRoute } from './components/auth/ProtectedRoute'
 
@@ -131,6 +132,14 @@ function App() {
           element={
             <ProtectedRoute>
               <CarerProgressDetailPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/assessments/:assessmentId/take/:carerId"
+          element={
+            <ProtectedRoute>
+              <TakeAssessmentPage />
             </ProtectedRoute>
           }
         />
