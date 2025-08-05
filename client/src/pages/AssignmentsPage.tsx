@@ -183,13 +183,17 @@ const AssignmentsPage: React.FC = () => {
       mutationType: 'assignments.create',
       skipAutoInvalidation: true,
       onSuccess: async (data: any) => {
-        // Force complete cache reset for assignments AND packages
+        // Force complete cache reset for assignments, packages, AND progress
         queryClient.removeQueries({ 
           queryKey: ['assignments'],
           exact: false 
         });
         queryClient.removeQueries({ 
           queryKey: ['packages'],
+          exact: false 
+        });
+        queryClient.removeQueries({ 
+          queryKey: ['progress'],
           exact: false 
         });
         
@@ -241,13 +245,17 @@ const AssignmentsPage: React.FC = () => {
       mutationType: 'assignments.delete',
       skipAutoInvalidation: true,
       onSuccess: async (data: any) => {
-        // Force complete cache reset for assignments AND packages
+        // Force complete cache reset for assignments, packages, AND progress
         queryClient.removeQueries({ 
           queryKey: ['assignments'],
           exact: false 
         });
         queryClient.removeQueries({ 
           queryKey: ['packages'],
+          exact: false 
+        });
+        queryClient.removeQueries({ 
+          queryKey: ['progress'],
           exact: false 
         });
         
@@ -300,13 +308,17 @@ const AssignmentsPage: React.FC = () => {
       mutationType: 'assignments.create',
       skipAutoInvalidation: true,
       onSuccess: async (data: any) => {
-        // Force complete cache reset for assignments AND packages
+        // Force complete cache reset for assignments, packages, AND progress
         queryClient.removeQueries({ 
           queryKey: ['assignments'],
           exact: false 
         });
         queryClient.removeQueries({ 
           queryKey: ['packages'],
+          exact: false 
+        });
+        queryClient.removeQueries({ 
+          queryKey: ['progress'],
           exact: false 
         });
         
@@ -358,13 +370,17 @@ const AssignmentsPage: React.FC = () => {
       mutationType: 'assignments.delete',
       skipAutoInvalidation: true,
       onSuccess: async (data: any) => {
-        // Force complete cache reset for assignments AND packages
+        // Force complete cache reset for assignments, packages, AND progress
         queryClient.removeQueries({ 
           queryKey: ['assignments'],
           exact: false 
         });
         queryClient.removeQueries({ 
           queryKey: ['packages'],
+          exact: false 
+        });
+        queryClient.removeQueries({ 
+          queryKey: ['progress'],
           exact: false 
         });
         

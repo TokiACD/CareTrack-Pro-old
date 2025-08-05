@@ -47,9 +47,9 @@ export const INVALIDATION_RULES = {
   'tasks.delete': ['tasks', 'schedules', 'assignments', 'recycle-bin', 'recycle-bin-summary'],
   
   // Assignment mutations
-  'assignments.create': ['assignments', 'available-carers', 'available-tasks', 'schedules', 'packages', 'users'],
-  'assignments.update': ['assignments', 'available-carers', 'available-tasks', 'schedules', 'packages', 'users'],
-  'assignments.delete': ['assignments', 'available-carers', 'available-tasks', 'schedules', 'packages', 'users'],
+  'assignments.create': ['assignments', 'available-carers', 'available-tasks', 'schedules', 'packages', 'users', 'progress'],
+  'assignments.update': ['assignments', 'available-carers', 'available-tasks', 'schedules', 'packages', 'users', 'progress'],
+  'assignments.delete': ['assignments', 'available-carers', 'available-tasks', 'schedules', 'packages', 'users', 'progress'],
   
   // Assessment mutations
   'assessments.create': ['assessments', 'competencies', 'assignments'],

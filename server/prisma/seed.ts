@@ -25,6 +25,7 @@ async function main() {
         email: adminEmail,
         name: 'System Administrator',
         passwordHash,
+        phone: '+44 1234 567890',
         isActive: true,
       },
     })
