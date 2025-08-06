@@ -1,5 +1,6 @@
 import axios, { AxiosInstance, AxiosError } from 'axios'
 import { ApiResponse } from '@caretrack/shared'
+import { isSuccessfulApiResponse, isFailedApiResponse, handleApiError } from '../utils/typeGuards'
 
 class ApiService {
   private api: AxiosInstance
@@ -49,9 +50,9 @@ class ApiService {
   }
 
   private extractErrorMessage(error: AxiosError): string {
-    const response = error.response?.data as ApiResponse
+    const response = error.response?.data
     
-    if (response?.error) {
+    if (isFailedApiResponse(response)) {
       return response.error
     }
     
@@ -63,33 +64,58 @@ class ApiService {
       return 'Network error. Please check your connection.'
     }
     
-    return error.message || 'An unexpected error occurred'
+    return handleApiError(error)
   }
 
-  // Generic request methods
+  // Generic request methods with type guards
   async get<T>(url: string, params?: any): Promise<T> {
     const response = await this.api.get<ApiResponse<T>>(url, { params })
-    return response.data.data!
+    
+    if (!isSuccessfulApiResponse<T>(response.data)) {
+      throw new Error(`Invalid API response from ${url}`)
+    }
+    
+    return response.data.data
   }
 
   async post<T>(url: string, data?: any): Promise<T> {
     const response = await this.api.post<ApiResponse<T>>(url, data)
-    return response.data.data!
+    
+    if (!isSuccessfulApiResponse<T>(response.data)) {
+      throw new Error(`Invalid API response from ${url}`)
+    }
+    
+    return response.data.data
   }
 
   async put<T>(url: string, data?: any): Promise<T> {
     const response = await this.api.put<ApiResponse<T>>(url, data)
-    return response.data.data!
+    
+    if (!isSuccessfulApiResponse<T>(response.data)) {
+      throw new Error(`Invalid API response from ${url}`)
+    }
+    
+    return response.data.data
   }
 
   async patch<T>(url: string, data?: any): Promise<T> {
     const response = await this.api.patch<ApiResponse<T>>(url, data)
-    return response.data.data!
+    
+    if (!isSuccessfulApiResponse<T>(response.data)) {
+      throw new Error(`Invalid API response from ${url}`)
+    }
+    
+    return response.data.data
   }
 
   async delete<T>(url: string, data?: any): Promise<T> {
     const response = await this.api.delete<ApiResponse<T>>(url, { data })
-    return response.data.data!
+    
+    if (!isSuccessfulApiResponse<T>(response.data)) {
+      throw new Error(`Invalid API response from ${url}`)
+    }
+    
+    return response.data.data
   }
 
   async deleteWithResponse<T>(url: string, data?: any): Promise<ApiResponse<T>> {
@@ -137,6 +163,11 @@ class ApiService {
   // Get full response (for cases like pagination)
   async getFullResponse<T>(url: string, params?: any): Promise<ApiResponse<T>> {
     const response = await this.api.get<ApiResponse<T>>(url, { params })
+    
+    if (!isSuccessfulApiResponse<T>(response.data) && !isFailedApiResponse(response.data)) {
+      throw new Error(`Invalid API response from ${url}`)
+    }
+    
     return response.data
   }
 

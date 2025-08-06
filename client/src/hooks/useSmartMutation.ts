@@ -55,7 +55,6 @@ export const useSmartMutation = <TData = unknown, TError = Error, TVariables = v
         
         // Log invalidations in development
         if (process.env.NODE_ENV === 'development') {
-          console.log(`🔄 [useSmartMutation] ${mutationType} invalidated:`, uniqueQueries);
         }
       }
     }
@@ -81,7 +80,6 @@ export const useQueryInvalidation = () => {
     await Promise.all(invalidationPromises);
     
     if (process.env.NODE_ENV === 'development') {
-      console.log(`🔄 [Manual Invalidation] ${mutationType} invalidated:`, uniqueQueries);
     }
   };
 
@@ -93,7 +91,6 @@ export const useQueryInvalidation = () => {
     await Promise.all(invalidationPromises);
     
     if (process.env.NODE_ENV === 'development') {
-      console.log(`🔄 [Manual Invalidation] Invalidated:`, queryKeys);
     }
   };
 

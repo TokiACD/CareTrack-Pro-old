@@ -55,6 +55,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { apiService } from '../services/api'
 import { API_ENDPOINTS, CarePackage, Carer, Task, CarerPackageAssignment, PackageTaskAssignment } from '@caretrack/shared'
+import { isCarePackage, isArray } from '../utils/typeGuards'
 import { useAuth } from '../contexts/AuthContext'
 import { useSmartMutation } from '../hooks/useSmartMutation'
 import ConfirmationDialog from '../components/common/ConfirmationDialog'
@@ -212,7 +213,9 @@ const AssignmentsPage: React.FC = () => {
         
         // Update selectedPackage state with fresh data
         if (selectedPackage) {
-          const updatedPackage = newData.find(pkg => pkg.id === selectedPackage.id);
+          const updatedPackage = isArray(newData, isCarePackage) 
+            ? newData.find((pkg: CarePackage) => pkg.id === selectedPackage.id)
+            : null;
           if (updatedPackage) {
             setSelectedPackage(updatedPackage);
           }
@@ -270,7 +273,9 @@ const AssignmentsPage: React.FC = () => {
         
         // Update selectedPackage state with fresh data
         if (selectedPackage) {
-          const updatedPackage = newData.find(pkg => pkg.id === selectedPackage.id);
+          const updatedPackage = isArray(newData, isCarePackage) 
+            ? newData.find((pkg: CarePackage) => pkg.id === selectedPackage.id)
+            : null;
           if (updatedPackage) {
             setSelectedPackage(updatedPackage);
           }
@@ -337,7 +342,9 @@ const AssignmentsPage: React.FC = () => {
         
         // Update selectedPackage state with fresh data
         if (selectedPackage) {
-          const updatedPackage = newData.find(pkg => pkg.id === selectedPackage.id);
+          const updatedPackage = isArray(newData, isCarePackage) 
+            ? newData.find((pkg: CarePackage) => pkg.id === selectedPackage.id)
+            : null;
           if (updatedPackage) {
             setSelectedPackage(updatedPackage);
           }
@@ -395,7 +402,9 @@ const AssignmentsPage: React.FC = () => {
         
         // Update selectedPackage state with fresh data
         if (selectedPackage) {
-          const updatedPackage = newData.find(pkg => pkg.id === selectedPackage.id);
+          const updatedPackage = isArray(newData, isCarePackage) 
+            ? newData.find((pkg: CarePackage) => pkg.id === selectedPackage.id)
+            : null;
           if (updatedPackage) {
             setSelectedPackage(updatedPackage);
           }

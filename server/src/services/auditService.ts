@@ -20,8 +20,8 @@ class AuditService {
           action: data.action,
           entityType: data.entityType,
           entityId: data.entityId,
-          oldValues: data.oldValues || null,
-          newValues: data.newValues || null,
+          oldValues: data.oldValues || undefined,
+          newValues: data.newValues || undefined,
           performedByAdminId: data.performedByAdminId,
           performedByAdminName: data.performedByAdminName,
           ipAddress: data.ipAddress,
@@ -29,7 +29,6 @@ class AuditService {
         },
       })
     } catch (error) {
-      console.error('Failed to create audit log:', error)
       // Don't throw error to avoid breaking the main operation
     }
   }

@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react'
+import React, { useState } from 'react'
 import {
   Card,
   CardContent,
@@ -315,8 +315,8 @@ const RecycleBinPage: React.FC = () => {
   const currentError = activeTab === 0 ? error : carersError
   const currentRefetch = activeTab === 0 ? refetch : refetchCarers
 
-  const items = currentData?.data || []
-  const pagination = currentData?.pagination || { page: 1, totalPages: 1, total: 0 }
+  const items = (currentData as any)?.data || []
+  const pagination = (currentData as any)?.pagination || { page: 1, totalPages: 1, total: 0 }
 
   if (currentError) {
     return (

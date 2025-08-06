@@ -68,14 +68,11 @@ const ProgressCard: React.FC = () => {
   } = useQuery({
     queryKey: ['progress', 'carers', searchTerm],
     queryFn: async () => {
-      console.log('🔍 Fetching carer progress summaries with search term:', searchTerm);
       const params = searchTerm ? { search: searchTerm } : undefined;
       const response = await apiService.get<CarerProgressSummary[]>(`${API_ENDPOINTS.PROGRESS.LIST}`, params);
-      console.log('📊 Full API response:', response);
       
       // Extract data from the response structure
-      const result = response?.data || response;
-      console.log('📊 Extracted data:', result);
+      const result = (response as any)?.data || response;
       return result;
     }
   });
@@ -83,15 +80,10 @@ const ProgressCard: React.FC = () => {
   // Filter carers based on search
   const filteredCarers = useMemo(() => {
     if (!carersData) {
-      console.log('📊 No carers data');
       return [];
     }
-    console.log('📊 Processing carers progress data:', carersData);
-    console.log('📊 Data type:', typeof carersData, 'Is array:', Array.isArray(carersData));
     
     const result = Array.isArray(carersData) ? carersData : [];
-    console.log('📊 Filtered carers result:', result);
-    console.log('📊 First carer data:', result[0]);
     return result;
   }, [carersData]);
 

@@ -9,51 +9,40 @@ import {
   Box,
   TextField,
   InputAdornment,
-  IconButton,
   Button,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  Paper,
   Chip,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  Switch,
-  FormControlLabel,
-  CircularProgress,
-  Alert,
   Menu,
   MenuItem,
-  Snackbar,
   ToggleButton,
-  ToggleButtonGroup
+  ToggleButtonGroup,
+  Switch,
+  FormControlLabel
 } from '@mui/material';
 import {
   Search as SearchIcon,
   Edit as EditIcon,
   Delete as DeleteIcon,
-  MoreVert as MoreVertIcon,
   PersonAdd as PersonAddIcon,
   Group as GroupIcon,
   Assessment as AssessmentIcon,
-  Email as EmailIcon,
-  Refresh as RefreshIcon,
-  Cancel as CancelIcon
+  Email as EmailIcon
 } from '@mui/icons-material';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiService } from '../../services/api';
-import { API_ENDPOINTS } from '@caretrack/shared';
+import { API_ENDPOINTS, AdminUser as SharedAdminUser, Carer as SharedCarer, Invitation as SharedInvitation } from '@caretrack/shared';
 import EmailChangeDialog from '../profile/EmailChangeDialog';
 import { useAuth } from '../../contexts/AuthContext';
 import { useSmartMutation } from '../../hooks/useSmartMutation';
 import ConfirmationDialog from '../common/ConfirmationDialog';
 import CarerDeletionDialog from '../common/CarerDeletionDialog';
 import { useConfirmation } from '../../hooks/useConfirmation';
+import {
+  UserFormDialog,
+  NotificationSnackbar,
+  AdminUsersTable,
+  CarersTable,
+  InvitationsTable
+} from './index';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -77,44 +66,21 @@ function TabPanel(props: TabPanelProps) {
   );
 }
 
-interface AdminUser {
-  id: string;
-  email: string;
-  name: string;
-  phone: string;
-  isActive: boolean;
-  createdAt: string;
-  updatedAt: string;
-  lastLogin?: string;
+// Extended AdminUser interface with UI-specific fields
+interface ExtendedAdminUser extends SharedAdminUser {
   invitedBy?: string;
 }
 
-interface Carer {
-  id: string;
-  name: string;
-  email: string;
-  phone: string;
-  isActive: boolean;
-  createdAt: string;
-  updatedAt: string;
+// Extended Carer interface with UI-specific fields
+interface ExtendedCarer extends SharedCarer {
   competencyStatus: 'COMPETENT' | 'NEEDS_SUPPORT' | 'NOT_ASSESSED';
   assignedPackages: Array<{ id: string; name: string }>;
   totalCompetencies: number;
   fullyAssessed: boolean;
 }
 
-interface Invitation {
-  id: string;
-  email: string;
-  name?: string;
-  phone?: string;
-  userType: 'ADMIN' | 'CARER';
-  token: string;
-  status: 'PENDING' | 'ACCEPTED' | 'DECLINED' | 'EXPIRED';
-  invitedAt: string;
-  expiresAt: string;
-  acceptedAt?: string;
-  declinedAt?: string;
+// Extended Invitation interface with UI-specific fields
+interface ExtendedInvitation extends Omit<SharedInvitation, 'invitedByAdmin'> {
   invitedByAdmin: {
     name: string;
   };
@@ -137,11 +103,11 @@ const UsersCard: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [showFullyAssessedOnly, setShowFullyAssessedOnly] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [editingUser, setEditingUser] = useState<AdminUser | Carer | null>(null);
+  const [editingUser, setEditingUser] = useState<ExtendedAdminUser | ExtendedCarer | null>(null);
   const [userType, setUserType] = useState<'admin' | 'carer'>('admin');
   const [invitationStatusFilter, setInvitationStatusFilter] = useState<'PENDING' | 'ACCEPTED'>('PENDING');
   const [emailChangeDialogOpen, setEmailChangeDialogOpen] = useState(false);
-  const [emailChangeUser, setEmailChangeUser] = useState<{ user: AdminUser | Carer; type: 'ADMIN' | 'CARER' } | null>(null);
+  const [emailChangeUser, setEmailChangeUser] = useState<{ user: ExtendedAdminUser | ExtendedCarer; type: 'ADMIN' | 'CARER' } | null>(null);
   const [emailValidationError, setEmailValidationError] = useState<string>('');
   const [phoneValidationError, setPhoneValidationError] = useState<string>('');
   
@@ -158,11 +124,11 @@ const UsersCard: React.FC = () => {
     isActive: true
   });
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
-  const [selectedUser, setSelectedUser] = useState<AdminUser | Carer | null>(null);
+  const [selectedUser, setSelectedUser] = useState<ExtendedAdminUser | ExtendedCarer | null>(null);
   
   // Carer deletion dialog state
   const [carerDeletionDialogOpen, setCarerDeletionDialogOpen] = useState(false);
-  const [carerToDelete, setCarerToDelete] = useState<Carer | null>(null);
+  const [carerToDelete, setCarerToDelete] = useState<ExtendedCarer | null>(null);
   
   // Notification state
   const [notification, setNotification] = useState<{
@@ -236,7 +202,7 @@ const UsersCard: React.FC = () => {
     queryKey: ['users', 'admins', searchTerm],
     queryFn: async () => {
       const params = searchTerm ? { search: searchTerm } : undefined;
-      return await apiService.get<AdminUser[]>(`${API_ENDPOINTS.USERS.ADMINS}`, params);
+      return await apiService.get<ExtendedAdminUser[]>(`${API_ENDPOINTS.USERS.ADMINS}`, params);
     },
     staleTime: 30000, // Consider data stale after 30 seconds
     refetchOnWindowFocus: true, // Refetch when user returns to tab
@@ -255,7 +221,7 @@ const UsersCard: React.FC = () => {
       if (searchTerm) params.search = searchTerm;
       if (showFullyAssessedOnly) params.fullyAssessed = 'true';
       
-      return await apiService.get<Carer[]>(`${API_ENDPOINTS.USERS.CARERS}`, params);
+      return await apiService.get<ExtendedCarer[]>(`${API_ENDPOINTS.USERS.CARERS}`, params);
     }
   });
 
@@ -271,7 +237,7 @@ const UsersCard: React.FC = () => {
       if (searchTerm) params.search = searchTerm;
       params.status = invitationStatusFilter;
       
-      return await apiService.get<Invitation[]>(`${API_ENDPOINTS.INVITATIONS.LIST}`, params);
+      return await apiService.get<ExtendedInvitation[]>(`${API_ENDPOINTS.INVITATIONS.LIST}`, params);
     },
     staleTime: 30000, // Consider data stale after 30 seconds
     refetchOnWindowFocus: true, // Refetch when user returns to tab
@@ -284,7 +250,7 @@ const UsersCard: React.FC = () => {
   } = useQuery({
     queryKey: ['invitations-pending-count'],
     queryFn: async () => {
-      return await apiService.get<Invitation[]>(`${API_ENDPOINTS.INVITATIONS.LIST}`, { status: 'PENDING' });
+      return await apiService.get<ExtendedInvitation[]>(`${API_ENDPOINTS.INVITATIONS.LIST}`, { status: 'PENDING' });
     },
     staleTime: 30000, // Consider data stale after 30 seconds
     refetchOnWindowFocus: true, // Refetch when user returns to tab
@@ -491,12 +457,12 @@ const UsersCard: React.FC = () => {
     setDialogOpen(true);
   };
 
-  const handleEditUser = (user: AdminUser | Carer, type: 'admin' | 'carer') => {
+  const handleEditUser = (user: ExtendedAdminUser | ExtendedCarer, type: 'admin' | 'carer') => {
     setUserType(type);
     setEditingUser(user);
     
     if (type === 'admin') {
-      const admin = user as AdminUser;
+      const admin = user as ExtendedAdminUser;
       setFormData({
         name: admin.name,
         email: admin.email,
@@ -507,7 +473,7 @@ const UsersCard: React.FC = () => {
         lastName: ''
       });
     } else {
-      const carer = user as Carer;
+      const carer = user as ExtendedCarer;
       setFormData({
         name: carer.name,
         email: carer.email,
@@ -522,10 +488,10 @@ const UsersCard: React.FC = () => {
     setDialogOpen(true);
   };
 
-  const handleDeleteUser = (user: AdminUser | Carer, type: 'admin' | 'carer') => {
+  const handleDeleteUser = (user: ExtendedAdminUser | ExtendedCarer, type: 'admin' | 'carer') => {
     if (type === 'carer') {
       // Use specialized carer deletion dialog with CQC compliance
-      setCarerToDelete(user as Carer);
+      setCarerToDelete(user as ExtendedCarer);
       setCarerDeletionDialogOpen(true);
     } else {
       // Use standard confirmation dialog for admin users
@@ -613,7 +579,7 @@ const UsersCard: React.FC = () => {
     }
   };
 
-  const handleMenuClick = (event: React.MouseEvent<HTMLButtonElement>, user: AdminUser | Carer) => {
+  const handleMenuClick = (event: React.MouseEvent<HTMLButtonElement>, user: ExtendedAdminUser | ExtendedCarer) => {
     setAnchorEl(event.currentTarget);
     setSelectedUser(user);
   };
@@ -807,245 +773,37 @@ const UsersCard: React.FC = () => {
 
         {/* Admin Users Tab */}
         <TabPanel value={activeTab} index={0}>
-          {adminsLoading ? (
-            <Box display="flex" justifyContent="center" p={3}>
-              <CircularProgress />
-            </Box>
-          ) : adminsError ? (
-            <Alert severity="error">
-              Failed to load admin users. Please try again.
-            </Alert>
-          ) : (
-            <TableContainer component={Paper} variant="outlined">
-              <Table>
-                <TableHead>
-                  <TableRow>
-                    <TableCell>Name</TableCell>
-                    <TableCell>Email</TableCell>
-                    <TableCell>Phone</TableCell>
-                    <TableCell>Status</TableCell>
-                    <TableCell>Last Login</TableCell>
-                    <TableCell>Created</TableCell>
-                    <TableCell align="right">Actions</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {filteredAdmins.map((admin: AdminUser) => (
-                    <TableRow key={admin.id} hover>
-                      <TableCell>{admin.name}</TableCell>
-                      <TableCell>{admin.email}</TableCell>
-                      <TableCell>{admin.phone}</TableCell>
-                      <TableCell>
-                        <Chip 
-                          size="small"
-                          color={admin.isActive ? 'success' : 'default'}
-                          label={admin.isActive ? 'Active' : 'Inactive'}
-                        />
-                      </TableCell>
-                      <TableCell>
-                        {admin.lastLogin ? new Date(admin.lastLogin).toLocaleDateString() : 'Never'}
-                      </TableCell>
-                      <TableCell>{new Date(admin.createdAt).toLocaleDateString()}</TableCell>
-                      <TableCell align="right">
-                        <IconButton
-                          size="small"
-                          onClick={(e) => handleMenuClick(e, admin)}
-                        >
-                          <MoreVertIcon />
-                        </IconButton>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                  {filteredAdmins.length === 0 && (
-                    <TableRow>
-                      <TableCell colSpan={7} align="center">
-                        <Typography color="textSecondary">
-                          No admin users found
-                        </Typography>
-                      </TableCell>
-                    </TableRow>
-                  )}
-                </TableBody>
-              </Table>
-            </TableContainer>
-          )}
+          <AdminUsersTable
+            admins={filteredAdmins}
+            isLoading={adminsLoading}
+            error={adminsError}
+            onMenuClick={handleMenuClick}
+          />
         </TabPanel>
 
         {/* Carers Tab */}
         <TabPanel value={activeTab} index={1}>
-          {carersLoading ? (
-            <Box display="flex" justifyContent="center" p={3}>
-              <CircularProgress />
-            </Box>
-          ) : carersError ? (
-            <Alert severity="error">
-              Failed to load carers. Please try again.
-            </Alert>
-          ) : (
-            <TableContainer component={Paper} variant="outlined">
-              <Table>
-                <TableHead>
-                  <TableRow>
-                    <TableCell>Name</TableCell>
-                    <TableCell>Email</TableCell>
-                    <TableCell>Phone</TableCell>
-                    <TableCell>Competency Status</TableCell>
-                    <TableCell>Assigned Packages</TableCell>
-                    <TableCell>Status</TableCell>
-                    <TableCell align="right">Actions</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {filteredCarers.map((carer: Carer) => (
-                    <TableRow key={carer.id} hover>
-                      <TableCell>{carer.name}</TableCell>
-                      <TableCell>{carer.email}</TableCell>
-                      <TableCell>{carer.phone}</TableCell>
-                      <TableCell>{getCompetencyChip(carer.competencyStatus)}</TableCell>
-                      <TableCell>
-                        <Box display="flex" gap={0.5} flexWrap="wrap">
-                          {carer.assignedPackages.map((pkg: { id: string; name: string }) => (
-                            <Chip 
-                              key={pkg.id} 
-                              size="small" 
-                              variant="outlined" 
-                              label={pkg.name} 
-                            />
-                          ))}
-                          {carer.assignedPackages.length === 0 && (
-                            <Typography variant="body2" color="textSecondary">
-                              No packages assigned
-                            </Typography>
-                          )}
-                        </Box>
-                      </TableCell>
-                      <TableCell>
-                        <Chip 
-                          size="small"
-                          color={carer.isActive ? 'success' : 'default'}
-                          label={carer.isActive ? 'Active' : 'Inactive'}
-                        />
-                      </TableCell>
-                      <TableCell align="right">
-                        <IconButton
-                          size="small"
-                          onClick={(e) => handleMenuClick(e, carer)}
-                        >
-                          <MoreVertIcon />
-                        </IconButton>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                  {filteredCarers.length === 0 && (
-                    <TableRow>
-                      <TableCell colSpan={7} align="center">
-                        <Typography color="textSecondary">
-                          No carers found
-                        </Typography>
-                      </TableCell>
-                    </TableRow>
-                  )}
-                </TableBody>
-              </Table>
-            </TableContainer>
-          )}
+          <CarersTable
+            carers={filteredCarers}
+            isLoading={carersLoading}
+            error={carersError}
+            onMenuClick={handleMenuClick}
+            getCompetencyChip={getCompetencyChip}
+          />
         </TabPanel>
 
         {/* Invitations Tab */}
         <TabPanel value={activeTab} index={2}>
-          {invitationsLoading ? (
-            <Box display="flex" justifyContent="center" p={3}>
-              <CircularProgress />
-            </Box>
-          ) : invitationsError ? (
-            <Alert severity="error">
-              Failed to load invitations. Please try again.
-            </Alert>
-          ) : (
-            <TableContainer component={Paper} variant="outlined">
-              <Table>
-                <TableHead>
-                  <TableRow>
-                    <TableCell>Name</TableCell>
-                    <TableCell>Email</TableCell>
-                    <TableCell>Type</TableCell>
-                    <TableCell>Status</TableCell>
-                    <TableCell>Invited By</TableCell>
-                    <TableCell>Invited Date</TableCell>
-                    <TableCell>Expires</TableCell>
-                    <TableCell align="right">Actions</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {filteredInvitations.map((invitation: Invitation) => (
-                    <TableRow key={invitation.id} hover>
-                      <TableCell>
-                        {invitation.name}
-                      </TableCell>
-                      <TableCell>{invitation.email}</TableCell>
-                      <TableCell>
-                        <Chip 
-                          size="small"
-                          color={invitation.userType === 'ADMIN' ? 'primary' : 'secondary'}
-                          label={invitation.userType === 'ADMIN' ? 'Admin' : 'Carer'}
-                        />
-                      </TableCell>
-                      <TableCell>{getInvitationStatusChip(invitation.status)}</TableCell>
-                      <TableCell>{invitation.invitedByAdmin.name}</TableCell>
-                      <TableCell>{new Date(invitation.invitedAt).toLocaleDateString()}</TableCell>
-                      <TableCell>
-                        <Box display="flex" alignItems="center" gap={1}>
-                          {new Date(invitation.expiresAt).toLocaleDateString()}
-                          {new Date() > new Date(invitation.expiresAt) && (
-                            <Chip size="small" color="error" label="Expired" />
-                          )}
-                        </Box>
-                      </TableCell>
-                      <TableCell align="right">
-                        <Box display="flex" gap={0.5} justifyContent="flex-end">
-                          {invitation.status === 'PENDING' && (
-                            <>
-                              <IconButton
-                                size="small"
-                                onClick={() => handleResendInvitation(invitation.id)}
-                                disabled={resendInvitationMutation.isPending}
-                                title="Resend invitation"
-                              >
-                                <RefreshIcon />
-                              </IconButton>
-                              <IconButton
-                                size="small"
-                                onClick={() => handleCancelInvitation(invitation.id)}
-                                disabled={cancelInvitationMutation.isPending}
-                                title="Cancel invitation"
-                                sx={{ color: 'error.main' }}
-                              >
-                                <CancelIcon />
-                              </IconButton>
-                            </>
-                          )}
-                          {invitation.status === 'ACCEPTED' && (
-                            <Typography variant="body2" color="textSecondary">
-                              -
-                            </Typography>
-                          )}
-                        </Box>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                  {filteredInvitations.length === 0 && (
-                    <TableRow>
-                      <TableCell colSpan={8} align="center">
-                        <Typography color="textSecondary">
-                          No invitations found
-                        </Typography>
-                      </TableCell>
-                    </TableRow>
-                  )}
-                </TableBody>
-              </Table>
-            </TableContainer>
-          )}
+          <InvitationsTable
+            invitations={filteredInvitations}
+            isLoading={invitationsLoading}
+            error={invitationsError}
+            onResendInvitation={handleResendInvitation}
+            onCancelInvitation={handleCancelInvitation}
+            getInvitationStatusChip={getInvitationStatusChip}
+            isResendingInvitation={resendInvitationMutation.isPending}
+            isCancellingInvitation={cancelInvitationMutation.isPending}
+          />
         </TabPanel>
 
         {/* Context Menu */}
@@ -1079,136 +837,26 @@ const UsersCard: React.FC = () => {
         </Menu>
 
         {/* Add/Edit User Dialog */}
-        <Dialog 
-          open={dialogOpen} 
+        <UserFormDialog
+          open={dialogOpen}
           onClose={() => setDialogOpen(false)}
-          maxWidth="sm" 
-          fullWidth
-        >
-          <DialogTitle>
-            {editingUser ? `Edit ${userType === 'admin' ? 'Admin User' : 'Carer'}` : `Invite New ${userType === 'admin' ? 'Admin User' : 'Carer'}`}
-          </DialogTitle>
-          <DialogContent>
-            <Box display="flex" flexDirection="column" gap={2} pt={1}>
-              {userType === 'admin' ? (
-                <>
-                  <TextField
-                    label="Full Name"
-                    value={formData.name || ''}
-                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    fullWidth
-                    required
-                  />
-                  <TextField
-                    label="Email"
-                    type="email"
-                    value={formData.email}
-                    onChange={(e) => handleEmailChange(e.target.value)}
-                    fullWidth
-                    required
-                    error={!!emailValidationError}
-                    helperText={emailValidationError}
-                  />
-                  {editingUser && (
-                    <TextField
-                      label="Phone Number"
-                      value={formData.phone || ''}
-                      onChange={(e) => handlePhoneChange(e.target.value)}
-                      fullWidth
-                      required
-                      error={!!phoneValidationError}
-                      helperText={phoneValidationError || 'Enter phone number with country code (e.g., +44 20 1234 5678)'}
-                      placeholder="+44 20 1234 5678"
-                    />
-                  )}
-                  {!editingUser && (
-                    <Alert severity="info" sx={{ mt: 1 }}>
-                      An invitation email will be sent with instructions to set up their password. Users will enter their phone number during account setup.
-                    </Alert>
-                  )}
-                </>
-              ) : (
-                <>
-                  <TextField
-                    label="Full Name"
-                    value={formData.name || ''}
-                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    fullWidth
-                    required
-                  />
-                  <TextField
-                    label="Email"
-                    type="email"
-                    value={formData.email}
-                    onChange={(e) => handleEmailChange(e.target.value)}
-                    fullWidth
-                    required
-                    error={!!emailValidationError}
-                    helperText={emailValidationError}
-                  />
-                  {editingUser && (
-                    <TextField
-                      label="Phone Number"
-                      value={formData.phone || ''}
-                      onChange={(e) => handlePhoneChange(e.target.value)}
-                      fullWidth
-                      required
-                      error={!!phoneValidationError}
-                      helperText={phoneValidationError || 'Enter phone number with country code (e.g., +44 20 1234 5678)'}
-                      placeholder="+44 20 1234 5678"
-                    />
-                  )}
-                  {!editingUser && (
-                    <Alert severity="info" sx={{ mt: 1 }}>
-                      An invitation email will be sent with instructions to set up their password. Users will enter their phone number during account setup.
-                    </Alert>
-                  )}
-                </>
-              )}
-              
-              <FormControlLabel
-                control={
-                  <Switch
-                    checked={formData.isActive}
-                    onChange={(e) => setFormData({ ...formData, isActive: e.target.checked })}
-                  />
-                }
-                label="Active"
-              />
-            </Box>
-          </DialogContent>
-          <DialogActions>
-            <Button onClick={() => setDialogOpen(false)}>Cancel</Button>
-            <Button 
-              onClick={handleSubmit}
-              variant="contained"
-              disabled={sendInvitationMutation.isPending || updateUserMutation.isPending || !!emailValidationError || !!phoneValidationError}
-            >
-              {sendInvitationMutation.isPending || updateUserMutation.isPending ? (
-                <CircularProgress size={20} />
-              ) : (
-                editingUser ? 'Update' : 'Send Invitation'
-              )}
-            </Button>
-          </DialogActions>
-        </Dialog>
+          onSubmit={handleSubmit}
+          editingUser={editingUser}
+          userType={userType}
+          formData={formData}
+          setFormData={setFormData}
+          handleEmailChange={handleEmailChange}
+          handlePhoneChange={handlePhoneChange}
+          emailValidationError={emailValidationError}
+          phoneValidationError={phoneValidationError}
+          isSubmitting={sendInvitationMutation.isPending || updateUserMutation.isPending}
+        />
 
         {/* Success/Error Notifications */}
-        <Snackbar
-          open={notification.open}
-          autoHideDuration={4000}
+        <NotificationSnackbar
+          notification={notification}
           onClose={handleCloseNotification}
-          anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
-        >
-          <Alert 
-            onClose={handleCloseNotification} 
-            severity={notification.severity}
-            variant="filled"
-            sx={{ width: '100%' }}
-          >
-            {notification.message}
-          </Alert>
-        </Snackbar>
+        />
 
         {/* Email Change Dialog */}
         {emailChangeUser && currentUser && (
@@ -1222,8 +870,8 @@ const UsersCard: React.FC = () => {
             userType={emailChangeUser.type}
             currentUserName={currentUser.name}
             targetUserName={emailChangeUser.type === 'ADMIN' 
-              ? (emailChangeUser.user as AdminUser).name 
-              : (emailChangeUser.user as Carer).name
+              ? (emailChangeUser.user as ExtendedAdminUser).name 
+              : (emailChangeUser.user as ExtendedCarer).name
             }
             prefilledNewEmail={formData.email}
             isAdminChangingOtherUser={true}

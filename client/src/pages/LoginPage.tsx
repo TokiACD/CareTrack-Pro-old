@@ -39,14 +39,11 @@ export function LoginPage() {
   } = useForm<LoginFormData>()
 
   const onSubmit = async (data: LoginFormData) => {
-    console.log('🔐 Login form submitted:', { email: data.email, password: '***' })
     setLoading(true)
     setError('')
 
     try {
-      console.log('🚀 Attempting login...')
       await login(data.email, data.password)
-      console.log('✅ Login successful!')
       showSuccess('Successfully logged in')
     } catch (err) {
       console.error('❌ Login failed:', err)

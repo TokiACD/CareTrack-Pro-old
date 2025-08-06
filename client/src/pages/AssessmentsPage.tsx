@@ -57,45 +57,12 @@ import {
 import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { apiService } from '../services/api'
-import { API_ENDPOINTS, CompetencyLevel } from '@caretrack/shared'
+import { API_ENDPOINTS, CompetencyLevel, Assessment as SharedAssessment } from '@caretrack/shared'
 import { useAuth } from '../contexts/AuthContext'
 import { useSmartMutation } from '../hooks/useSmartMutation'
 
-// Extended assessment interface with relations
-interface ExtendedAssessment {
-  id: string
-  name: string
-  isActive: boolean
-  createdAt: Date
-  updatedAt: Date
-  deletedAt?: Date
-  displayTaskId?: string
-  knowledgeQuestions?: Array<{
-    id: string
-    question: string
-    modelAnswer: string
-    order: number
-  }>
-  practicalSkills?: Array<{
-    id: string
-    skillDescription: string
-    canBeNotApplicable: boolean
-    order: number
-  }>
-  emergencyQuestions?: Array<{
-    id: string
-    question: string
-    modelAnswer: string
-    order: number
-  }>
-  tasksCovered?: Array<{
-    id: string
-    task: {
-      id: string
-      name: string
-      targetCount: number
-    }
-  }>
+// Extended assessment interface with UI-specific assessment response relations
+interface ExtendedAssessment extends SharedAssessment {
   assessmentResponses?: Array<{
     id: string
     carerId: string

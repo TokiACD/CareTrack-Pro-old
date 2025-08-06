@@ -97,6 +97,14 @@ export const API_ENDPOINTS = {
     CREATE: '/api/shifts',
     SEND: '/api/shifts/send'
   },
+  SHIFT_SENDER: {
+    CREATE_SHIFT: '/api/shift-sender/shifts',
+    SEND_TO_CARERS: '/api/shift-sender/shifts/:shiftId/send',
+    GET_APPLICATIONS: '/api/shift-sender/shifts/:shiftId/applications',
+    SELECT_CARER: '/api/shift-sender/select-carer',
+    SENT_SHIFTS: '/api/shift-sender/shifts',
+    CHECK_AVAILABILITY: '/api/shift-sender/check-availability'
+  },
   ROTA: {
     LIST: '/api/rota',
     CREATE: '/api/rota',

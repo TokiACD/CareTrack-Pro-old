@@ -1,6 +1,6 @@
 import { Request, Response } from 'express'
 import bcrypt from 'bcryptjs'
-import jwt from 'jsonwebtoken'
+import jwt, { Secret } from 'jsonwebtoken'
 import crypto from 'crypto'
 import { prisma } from '../index'
 import { asyncHandler, createError } from '../middleware/errorHandler'
@@ -11,7 +11,6 @@ import { AdminUser } from '@caretrack/shared'
 export class AuthController {
   login = asyncHandler(async (req: Request, res: Response): Promise<void> => {
     const { email, password } = req.body
-    console.log('🔐 Login attempt for email:', email)
 
     // Find user (case-insensitive email lookup)
     const user = await prisma.adminUser.findFirst({
@@ -25,20 +24,15 @@ export class AuthController {
       },
     })
 
-    console.log('🔍 User found:', user ? { id: user.id, email: user.email, isActive: user.isActive, deletedAt: user.deletedAt } : 'No user found')
 
     if (!user) {
-      console.log('❌ User not found or inactive')
       throw createError(401, 'Invalid email or password')
     }
 
     // Verify password
-    console.log('🔑 Verifying password...')
     const isValidPassword = await bcrypt.compare(password, user.passwordHash)
-    console.log('🔑 Password valid:', isValidPassword)
     
     if (!isValidPassword) {
-      console.log('❌ Invalid password')
       throw createError(401, 'Invalid email or password')
     }
 
@@ -48,11 +42,8 @@ export class AuthController {
       throw createError(500, 'Server configuration error')
     }
 
-    const token = jwt.sign(
-      { userId: user.id, email: user.email },
-      jwtSecret,
-      { expiresIn: process.env.JWT_EXPIRES_IN || '8h' }
-    )
+    const payload = { userId: user.id, email: user.email }
+    const token = jwt.sign(payload, jwtSecret as Secret, { expiresIn: '8h' })
 
     // Update last login
     await prisma.adminUser.update({
@@ -130,18 +121,20 @@ export class AuthController {
       throw createError(409, 'An admin with this email already exists')
     }
 
-    // Generate temporary password
-    const tempPassword = Math.random().toString(36).slice(-12)
-    const passwordHash = await bcrypt.hash(tempPassword, 12)
-
-    // Create admin user
-    const newAdmin = await prisma.adminUser.create({
+    // Generate secure invitation token
+    const invitationToken = crypto.randomBytes(32).toString('hex')
+    
+    // Create invitation record
+    const invitation = await prisma.invitation.create({
       data: {
         email,
+        userType: 'ADMIN',
+        token: invitationToken,
         name,
-        passwordHash,
         invitedBy: invitedBy.id,
-      },
+        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days
+        status: 'PENDING'
+      }
     })
 
     // Send invitation email
@@ -149,26 +142,26 @@ export class AuthController {
       await emailService.sendAdminInvitation({
         to: email,
         adminName: name,
-        tempPassword,
         invitedByName: invitedBy.name,
-        loginUrl: `${process.env.FRONTEND_URL}/login`,
+        invitationToken,
+        acceptUrl: `${process.env.FRONTEND_URL}/invitation/accept?token=${invitationToken}`,
+        expiresAt: invitation.expiresAt
       })
     } catch (error) {
-      // If email fails, delete the created admin
-      await prisma.adminUser.delete({
-        where: { id: newAdmin.id },
+      // If email fails, delete the created invitation
+      await prisma.invitation.delete({
+        where: { id: invitation.id },
       })
       
-      console.error('Failed to send invitation email:', error)
       throw createError(500, 'Failed to send invitation email')
     }
 
     // Log the invitation
     await auditService.log({
       action: 'INVITE_ADMIN',
-      entityType: 'AdminUser',
-      entityId: newAdmin.id,
-      newValues: { email, name, invitedBy: invitedBy.id },
+      entityType: 'Invitation',
+      entityId: invitation.id,
+      newValues: { email, name, userType: 'ADMIN', invitedBy: invitedBy.id },
       performedByAdminId: invitedBy.id,
       performedByAdminName: invitedBy.name,
       ipAddress: req.ip,

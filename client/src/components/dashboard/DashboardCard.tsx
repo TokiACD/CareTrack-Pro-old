@@ -1,3 +1,4 @@
+import React from 'react'
 import {
   Card,
   CardContent,
@@ -15,13 +16,13 @@ interface DashboardCardProps {
   onClick: () => void
 }
 
-export function DashboardCard({
+const DashboardCard: React.FC<DashboardCardProps> = ({
   title,
   description,
   icon,
   color,
   onClick,
-}: DashboardCardProps) {
+}) => {
   return (
     <Card
       sx={{
@@ -104,3 +105,5 @@ export function DashboardCard({
     </Card>
   )
 }
+
+export default DashboardCard

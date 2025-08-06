@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { useMutation, useQuery } from '@tanstack/react-query'
+import { useQuery } from '@tanstack/react-query'
 import { apiService } from '../services/api'
-import AssessmentDraftStorage, { AssessmentDraftData, StoredDraft } from '../utils/draftStorage'
+import AssessmentDraftStorage, { AssessmentDraftData } from '../utils/draftStorage'
 import { useSmartMutation } from './useSmartMutation'
 
 export type SaveStatus = 'idle' | 'saving_local' | 'saving_server' | 'saved_local' | 'saved_server' | 'error'
@@ -55,17 +55,16 @@ export function useAssessmentDraft({
   const [autoSaveEnabled, setAutoSaveEnabled] = useState(true)
 
   // Refs for debouncing and tracking
-  const lastDataRef = useRef<AssessmentDraftData | null>(null)
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const serverSyncTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
   // Load server draft on mount
-  const { data: serverDraft, refetch: refetchServerDraft } = useQuery({
+  const { data: serverDraft } = useQuery({
     queryKey: ['assessment-draft', assessmentId, carerId],
     queryFn: () => apiService.getDraftResponse<any>(assessmentId, carerId),
     enabled: enabled && !!assessmentId && !!carerId,
     staleTime: 0, // Always fetch fresh data
-    cacheTime: 0   // Don't cache draft data
+    gcTime: 0   // Don't cache draft data
   })
 
   // Save draft to server mutation

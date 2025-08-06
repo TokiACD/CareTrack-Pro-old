@@ -71,7 +71,6 @@ router.get('/:carerId/pdf',
       })
 
     } catch (error) {
-      console.error('PDF generation failed:', error)
       res.status(500).json({ 
         success: false, 
         error: error instanceof Error ? error.message : 'PDF generation failed' 

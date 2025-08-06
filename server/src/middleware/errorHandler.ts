@@ -13,13 +13,22 @@ export const errorHandler = (
   res: Response,
   next: NextFunction
 ): void => {
-  console.error('Error:', {
+  // Log error details (exclude sensitive data in production)
+  const logData: any = {
     message: error.message,
-    stack: error.stack,
     url: req.url,
     method: req.method,
-    body: req.body,
-  })
+    timestamp: new Date().toISOString(),
+    userAgent: req.get('User-Agent')
+  }
+
+  // Only include stack trace and request body in development
+  if (process.env.NODE_ENV === 'development') {
+    logData.stack = error.stack
+    logData.body = req.body
+  }
+
+  console.error('Error:', logData)
 
   // Default error response
   let statusCode = 500

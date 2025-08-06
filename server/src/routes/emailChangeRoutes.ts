@@ -1,4 +1,4 @@
-import { Router } from 'express';
+import { Router, Request, Response } from 'express';
 import { body, validationResult } from 'express-validator';
 import crypto from 'crypto';
 import { prisma } from '../index';
@@ -18,7 +18,7 @@ router.post('/request',
     body('targetUserEmail').optional().isEmail().withMessage('Target user email must be valid')
   ],
   audit(AuditAction.UPDATE, 'EmailChange'),
-  async (req, res) => {
+  async (req: Request, res: Response) => {
     try {
       const errors = validationResult(req);
       if (!errors.isEmpty()) {
@@ -166,7 +166,6 @@ router.post('/request',
         }
       });
     } catch (error) {
-      console.error('Error requesting email change:', error);
       res.status(500).json({
         success: false,
         message: 'Failed to request email change'
@@ -180,7 +179,7 @@ router.post('/verify',
   [
     body('token').notEmpty().withMessage('Token is required')
   ],
-  async (req, res) => {
+  async (req: Request, res: Response) => {
     try {
       const errors = validationResult(req);
       if (!errors.isEmpty()) {
@@ -289,7 +288,6 @@ router.post('/verify',
         }
       });
     } catch (error) {
-      console.error('Error verifying email change:', error);
       res.status(500).json({
         success: false,
         message: 'Failed to verify email change'
@@ -303,13 +301,11 @@ router.post('/cancel',
   [
     body('token').notEmpty().withMessage('Token is required')
   ],
-  async (req, res) => {
+  async (req: Request, res: Response) => {
     try {
-      console.log('🔍 POST /cancel - Request body:', req.body);
       
       const errors = validationResult(req);
       if (!errors.isEmpty()) {
-        console.log('❌ Cancel validation errors:', errors.array());
         return res.status(400).json({
           success: false,
           message: 'Validation failed',
@@ -324,15 +320,8 @@ router.post('/cancel',
         where: { token }
       });
 
-      console.log('🔍 Email change request found:', emailChangeRequest ? 'Yes' : 'No');
-      if (emailChangeRequest) {
-        console.log('🔍 Request status:', emailChangeRequest.status);
-        console.log('🔍 Request expires:', emailChangeRequest.expiresAt);
-        console.log('🔍 Current time:', new Date());
-      }
 
       if (!emailChangeRequest) {
-        console.log('❌ Invalid cancellation token');
         return res.status(400).json({
           success: false,
           message: 'Invalid cancellation token'
@@ -341,7 +330,6 @@ router.post('/cancel',
 
       // Check if already processed
       if (emailChangeRequest.status !== 'PENDING') {
-        console.log('❌ Email change already processed, status:', emailChangeRequest.status);
         return res.status(400).json({
           success: false,
           message: 'Email change request has already been processed'
@@ -357,13 +345,11 @@ router.post('/cancel',
         }
       });
 
-      console.log('✅ Email change request cancelled successfully');
       res.json({
         success: true,
         message: 'Email change request cancelled successfully'
       });
     } catch (error) {
-      console.error('Error cancelling email change:', error);
       res.status(500).json({
         success: false,
         message: 'Failed to cancel email change'
@@ -374,7 +360,7 @@ router.post('/cancel',
 
 // Get email change request details (for verification page)
 router.get('/details',
-  async (req, res) => {
+  async (req: Request, res: Response) => {
     try {
       const { token } = req.query;
 
@@ -410,7 +396,6 @@ router.get('/details',
         }
       });
     } catch (error) {
-      console.error('Error fetching email change details:', error);
       res.status(500).json({
         success: false,
         message: 'Failed to fetch email change details'

@@ -27,14 +27,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const initializeAuth = async () => {
     try {
       const token = localStorage.getItem('authToken')
-      console.log('🔑 AuthContext: Initializing auth, token exists:', !!token)
       if (token) {
-        console.log('🔑 AuthContext: Verifying token...')
         const userData = await authService.verifyToken()
-        console.log('🔑 AuthContext: Token verified, user:', userData)
         setUser(userData)
       } else {
-        console.log('🔑 AuthContext: No token found')
       }
     } catch (error) {
       console.error('Auth initialization failed:', error)
@@ -46,12 +42,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   const login = async (email: string, password: string) => {
     try {
-      console.log('🔑 AuthContext: Calling authService.login')
       const response = await authService.login(email, password)
-      console.log('🔑 AuthContext: Login response received:', response)
       localStorage.setItem('authToken', response.token)
       setUser(response.user)
-      console.log('🔑 AuthContext: User set, navigating...')
       // Navigate to dashboard after successful login
       window.location.href = '/dashboard'
     } catch (error) {

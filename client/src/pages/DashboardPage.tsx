@@ -19,19 +19,20 @@ import {
 import {
   Logout as LogoutIcon,
   Person as PersonIcon,
-  Notifications as NotificationsIcon,
   ArrowBack as ArrowBackIcon,
   Home as HomeIcon
 } from '@mui/icons-material'
 
 import { useAuth } from '../contexts/AuthContext'
 import { useNotification } from '../contexts/NotificationContext'
-import { DashboardCard } from '../components/dashboard/DashboardCard'
+import DashboardCard from '../components/dashboard/DashboardCard'
 import UsersCard from '../components/dashboard/UsersCard'
 import CarePackagesCard from '../components/dashboard/CarePackagesCard'
 import RecycleBinCard from '../components/dashboard/RecycleBinCard'
 import ProgressCard from '../components/dashboard/ProgressCard'
 import PDFReportsCard from '../components/dashboard/PDFReportsCard'
+import ShiftSenderCard from '../components/dashboard/ShiftSenderCard'
+import ShiftNotifications from '../components/dashboard/ShiftNotifications'
 
 // Dashboard card configurations
 const DASHBOARD_CARDS = [
@@ -188,6 +189,8 @@ export function DashboardPage() {
         return <ProgressCard />
       case 'pdf-reports':
         return <PDFReportsCard />
+      case 'shift-sender':
+        return <ShiftSenderCard />
       default:
         return (
           <Box textAlign="center" py={8}>
@@ -228,9 +231,7 @@ export function DashboardPage() {
           </Typography>
 
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-            <IconButton color="inherit">
-              <NotificationsIcon sx={{ color: 'text.primary' }} />
-            </IconButton>
+            <ShiftNotifications />
 
             <Chip
               label={user?.name || 'Admin'}

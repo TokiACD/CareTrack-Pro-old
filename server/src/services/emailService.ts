@@ -59,7 +59,6 @@ class EmailService {
         throw new Error('SENDGRID_API_KEY is required when EMAIL_SERVICE is set to sendgrid')
       }
       sgMail.setApiKey(apiKey)
-      console.log('📧 Email service: SendGrid configured')
     } else {
       // Configure SMTP (Gmail fallback)
       this.transporter = nodemailer.createTransport({
@@ -71,7 +70,6 @@ class EmailService {
           pass: process.env.SMTP_PASS,
         },
       })
-      console.log('📧 Email service: SMTP configured')
     }
   }
 
@@ -746,10 +744,17 @@ class EmailService {
 
   async testConnection(): Promise<boolean> {
     try {
+      if (this.useSendGrid) {
+        return true
+      }
+      
+      if (!this.transporter) {
+        return false
+      }
+      
       await this.transporter.verify()
       return true
     } catch (error) {
-      console.error('Email service connection failed:', error)
       return false
     }
   }

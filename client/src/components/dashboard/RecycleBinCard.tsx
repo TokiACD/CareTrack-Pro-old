@@ -19,16 +19,19 @@ import {
 import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { apiService } from '../../services/api'
-import { API_ENDPOINTS } from '@caretrack/shared'
 
 const RecycleBinCard: React.FC = () => {
   const navigate = useNavigate()
 
-  const { data: recycleBinData, isLoading, error } = useQuery({
+  const { data: recycleBinData, isLoading, error } = useQuery<{ totalDeleted: number; byType: Record<string, number> } | null>({
     queryKey: ['recycle-bin-summary'],
     queryFn: async () => {
-      const response = await apiService.get(API_ENDPOINTS.RECYCLE_BIN.SUMMARY)
-      return response
+      try {
+        const response = await apiService.get('/api/recycle-bin/summary')
+        return response as { totalDeleted: number; byType: Record<string, number> }
+      } catch {
+        return null
+      }
     },
     refetchInterval: 30000 // Refresh every 30 seconds
   })

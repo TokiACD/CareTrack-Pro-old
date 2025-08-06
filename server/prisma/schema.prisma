@@ -91,7 +91,9 @@ model Carer {
   packageAssignments  CarerPackageAssignment[]
   competencyRatings   CompetencyRating[]
   rotaEntries         RotaEntry[]
+  shiftApplications   ShiftApplication[]
   shiftAssignments    ShiftAssignment[]
+  selectedShifts      Shift[]              @relation("SelectedCarer")
   taskProgress        TaskProgress[]
 
   @@map("carers")
@@ -328,19 +330,44 @@ model CompetencyRating {
 }
 
 model Shift {
-  id                   String            @id @default(cuid())
-  packageId            String            @map("package_id")
-  name                 String
-  description          String
-  requiredCompetencies String[]          @map("required_competencies")
-  isCompetentOnly      Boolean           @default(false) @map("is_competent_only")
-  createdAt            DateTime          @default(now()) @map("created_at")
-  createdByAdminId     String            @map("created_by_admin_id")
+  id                   String             @id @default(cuid())
+  packageId            String             @map("package_id")
+  date                 DateTime           // Date of the shift
+  startTime            String             @map("start_time") // HH:MM format
+  endTime              String             @map("end_time")   // HH:MM format
+  requiredCompetencies String[]           @map("required_competencies")
+  isCompetentOnly      Boolean            @default(false) @map("is_competent_only")
+  status               ShiftStatus        @default(PENDING)
+  selectedCarerId      String?            @map("selected_carer_id")
+  expiresAt            DateTime?          @map("expires_at")
+  createdAt            DateTime           @default(now()) @map("created_at")
+  createdByAdminId     String             @map("created_by_admin_id")
+  rotaEntryId          String?            @map("rota_entry_id") // Links to created rota entry
+  
+  // Relationships
+  applications         ShiftApplication[]
   assignments          ShiftAssignment[]
-  createdBy            AdminUser         @relation(fields: [createdByAdminId], references: [id])
-  package              CarePackage       @relation(fields: [packageId], references: [id], onDelete: Cascade)
+  createdBy            AdminUser          @relation(fields: [createdByAdminId], references: [id])
+  package              CarePackage        @relation(fields: [packageId], references: [id], onDelete: Cascade)
+  selectedCarer        Carer?             @relation("SelectedCarer", fields: [selectedCarerId], references: [id])
 
   @@map("shifts")
+}
+
+model ShiftApplication {
+  id         String                 @id @default(cuid())
+  shiftId    String                 @map("shift_id")
+  carerId    String                 @map("carer_id")
+  appliedAt  DateTime               @default(now()) @map("applied_at")
+  status     ShiftApplicationStatus @default(PENDING)
+  notes      String?                // Optional notes from carer
+  
+  // Relationships
+  carer      Carer                  @relation(fields: [carerId], references: [id], onDelete: Cascade)
+  shift      Shift                  @relation(fields: [shiftId], references: [id], onDelete: Cascade)
+  
+  @@unique([shiftId, carerId]) // Prevent duplicate applications
+  @@map("shift_applications")
 }
 
 model ShiftAssignment {
@@ -412,10 +439,20 @@ enum PracticalRating {
 }
 
 enum ShiftStatus {
+  PENDING              // Shift created, sent to carers
+  WAITING_RESPONSES    // Sent to carers, waiting for applications
+  HAS_APPLICATIONS     // At least one carer has applied
+  ASSIGNED             // Admin has selected a carer
+  CONFIRMED            // Selected carer confirmed
+  CANCELLED            // Shift cancelled
+  COMPLETED            // Shift completed
+  EXPIRED              // No applications received, expired
+}
+
+enum ShiftApplicationStatus {
   PENDING
-  CONFIRMED
-  CANCELLED
-  COMPLETED
+  SELECTED
+  REJECTED
 }
 
 enum ShiftType {

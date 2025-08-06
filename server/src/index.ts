@@ -20,6 +20,8 @@ import { assignmentRoutes } from './routes/assignmentRoutes'
 import { assessmentRoutes } from './routes/assessmentRoutes'
 import { progressRoutes } from './routes/progressRoutes'
 import { shiftRoutes } from './routes/shiftRoutes'
+import { shiftSenderRoutes } from './routes/shiftSenderRoutes'
+import { carerShiftRoutes } from './routes/carerShiftRoutes'
 import { rotaRoutes } from './routes/rotaRoutes'
 import { recycleBinRoutes } from './routes/recycleBinRoutes'
 import { auditRoutes } from './routes/auditRoutes'
@@ -114,6 +116,8 @@ app.use('/api/assignments', assignmentRoutes)
 app.use('/api/assessments', assessmentRoutes)
 app.use('/api/progress', progressRoutes)
 app.use('/api/shifts', shiftRoutes)
+app.use('/api/shift-sender', shiftSenderRoutes)
+app.use('/api/carer-shifts', carerShiftRoutes)
 app.use('/api/rota', rotaRoutes)
 app.use('/api/recycle-bin', recycleBinRoutes)
 app.use('/api/audit', auditRoutes)
@@ -162,7 +166,6 @@ async function startServer() {
   try {
     // Test database connection
     await prisma.$connect()
-    console.log('✅ Database connected successfully')
 
     app.listen(PORT, () => {
       console.log(`🚀 Server running on http://localhost:${PORT}`)

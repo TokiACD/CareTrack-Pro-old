@@ -371,7 +371,6 @@ export class RecycleBinController {
     await prisma.$transaction(async (tx) => {
       if (entityType === 'carers') {
         // Delete all carer-related records
-        console.log(`🗑️ Permanently deleting carer ${entityId} and all related records...`)
         
         // Delete task progress
         await tx.taskProgress.deleteMany({
@@ -403,12 +402,10 @@ export class RecycleBinController {
           where: { carerId: entityId }
         })
         
-        console.log(`✅ Deleted all related records for carer ${entityId}`)
       }
 
       if (entityType === 'tasks') {
         // Delete all task-related records
-        console.log(`🗑️ Permanently deleting task ${entityId} and all related records...`)
         
         // Delete task progress
         await tx.taskProgress.deleteMany({
@@ -430,12 +427,10 @@ export class RecycleBinController {
           where: { taskId: entityId }
         })
         
-        console.log(`✅ Deleted all related records for task ${entityId}`)
       }
 
       if (entityType === 'care-packages') {
         // Delete all care package-related records
-        console.log(`🗑️ Permanently deleting care package ${entityId} and all related records...`)
         
         // Delete task progress
         await tx.taskProgress.deleteMany({
@@ -473,12 +468,10 @@ export class RecycleBinController {
           where: { packageId: entityId }
         })
         
-        console.log(`✅ Deleted all related records for care package ${entityId}`)
       }
 
       if (entityType === 'assessments') {
         // Delete all assessment-related records
-        console.log(`🗑️ Permanently deleting assessment ${entityId} and all related records...`)
         
         // Get all assessment responses
         const responses = await tx.assessmentResponse.findMany({
@@ -489,13 +482,13 @@ export class RecycleBinController {
         // Delete response details for each response
         for (const response of responses) {
           await tx.knowledgeResponse.deleteMany({
-            where: { assessmentResponseId: response.id }
+            where: { responseId: response.id }
           })
           await tx.practicalResponse.deleteMany({
-            where: { assessmentResponseId: response.id }
+            where: { responseId: response.id }
           })
           await tx.emergencyResponse.deleteMany({
-            where: { assessmentResponseId: response.id }
+            where: { responseId: response.id }
           })
         }
         
@@ -518,7 +511,6 @@ export class RecycleBinController {
           where: { assessmentId: entityId }
         })
         
-        console.log(`✅ Deleted all related records for assessment ${entityId}`)
       }
 
       // Finally, delete the main entity
@@ -537,7 +529,6 @@ export class RecycleBinController {
         await entityConfig.model.delete({ where: { id: entityId } })
       }
       
-      console.log(`✅ Permanently deleted ${entityConfig.name} ${entityId}`)
     })
 
     // Log the permanent deletion

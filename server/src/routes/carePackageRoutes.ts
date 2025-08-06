@@ -104,7 +104,6 @@ router.get('/', requireAuth, async (req, res) => {
       total: formattedPackages.length
     });
   } catch (error) {
-    console.error('Error fetching care packages:', error);
     res.status(500).json({
       success: false,
       message: 'Failed to fetch care packages'
@@ -172,7 +171,6 @@ router.post('/',
         }
       });
     } catch (error) {
-      console.error('Error creating care package:', error);
       res.status(500).json({
         success: false,
         message: 'Failed to create care package'
@@ -299,7 +297,6 @@ router.put('/:id',
         }
       });
     } catch (error) {
-      console.error('Error updating care package:', error);
       res.status(500).json({
         success: false,
         message: 'Failed to update care package'
@@ -412,7 +409,6 @@ router.delete('/:id',
         warnings: warnings.length > 0 ? warnings : undefined
       });
     } catch (error) {
-      console.error('Error deleting care package:', error);
       res.status(500).json({
         success: false,  
         message: 'Failed to delete care package'
@@ -480,7 +476,6 @@ router.post('/:id/restore',
         }
       });
     } catch (error) {
-      console.error('Error restoring care package:', error);
       res.status(500).json({
         success: false,
         message: 'Failed to restore care package'

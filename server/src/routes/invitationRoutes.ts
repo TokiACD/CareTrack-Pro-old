@@ -1,4 +1,4 @@
-import { Router } from 'express';
+import { Router, Request, Response } from 'express';
 import { body, validationResult } from 'express-validator';
 import bcrypt from 'bcrypt';
 import crypto from 'crypto';
@@ -25,12 +25,10 @@ router.post('/admin',
     body('name').notEmpty().withMessage('Name is required')
   ],
   audit(AuditAction.CREATE, 'Invitation'),
-  async (req, res) => {
+  async (req: Request, res: Response) => {
     try {
-      console.log('🔍 Admin invitation request body:', req.body);
       const errors = validationResult(req);
       if (!errors.isEmpty()) {
-        console.log('❌ Admin invitation validation errors:', errors.array());
         return res.status(400).json({
           success: false,
           message: 'Validation failed',
@@ -39,7 +37,6 @@ router.post('/admin',
       }
 
       const { email, name } = req.body;
-      console.log('✅ Admin invitation validation passed, checking business logic...');
 
       // Check if email already exists as admin, carer, or has pending invitation
       const [existingAdmin, existingCarer, existingInvitation] = await Promise.all([
@@ -101,7 +98,6 @@ router.post('/admin',
         const hasExistingAccount = (existingAdmin && !existingAdmin.deletedAt) || (existingCarer && !existingCarer.deletedAt);
         
         if (hasExistingAccount) {
-          console.log('❌ Admin invitation failed: processed invitation found with existing account');
           const statusText = existingInvitation.status.toLowerCase();
           const userTypeText = existingInvitation.userType === InvitationType.ADMIN ? 'admin' : 'carer';
           return res.status(400).json({
@@ -109,7 +105,6 @@ router.post('/admin',
             message: `An invitation for ${email} was already ${statusText}. Please check if the user already has an account or use a different email address.`
           });
         } else {
-          console.log('ℹ️ Admin invitation: Found processed invitation but no existing account, will update existing invitation');
           shouldUpdateExisting = true;
         }
       }
@@ -164,13 +159,9 @@ router.post('/admin',
         }
       } catch (dbError: any) {
         // Handle unique constraint violations that might slip through validation
-        console.error('🚨 Database error in carer invitation creation:', dbError);
-        console.error('🚨 Error code:', dbError.code);
-        console.error('🚨 Error meta:', dbError.meta);
         
         if (dbError.code === 'P2002') {
           if (dbError.meta?.target?.includes('email')) {
-            console.log('🚨 Handling email constraint violation for:', email);
             return res.status(400).json({
               success: false,
               message: `Email address ${email} is already in use. Please check if a user account or pending invitation already exists for this email address.`
@@ -233,11 +224,9 @@ router.post('/admin',
         }
       });
     } catch (error) {
-      console.error('Error sending admin invitation:', error);
       
       // More detailed error for debugging
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      console.error('Error details:', errorMessage);
       
       res.status(500).json({
         success: false,
@@ -256,12 +245,10 @@ router.post('/carer',
     body('name').notEmpty().withMessage('Name is required')
   ],
   audit(AuditAction.CREATE, 'Invitation'),
-  async (req, res) => {
+  async (req: Request, res: Response) => {
     try {
-      console.log('🔍 Carer invitation request body:', req.body);
       const errors = validationResult(req);
       if (!errors.isEmpty()) {
-        console.log('❌ Carer invitation validation errors:', errors.array());
         return res.status(400).json({
           success: false,
           message: 'Validation failed',
@@ -270,7 +257,6 @@ router.post('/carer',
       }
 
       const { email, name } = req.body;
-      console.log('✅ Carer invitation validation passed, checking business logic...');
 
       // Check if email already exists as carer, admin, or has pending invitation
       const [existingCarer, existingAdmin, existingInvitation] = await Promise.all([
@@ -288,15 +274,9 @@ router.post('/carer',
         })
       ]);
 
-      console.log('🔍 Carer invitation database checks:', {
-        existingCarer: existingCarer ? { id: existingCarer.id, email: existingCarer.email, isActive: existingCarer.isActive, deletedAt: existingCarer.deletedAt } : null,
-        existingAdmin: existingAdmin ? { id: existingAdmin.id, email: existingAdmin.email, isActive: existingAdmin.isActive, deletedAt: existingAdmin.deletedAt } : null,
-        existingInvitation: existingInvitation ? { id: existingInvitation.id, email: existingInvitation.email, status: existingInvitation.status, userType: existingInvitation.userType } : null
-      });
 
       // Check for existing active carer
       if (existingCarer && !existingCarer.deletedAt) {
-        console.log('❌ Carer invitation failed: existing active carer found');
         return res.status(400).json({
           success: false,
           message: `A carer account already exists for ${email}. ${!existingCarer.isActive ? 'The account is currently inactive - please contact an administrator to reactivate it.' : 'Please use a different email address.'}`
@@ -305,7 +285,6 @@ router.post('/carer',
 
       // Check for existing active admin
       if (existingAdmin && !existingAdmin.deletedAt) {
-        console.log('❌ Carer invitation failed: existing active admin found');
         return res.status(400).json({
           success: false,
           message: `An admin account already exists for ${email}. ${!existingAdmin.isActive ? 'The account is currently inactive - please contact an administrator to reactivate it.' : 'Please use a different email address.'}`
@@ -314,7 +293,6 @@ router.post('/carer',
 
       // Check for soft-deleted accounts
       if ((existingCarer && existingCarer.deletedAt) || (existingAdmin && existingAdmin.deletedAt)) {
-        console.log('❌ Carer invitation failed: soft-deleted account found');
         const userType = existingCarer ? 'carer' : 'admin';
         const userName = existingCarer ? existingCarer.name : existingAdmin?.name;
         return res.status(400).json({
@@ -325,7 +303,6 @@ router.post('/carer',
 
       // Check for pending invitation
       if (existingInvitation && existingInvitation.status === InvitationStatus.PENDING) {
-        console.log('❌ Carer invitation failed: pending invitation found');
         const inviteDate = new Date(existingInvitation.invitedAt).toLocaleDateString();
         const userTypeText = existingInvitation.userType === InvitationType.ADMIN ? 'admin' : 'carer';
         return res.status(400).json({
@@ -342,7 +319,6 @@ router.post('/carer',
         const hasExistingAccount = (existingCarer && !existingCarer.deletedAt) || (existingAdmin && !existingAdmin.deletedAt);
         
         if (hasExistingAccount) {
-          console.log('❌ Carer invitation failed: processed invitation found with existing account');
           const statusText = existingInvitation.status.toLowerCase();
           const userTypeText = existingInvitation.userType === InvitationType.ADMIN ? 'admin' : 'carer';
           return res.status(400).json({
@@ -350,13 +326,11 @@ router.post('/carer',
             message: `An invitation for ${email} was already ${statusText}. Please check if the user already has an account or use a different email address.`
           });
         } else {
-          console.log('ℹ️ Carer invitation: Found processed invitation but no existing account, will update existing invitation');
           shouldUpdateExisting = true;
         }
       }
 
       // Generate invitation token and expiry (7 days)
-      console.log('✅ Carer invitation all checks passed, creating/updating invitation...');
       const token = generateInvitationToken();
       const expiresAt = new Date();
       expiresAt.setDate(expiresAt.getDate() + 7);
@@ -406,13 +380,9 @@ router.post('/carer',
         }
       } catch (dbError: any) {
         // Handle unique constraint violations that might slip through validation
-        console.error('🚨 Database error in carer invitation creation:', dbError);
-        console.error('🚨 Error code:', dbError.code);
-        console.error('🚨 Error meta:', dbError.meta);
         
         if (dbError.code === 'P2002') {
           if (dbError.meta?.target?.includes('email')) {
-            console.log('🚨 Handling email constraint violation for:', email);
             return res.status(400).json({
               success: false,
               message: `Email address ${email} is already in use. Please check if a user account or pending invitation already exists for this email address.`
@@ -475,11 +445,9 @@ router.post('/carer',
         }
       });
     } catch (error) {
-      console.error('Error sending carer invitation:', error);
       
       // More detailed error for debugging
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      console.error('Error details:', errorMessage);
       
       res.status(500).json({
         success: false,
@@ -492,13 +460,11 @@ router.post('/carer',
 
 // Get invitation details (for accept page)
 router.get('/accept',
-  async (req, res) => {
+  async (req: Request, res: Response) => {
     try {
       const { token } = req.query;
-      console.log('🔍 GET /accept - Token received:', token);
 
       if (!token) {
-        console.log('❌ No token provided');
         return res.status(400).json({
           success: false,
           message: 'Invitation token is required'
@@ -515,15 +481,8 @@ router.get('/accept',
         }
       });
 
-      console.log('🔍 Invitation found:', invitation ? 'Yes' : 'No');
-      if (invitation) {
-        console.log('🔍 Invitation status:', invitation.status);
-        console.log('🔍 Invitation expires:', invitation.expiresAt);
-        console.log('🔍 Current time:', new Date());
-      }
 
       if (!invitation) {
-        console.log('❌ Invalid invitation token');
         return res.status(400).json({
           success: false,
           message: 'Invalid invitation token'
@@ -532,7 +491,6 @@ router.get('/accept',
 
       // Check if invitation is still valid
       if (invitation.status !== InvitationStatus.PENDING) {
-        console.log('❌ Invitation already processed, status:', invitation.status);
         return res.status(400).json({
           success: false,
           message: 'This invitation has already been processed'
@@ -540,7 +498,6 @@ router.get('/accept',
       }
 
       if (new Date() > invitation.expiresAt) {
-        console.log('❌ Invitation expired:', invitation.expiresAt, 'vs current:', new Date());
         // Mark as expired
         await prisma.invitation.update({
           where: { id: invitation.id },
@@ -554,7 +511,6 @@ router.get('/accept',
       }
 
       // Return invitation details (without token for security)
-      console.log('✅ Invitation details returned successfully');
       res.json({
         success: true,
         data: {
@@ -567,7 +523,6 @@ router.get('/accept',
         }
       });
     } catch (error) {
-      console.error('Error fetching invitation details:', error);
       res.status(500).json({
         success: false,
         message: 'Failed to fetch invitation details'
@@ -583,13 +538,11 @@ router.post('/accept',
     body('password').isLength({ min: 8 }).withMessage('Password must be at least 8 characters long'),
     body('phone').notEmpty().withMessage('Phone number is required').isMobilePhone('any').withMessage('Valid phone number required')
   ],
-  async (req, res) => {
+  async (req: Request, res: Response) => {
     try {
-      console.log('🔍 Accept invitation request:', { token: req.body.token ? 'present' : 'missing', password: req.body.password ? 'present' : 'missing' });
       
       const errors = validationResult(req);
       if (!errors.isEmpty()) {
-        console.log('❌ Validation errors:', errors.array());
         return res.status(400).json({
           success: false,
           message: 'Validation failed',
@@ -600,7 +553,6 @@ router.post('/accept',
       const { token, password, phone } = req.body;
 
       // Find invitation
-      console.log('🔍 Looking for invitation with token...');
       const invitation = await prisma.invitation.findUnique({
         where: { token },
         include: {
@@ -611,18 +563,15 @@ router.post('/accept',
       });
 
       if (!invitation) {
-        console.log('❌ Invitation not found');
         return res.status(400).json({
           success: false,
           message: 'Invalid invitation token'
         });
       }
 
-      console.log('✅ Invitation found:', { email: invitation.email, status: invitation.status, userType: invitation.userType });
 
       // Check if invitation is still valid
       if (invitation.status !== InvitationStatus.PENDING) {
-        console.log('❌ Invitation not pending:', invitation.status);
         return res.status(400).json({
           success: false,
           message: 'This invitation has already been processed'
@@ -630,7 +579,6 @@ router.post('/accept',
       }
 
       if (new Date() > invitation.expiresAt) {
-        console.log('❌ Invitation expired:', invitation.expiresAt);
         // Mark as expired
         await prisma.invitation.update({
           where: { id: invitation.id },
@@ -643,16 +591,13 @@ router.post('/accept',
         });
       }
 
-      console.log('✅ Invitation is valid, proceeding with user creation');
 
       // Hash password
-      console.log('🔐 Hashing password...');
       const passwordHash = await bcrypt.hash(password, 12);
 
       let newUser;
 
       if (invitation.userType === InvitationType.ADMIN) {
-        console.log('👤 Creating admin user...');
         // Create admin user
         newUser = await prisma.adminUser.create({
           data: {
@@ -712,13 +657,8 @@ router.post('/accept',
         }
       });
     } catch (error) {
-      console.error('❌ Error accepting invitation:', error);
       
       // More detailed error logging
-      if (error instanceof Error) {
-        console.error('Error message:', error.message);
-        console.error('Error stack:', error.stack);
-      }
       
       res.status(500).json({
         success: false,
@@ -734,7 +674,7 @@ router.post('/decline',
   [
     body('token').notEmpty().withMessage('Invitation token is required')
   ],
-  async (req, res) => {
+  async (req: Request, res: Response) => {
     try {
       const errors = validationResult(req);
       if (!errors.isEmpty()) {
@@ -780,7 +720,6 @@ router.post('/decline',
         message: 'Invitation declined successfully'
       });
     } catch (error) {
-      console.error('Error declining invitation:', error);
       res.status(500).json({
         success: false,
         message: 'Failed to decline invitation'
@@ -792,7 +731,7 @@ router.post('/decline',
 // List pending invitations (admin only)
 router.get('/',
   requireAuth,
-  async (req, res) => {
+  async (req: Request, res: Response) => {
     try {
       const { status, userType } = req.query;
 
@@ -849,8 +788,7 @@ router.get('/',
               };
             }
           } catch (error) {
-            console.error('Error fetching current user data for invitation:', invitation.id, error);
-          }
+                }
         }
         
         return invitation;
@@ -861,7 +799,6 @@ router.get('/',
         data: enhancedInvitations
       });
     } catch (error) {
-      console.error('Error fetching invitations:', error);
       res.status(500).json({
         success: false,
         message: 'Failed to fetch invitations'
@@ -874,7 +811,7 @@ router.get('/',
 router.post('/resend/:id',
   requireAuth,
   audit(AuditAction.UPDATE, 'Invitation'),
-  async (req, res) => {
+  async (req: Request, res: Response) => {
     try {
       const { id } = req.params;
 
@@ -947,7 +884,6 @@ router.post('/resend/:id',
         }
       });
     } catch (error) {
-      console.error('Error resending invitation:', error);
       res.status(500).json({
         success: false,
         message: 'Failed to resend invitation'
@@ -960,7 +896,7 @@ router.post('/resend/:id',
 router.delete('/:id',
   requireAuth,
   audit(AuditAction.DELETE, 'Invitation'),
-  async (req, res) => {
+  async (req: Request, res: Response) => {
     try {
       const { id } = req.params;
 
@@ -992,10 +928,8 @@ router.delete('/:id',
         message: 'Invitation cancelled successfully'
       });
     } catch (error) {
-      console.error('Error cancelling invitation:', error);
       
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      console.error('Error details:', errorMessage);
       
       res.status(500).json({
         success: false,
@@ -1010,7 +944,7 @@ router.delete('/:id',
 router.delete('/accepted',
   requireAuth,
   audit(AuditAction.DELETE, 'Invitation'),
-  async (req, res) => {
+  async (req: Request, res: Response) => {
     try {
       // Only allow admins to perform this operation
       if (!req.user) {
@@ -1035,7 +969,6 @@ router.delete('/accepted',
         }
       });
     } catch (error) {
-      console.error('Error deleting accepted invitations:', error);
       res.status(500).json({
         success: false,
         message: 'Failed to delete accepted invitations'

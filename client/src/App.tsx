@@ -2,7 +2,7 @@ import { Routes, Route, Navigate } from 'react-router-dom'
 import { Box } from '@mui/material'
 
 import { useAuth } from './contexts/AuthContext'
-import { LoadingScreen } from './components/common/LoadingScreen'
+import LoadingScreen from './components/common/LoadingScreen'
 import { LoginPage } from './pages/LoginPage'
 import { DashboardPage } from './pages/DashboardPage'
 import { ForgotPasswordPage } from './pages/ForgotPasswordPage'
@@ -18,6 +18,8 @@ import ProgressPage from './pages/ProgressPage'
 import CarerProgressDetailPage from './pages/CarerProgressDetailPage'
 import TakeAssessmentPage from './pages/TakeAssessmentPage'
 import EmailChangeVerification from './pages/EmailChangeVerification'
+import ShiftCreationPage from './pages/ShiftCreationPage'
+import ShiftManagementPage from './pages/ShiftManagementPage'
 import { ProtectedRoute } from './components/auth/ProtectedRoute'
 
 function App() {
@@ -148,6 +150,22 @@ function App() {
           element={
             <ProtectedRoute>
               <TakeAssessmentPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/shift-sender/create"
+          element={
+            <ProtectedRoute>
+              <ShiftCreationPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/shift-sender/management"
+          element={
+            <ProtectedRoute>
+              <ShiftManagementPage />
             </ProtectedRoute>
           }
         />

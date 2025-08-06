@@ -137,7 +137,6 @@ export class ProgressController {
         data: progressSummaries
       });
     } catch (error) {
-      console.error('Error fetching carer progress summaries:', error);
       next(error);
     }
   }
@@ -250,7 +249,7 @@ export class ProgressController {
           const lastUpdated = progressData?.lastUpdated || taskAssignment.assignedAt;
           
           // Check if can take assessment (when task is complete and part of an active assessment)
-          const canTakeAssessment = completionPercentage >= 100 && !competency && assessment?.isActive;
+          const canTakeAssessment = completionPercentage >= 100 && !competency && Boolean(assessment?.isActive);
 
           const taskDetail: TaskProgressDetail = {
             taskId: taskAssignment.taskId,
@@ -310,7 +309,6 @@ export class ProgressController {
         data: detailedProgress
       });
     } catch (error) {
-      console.error('Error fetching detailed carer progress:', error);
       next(error);
     }
   }
@@ -400,7 +398,6 @@ export class ProgressController {
         message: 'Task progress updated successfully'
       });
     } catch (error) {
-      console.error('Error updating task progress:', error);
       next(error);
     }
   }
@@ -470,7 +467,6 @@ export class ProgressController {
         message: 'Task progress reset successfully'
       });
     } catch (error) {
-      console.error('Error resetting task progress:', error);
       next(error);
     }
   }
@@ -575,7 +571,6 @@ export class ProgressController {
         message: 'Manual competency rating set successfully'
       });
     } catch (error) {
-      console.error('Error setting manual competency:', error);
       next(error);
     }
   }
@@ -668,7 +663,6 @@ export class ProgressController {
       });
 
     } catch (error) {
-      console.error('Error fetching carer assessment responses:', error);
       next(error);
     }
   }

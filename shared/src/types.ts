@@ -25,6 +25,7 @@ export interface Carer {
   isFullyAssessed?: boolean;
   packages?: CarerPackageAssignment[];
   competencies?: CompetencyRating[];
+  shiftApplications?: ShiftApplication[];
 }
 
 // Care Package Types
@@ -237,15 +238,34 @@ export interface CompetencyRating {
 export interface Shift {
   id: string;
   packageId: string;
-  name: string;
-  description: string;
+  date: Date;
+  startTime: string; // HH:MM format
+  endTime: string;   // HH:MM format
   requiredCompetencies: string[]; // Task IDs that require competency
   isCompetentOnly: boolean;
+  status: ShiftStatus;
+  selectedCarerId?: string;
+  expiresAt?: Date;
   createdAt: Date;
   createdByAdminId: string;
+  rotaEntryId?: string; // Links to created rota entry when assigned
   // Relations
   package?: CarePackage;
+  applications?: ShiftApplication[];
   assignments?: ShiftAssignment[];
+  selectedCarer?: Carer;
+}
+
+export interface ShiftApplication {
+  id: string;
+  shiftId: string;
+  carerId: string;
+  appliedAt: Date;
+  status: ShiftApplicationStatus;
+  notes?: string;
+  // Relations
+  carer?: Carer;
+  shift?: Shift;
 }
 
 export interface ShiftAssignment {
@@ -334,9 +354,19 @@ export enum PracticalRating {
 
 export enum ShiftStatus {
   PENDING = 'PENDING',
+  WAITING_RESPONSES = 'WAITING_RESPONSES',
+  HAS_APPLICATIONS = 'HAS_APPLICATIONS',
+  ASSIGNED = 'ASSIGNED',
   CONFIRMED = 'CONFIRMED',
   CANCELLED = 'CANCELLED',
-  COMPLETED = 'COMPLETED'
+  COMPLETED = 'COMPLETED',
+  EXPIRED = 'EXPIRED'
+}
+
+export enum ShiftApplicationStatus {
+  PENDING = 'PENDING',
+  SELECTED = 'SELECTED',
+  REJECTED = 'REJECTED'
 }
 
 export enum ShiftType {

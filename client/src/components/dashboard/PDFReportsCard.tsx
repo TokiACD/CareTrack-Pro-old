@@ -7,7 +7,6 @@ import {
   Box,
   TextField,
   InputAdornment,
-  IconButton,
   Button,
   Table,
   TableBody,
@@ -35,17 +34,10 @@ import {
 } from '@mui/icons-material'
 import { useQuery } from '@tanstack/react-query'
 import { apiService } from '../../services/api'
-import { API_ENDPOINTS } from '@caretrack/shared'
+import { API_ENDPOINTS, Carer as SharedCarer } from '@caretrack/shared'
 
-interface Carer {
-  id: string
-  name: string
-  email: string
-  phone?: string
-  isActive: boolean
-  createdAt: string
-  updatedAt: string
-}
+// Use the shared Carer type
+type Carer = SharedCarer
 
 const PDFReportsCard: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('')
@@ -63,16 +55,21 @@ const PDFReportsCard: React.FC = () => {
   })
 
   // Fetch carers data
-  const { data: carersData, isLoading, error, refetch } = useQuery({
+  const { data: carersData, isLoading, error } = useQuery({
     queryKey: ['carers-for-pdf', page, searchTerm, statusFilter],
     queryFn: async () => {
-      const params = new URLSearchParams({
-        page: page.toString(),
-        limit: '10',
-        ...(searchTerm && { search: searchTerm }),
-        ...(statusFilter !== 'all' && { status: statusFilter })
-      })
-      return await apiService.getFullResponse(`${API_ENDPOINTS.CARERS.LIST}?${params}`)
+      const params = new URLSearchParams()
+      params.set('page', page.toString())
+      params.set('limit', '10')
+      if (searchTerm) {
+        params.set('search', searchTerm)
+      }
+      if (statusFilter !== 'all') {
+        params.set('status', statusFilter)
+      }
+      
+      const url = `/api/carers?${params.toString()}`
+      return await apiService.getFullResponse(url)
     }
   })
 
@@ -92,7 +89,8 @@ const PDFReportsCard: React.FC = () => {
     try {
       setDownloadingCarerId(carer.id)
       
-      const response = await fetch(`${API_ENDPOINTS.PROGRESS.LIST}/${carer.id}/pdf`, {
+      // Use the correct API endpoint structure
+      const response = await fetch(`/api/progress/${carer.id}/pdf`, {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('authToken')}`

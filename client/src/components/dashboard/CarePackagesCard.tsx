@@ -39,18 +39,13 @@ import {
 } from '@mui/icons-material';
 import { useQuery } from '@tanstack/react-query';
 import { apiService } from '../../services/api';
-import { API_ENDPOINTS } from '@caretrack/shared';
+import { API_ENDPOINTS, CarePackage as SharedCarePackage } from '@caretrack/shared';
 import { useSmartMutation } from '../../hooks/useSmartMutation';
 import ConfirmationDialog from '../common/ConfirmationDialog';
 import { useConfirmation } from '../../hooks/useConfirmation';
 
-interface CarePackage {
-  id: string;
-  name: string;
-  postcode: string;
-  isActive: boolean;
-  createdAt: string;
-  updatedAt: string;
+// Extended CarePackage interface with additional UI-specific fields
+interface ExtendedCarePackage extends SharedCarePackage {
   assignedCarers: Array<{ id: string; name: string }>;
   assignedTasks: Array<{ id: string; name: string }>;
   carerCount: number;
@@ -66,9 +61,9 @@ interface PackageFormData {
 const CarePackagesCard: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [editingPackage, setEditingPackage] = useState<CarePackage | null>(null);
+  const [editingPackage, setEditingPackage] = useState<ExtendedCarePackage | null>(null);
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
-  const [selectedPackage, setSelectedPackage] = useState<CarePackage | null>(null);
+  const [selectedPackage, setSelectedPackage] = useState<ExtendedCarePackage | null>(null);
   
   // Confirmation dialog for deletions
   const { confirmationState, showConfirmation, hideConfirmation, handleConfirm } = useConfirmation();
@@ -112,10 +107,8 @@ const CarePackagesCard: React.FC = () => {
   } = useQuery({
     queryKey: ['packages', searchTerm],
     queryFn: async () => {
-      console.log('🔍 Fetching care packages with search term:', searchTerm);
       const params = searchTerm ? { search: searchTerm } : undefined;
-      const result = await apiService.get<CarePackage[]>(`${API_ENDPOINTS.CARE_PACKAGES.LIST}`, params);
-      console.log('📦 Fetched care packages:', result);
+      const result = await apiService.get<ExtendedCarePackage[]>(`${API_ENDPOINTS.CARE_PACKAGES.LIST}`, params);
       return result;
     }
   });
@@ -123,15 +116,12 @@ const CarePackagesCard: React.FC = () => {
   // Create package mutation
   const createPackageMutation = useSmartMutation<any, Error, PackageFormData>(
     async (packageData: PackageFormData) => {
-      console.log('🚀 Creating care package:', packageData);
       const result = await apiService.post(API_ENDPOINTS.CARE_PACKAGES.CREATE, packageData);
-      console.log('✅ Package created:', result);
       return result;
     },
     {
       mutationType: 'packages.create',
-      onSuccess: (data) => {
-        console.log('🔄 Smart invalidation after successful creation', data);
+      onSuccess: () => {
         setDialogOpen(false);
         resetForm();
         showNotification('✅ Care package created successfully!', 'success');
@@ -210,7 +200,7 @@ const CarePackagesCard: React.FC = () => {
     setDialogOpen(true);
   };
 
-  const handleEditPackage = (pkg: CarePackage) => {
+  const handleEditPackage = (pkg: ExtendedCarePackage) => {
     setEditingPackage(pkg);
     setFormData({
       name: pkg.name,
@@ -220,7 +210,7 @@ const CarePackagesCard: React.FC = () => {
     setDialogOpen(true);
   };
 
-  const handleDeletePackage = (pkg: CarePackage) => {
+  const handleDeletePackage = (pkg: ExtendedCarePackage) => {
     const hasAssignments = pkg.carerCount > 0 || pkg.taskCount > 0;
     const warnings = hasAssignments 
       ? [`This package has ${pkg.carerCount} carers and ${pkg.taskCount} tasks assigned`, 'All assignments will be deactivated']
@@ -294,7 +284,7 @@ const CarePackagesCard: React.FC = () => {
     }
   };
 
-  const handleMenuClick = (event: React.MouseEvent<HTMLButtonElement>, pkg: CarePackage) => {
+  const handleMenuClick = (event: React.MouseEvent<HTMLButtonElement>, pkg: ExtendedCarePackage) => {
     setAnchorEl(event.currentTarget);
     setSelectedPackage(pkg);
   };
@@ -306,17 +296,14 @@ const CarePackagesCard: React.FC = () => {
 
   const filteredPackages = useMemo(() => {
     if (!packagesData) {
-      console.log('📊 No packages data');
       return [];
     }
-    console.log('📊 Processing packages data:', packagesData);
     const result = Array.isArray(packagesData) ? packagesData : [];
-    console.log('📊 Filtered packages result:', result);
     return result;
   }, [packagesData]);
 
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString();
+  const formatDate = (date: string | Date) => {
+    return new Date(date).toLocaleDateString();
   };
 
   return (
@@ -383,7 +370,7 @@ const CarePackagesCard: React.FC = () => {
                 </TableRow>
               </TableHead>
               <TableBody>
-                {filteredPackages.map((pkg: CarePackage) => (
+                {filteredPackages.map((pkg: ExtendedCarePackage) => (
                   <TableRow key={pkg.id} hover>
                     <TableCell>
                       <Typography variant="body2" fontWeight="medium">
@@ -406,7 +393,7 @@ const CarePackagesCard: React.FC = () => {
                         </Typography>
                         {pkg.assignedCarers.length > 0 && (
                           <Box ml={1}>
-                            {pkg.assignedCarers.slice(0, 2).map((carer) => (
+                            {pkg.assignedCarers.slice(0, 2).map((carer: { id: string; name: string }) => (
                               <Chip 
                                 key={carer.id}
                                 size="small" 
@@ -435,7 +422,7 @@ const CarePackagesCard: React.FC = () => {
                         </Typography>
                         {pkg.assignedTasks.length > 0 && (
                           <Box ml={1}>
-                            {pkg.assignedTasks.slice(0, 2).map((task) => (
+                            {pkg.assignedTasks.slice(0, 2).map((task: { id: string; name: string }) => (
                               <Chip 
                                 key={task.id}
                                 size="small" 

@@ -4,7 +4,7 @@ interface LoadingScreenProps {
   message?: string
 }
 
-export function LoadingScreen({ message = 'Loading...' }: LoadingScreenProps) {
+function LoadingScreen({ message = 'Loading...' }: LoadingScreenProps) {
   return (
     <Box
       sx={{
@@ -30,3 +30,5 @@ export function LoadingScreen({ message = 'Loading...' }: LoadingScreenProps) {
     </Box>
   )
 }
+
+export default LoadingScreen

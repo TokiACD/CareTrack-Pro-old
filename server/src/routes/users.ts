@@ -1,4 +1,4 @@
-import { Router } from 'express';
+import { Router, Request, Response } from 'express';
 import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import { requireAuth } from '../middleware/auth';
@@ -45,7 +45,6 @@ router.get('/admins', requireAuth, async (req, res) => {
       total: admins.length
     });
   } catch (error) {
-    console.error('Error fetching admin users:', error);
     res.status(500).json({
       success: false,
       message: 'Failed to fetch admin users'
@@ -62,7 +61,7 @@ router.post('/admins',
     body('tempPassword').isLength({ min: 6 }).withMessage('Temporary password must be at least 6 characters')
   ],
   audit(AuditAction.CREATE, 'AdminUser'),
-  async (req, res) => {
+  async (req: Request, res: Response) => {
     try {
       const errors = validationResult(req);
       if (!errors.isEmpty()) {
@@ -97,6 +96,7 @@ router.post('/admins',
         data: {
           email,
           name,
+          phone: '', // Phone field is required but not collected for admin creation
           passwordHash,
           isActive: true,
           invitedBy: req.user!.id
@@ -117,7 +117,6 @@ router.post('/admins',
         data: newAdmin
       });
     } catch (error) {
-      console.error('Error creating admin user:', error);
       res.status(500).json({
         success: false,
         message: 'Failed to create admin user'
@@ -135,7 +134,7 @@ router.put('/admins/:id',
     body('isActive').optional().isBoolean().withMessage('isActive must be boolean')
   ],
   audit(AuditAction.UPDATE, 'AdminUser'),
-  async (req, res) => {
+  async (req: Request, res: Response) => {
     try {
       const errors = validationResult(req);
       if (!errors.isEmpty()) {
@@ -199,7 +198,6 @@ router.put('/admins/:id',
         data: updatedAdmin
       });
     } catch (error) {
-      console.error('Error updating admin user:', error);
       res.status(500).json({
         success: false,
         message: 'Failed to update admin user'
@@ -212,7 +210,7 @@ router.put('/admins/:id',
 router.delete('/admins/:id',
   requireAuth,
   audit(AuditAction.DELETE, 'AdminUser'),
-  async (req, res) => {
+  async (req: Request, res: Response) => {
     try {
       const { id } = req.params;
 
@@ -260,7 +258,6 @@ router.delete('/admins/:id',
         warnings: invitedUsers > 0 ? [`This admin had invited ${invitedUsers} other users`] : undefined
       });
     } catch (error) {
-      console.error('Error deleting admin user:', error);
       res.status(500).json({
         success: false,
         message: 'Failed to delete admin user'
@@ -350,7 +347,6 @@ router.get('/carers', requireAuth, async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Error fetching carers:', error);
     res.status(500).json({
       success: false,
       message: 'Failed to fetch carers'
@@ -368,7 +364,7 @@ router.post('/carers',
     body('phone').optional().isMobilePhone('any').withMessage('Valid phone number required')
   ],
   audit(AuditAction.CREATE, 'Carer'),
-  async (req, res) => {
+  async (req: Request, res: Response) => {
     try {
       const errors = validationResult(req);
       if (!errors.isEmpty()) {
@@ -420,7 +416,6 @@ router.post('/carers',
         }
       });
     } catch (error) {
-      console.error('Error creating carer:', error);
       res.status(500).json({
         success: false,
         message: 'Failed to create carer'
@@ -439,14 +434,11 @@ router.put('/carers/:id',
     body('isActive').optional().isBoolean().withMessage('isActive must be boolean')
   ],
   audit(AuditAction.UPDATE, 'Carer'),
-  async (req, res) => {
+  async (req: Request, res: Response) => {
     try {
-      console.log('🔍 PUT /carers/:id - Request body:', req.body);
-      console.log('🔍 PUT /carers/:id - Params:', req.params);
       
       const errors = validationResult(req);
       if (!errors.isEmpty()) {
-        console.log('❌ Validation errors:', errors.array());
         return res.status(400).json({
           success: false,
           message: 'Validation failed',
@@ -508,7 +500,6 @@ router.put('/carers/:id',
         }
       });
     } catch (error) {
-      console.error('Error updating carer:', error);
       res.status(500).json({
         success: false,
         message: 'Failed to update carer'
@@ -521,7 +512,7 @@ router.put('/carers/:id',
 router.delete('/carers/:id',
   requireAuth,
   audit(AuditAction.DELETE, 'Carer'),
-  async (req, res) => {
+  async (req: Request, res: Response) => {
     try {
       const { id } = req.params;
 
@@ -578,7 +569,6 @@ router.delete('/carers/:id',
         warnings: warnings.length > 0 ? warnings : undefined
       });
     } catch (error) {
-      console.error('Error deleting carer:', error);
       res.status(500).json({
         success: false,
         message: 'Failed to delete carer'
