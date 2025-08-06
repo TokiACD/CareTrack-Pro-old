@@ -167,6 +167,40 @@ export interface EmergencyResponse {
   carerAnswer: string;
 }
 
+// Draft Assessment Response Types
+export interface DraftAssessmentResponse {
+  id: string;
+  assessmentId: string;
+  carerId: string;
+  createdByAdminId: string;
+  draftData: AssessmentDraftData;
+  lastSaved: Date;
+  createdAt: Date;
+  syncedToServer: boolean;
+  // Relations
+  assessment?: Assessment;
+  carer?: Carer;
+  createdByAdmin?: AdminUser;
+}
+
+export interface AssessmentDraftData {
+  carerId: string;
+  assessorUniqueId?: string;
+  overallRating: CompetencyLevel;
+  knowledgeResponses: Array<{
+    questionId: string;
+    carerAnswer: string;
+  }>;
+  practicalResponses: Array<{
+    skillId: string;
+    rating: PracticalRating;
+  }>;
+  emergencyResponses: Array<{
+    questionId: string;
+    carerAnswer: string;
+  }>;
+}
+
 // Progress & Competency Types
 export interface TaskProgress {
   id: string;

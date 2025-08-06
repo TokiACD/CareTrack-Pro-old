@@ -12,7 +12,8 @@ export class RecycleBinController {
       search = '',
       entityType = 'all',
       sortBy = 'deletedAt',
-      sortOrder = 'desc'
+      sortOrder = 'desc',
+      excludeCarers = 'false'
     } = req.query
 
     const pageNumber = parseInt(page as string)
@@ -24,6 +25,11 @@ export class RecycleBinController {
     // Define entity types with their queries
     const entityQueries = {
       adminUsers: async () => {
+        // Skip non-carers if only fetching carers
+        if (entityType === 'carers') {
+          return []
+        }
+        
         if (entityType === 'all' || entityType === 'adminUsers') {
           const items = await prisma.adminUser.findMany({
             where: {
@@ -51,6 +57,11 @@ export class RecycleBinController {
       },
 
       carers: async () => {
+        // Skip carers if explicitly excluded (for general tab)
+        if (excludeCarers === 'true') {
+          return []
+        }
+        
         if (entityType === 'all' || entityType === 'carers') {
           const items = await prisma.carer.findMany({
             where: {
@@ -79,6 +90,11 @@ export class RecycleBinController {
       },
 
       carePackages: async () => {
+        // Skip non-carers if only fetching carers
+        if (entityType === 'carers') {
+          return []
+        }
+        
         if (entityType === 'all' || entityType === 'carePackages') {
           const items = await prisma.carePackage.findMany({
             where: {
@@ -106,6 +122,11 @@ export class RecycleBinController {
       },
 
       tasks: async () => {
+        // Skip non-carers if only fetching carers
+        if (entityType === 'carers') {
+          return []
+        }
+        
         if (entityType === 'all' || entityType === 'tasks') {
           const items = await prisma.task.findMany({
             where: {
@@ -130,6 +151,11 @@ export class RecycleBinController {
       },
 
       assessments: async () => {
+        // Skip non-carers if only fetching carers
+        if (entityType === 'carers') {
+          return []
+        }
+        
         if (entityType === 'all' || entityType === 'assessments') {
           const items = await prisma.assessment.findMany({
             where: {
@@ -565,13 +591,14 @@ export class RecycleBinController {
     })
   })
 
-  // Cleanup old deleted items (30+ days old)
+  // Cleanup old deleted items (30+ days old) - EXCLUDES CARERS for CQC compliance
   cleanupOldItems = asyncHandler(async (req: Request, res: Response): Promise<void> => {
     const admin = req.user!
     const cutoffDate = new Date()
     cutoffDate.setDate(cutoffDate.getDate() - 30) // 30 days ago
 
-    const entityTypes = ['adminUser', 'carer', 'carePackage', 'task', 'assessment']
+    // CQC COMPLIANCE: Exclude carers from automatic cleanup (6-year retention required)
+    const entityTypes = ['adminUser', 'carePackage', 'task', 'assessment']
     const cleanupResults: any[] = []
 
     for (const entityType of entityTypes) {
@@ -607,15 +634,31 @@ export class RecycleBinController {
       }
     }
 
+    // Check for carers that would have been cleaned up (for informational purposes)
+    const carersCount = await prisma.carer.count({
+      where: {
+        deletedAt: {
+          not: null,
+          lt: cutoffDate
+        }
+      }
+    })
+
     const totalCleaned = cleanupResults.reduce((sum, result) => sum + result.deletedCount, 0)
+    
+    let message = `Cleanup completed. ${totalCleaned} items permanently deleted.`
+    if (carersCount > 0) {
+      message += ` ${carersCount} deleted carer(s) retained for CQC compliance (6-year retention required).`
+    }
 
     res.json({
       success: true,
       data: {
         totalCleaned,
-        results: cleanupResults
+        results: cleanupResults,
+        carersRetained: carersCount
       },
-      message: `Cleanup completed. ${totalCleaned} items permanently deleted.`
+      message
     })
   })
 

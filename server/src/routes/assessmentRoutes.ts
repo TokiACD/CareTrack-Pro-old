@@ -218,4 +218,132 @@ router.get(
   assessmentController.getAssessmentResponses
 )
 
+// Draft Assessment Response Routes
+
+// GET /api/assessments/:assessmentId/carer/:carerId/draft - Get draft response
+router.get(
+  '/:assessmentId/carer/:carerId/draft',
+  [
+    param('assessmentId')
+      .isString()
+      .isLength({ min: 1 })
+      .withMessage('Assessment ID is required'),
+    param('carerId')
+      .isString()
+      .isLength({ min: 1 })
+      .withMessage('Carer ID is required')
+  ],
+  validateRequest,
+  assessmentController.getDraftResponse
+)
+
+// POST /api/assessments/:assessmentId/carer/:carerId/draft - Save draft response
+router.post(
+  '/:assessmentId/carer/:carerId/draft',
+  [
+    param('assessmentId')
+      .isString()
+      .isLength({ min: 1 })
+      .withMessage('Assessment ID is required'),
+    param('carerId')
+      .isString()
+      .isLength({ min: 1 })
+      .withMessage('Carer ID is required'),
+    body('draftData')
+      .isObject()
+      .withMessage('Draft data is required and must be an object')
+  ],
+  validateRequest,
+  assessmentController.saveDraftResponse
+)
+
+// DELETE /api/assessments/:assessmentId/carer/:carerId/draft - Delete draft response
+router.delete(
+  '/:assessmentId/carer/:carerId/draft',
+  [
+    param('assessmentId')
+      .isString()
+      .isLength({ min: 1 })
+      .withMessage('Assessment ID is required'),
+    param('carerId')
+      .isString()
+      .isLength({ min: 1 })
+      .withMessage('Carer ID is required')
+  ],
+  validateRequest,
+  assessmentController.deleteDraftResponse
+)
+
+// Assessment Response Management Routes
+
+// GET /api/assessments/responses/:responseId - Get individual response
+router.get(
+  '/responses/:responseId',
+  [
+    param('responseId')
+      .isString()
+      .isLength({ min: 1 })
+      .withMessage('Response ID is required')
+  ],
+  validateRequest,
+  assessmentController.getAssessmentResponseById
+)
+
+// PUT /api/assessments/responses/:responseId - Update existing response
+router.put(
+  '/responses/:responseId',
+  [
+    param('responseId')
+      .isString()
+      .isLength({ min: 1 })
+      .withMessage('Response ID is required'),
+    body('assessorUniqueId')
+      .optional()
+      .isString()
+      .withMessage('Assessor unique ID must be a string'),
+    body('overallRating')
+      .optional()
+      .isIn(['NOT_ASSESSED', 'NOT_COMPETENT', 'ADVANCED_BEGINNER', 'COMPETENT', 'PROFICIENT', 'EXPERT'])
+      .withMessage('Valid overall rating is required'),
+    body('knowledgeResponses')
+      .optional()
+      .isArray()
+      .withMessage('Knowledge responses must be an array'),
+    body('knowledgeResponses.*.questionId')
+      .optional()
+      .isString()
+      .withMessage('Question ID is required for knowledge responses'),
+    body('knowledgeResponses.*.carerAnswer')
+      .optional()
+      .isString()
+      .withMessage('Carer answer is required for knowledge responses'),
+    body('practicalResponses')
+      .optional()
+      .isArray()
+      .withMessage('Practical responses must be an array'),
+    body('practicalResponses.*.skillId')
+      .optional()
+      .isString()
+      .withMessage('Skill ID is required for practical responses'),
+    body('practicalResponses.*.rating')
+      .optional()
+      .isIn(['COMPETENT', 'NEEDS_SUPPORT', 'NOT_APPLICABLE'])
+      .withMessage('Valid practical rating is required'),
+    body('emergencyResponses')
+      .optional()
+      .isArray()
+      .withMessage('Emergency responses must be an array'),
+    body('emergencyResponses.*.questionId')
+      .optional()
+      .isString()
+      .withMessage('Question ID is required for emergency responses'),
+    body('emergencyResponses.*.carerAnswer')
+      .optional()
+      .isString()
+      .withMessage('Carer answer is required for emergency responses')
+  ],
+  validateRequest,
+  assessmentController.updateAssessmentResponse
+)
+
 export { router as assessmentRoutes }

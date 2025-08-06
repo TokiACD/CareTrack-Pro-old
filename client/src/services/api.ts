@@ -139,6 +139,42 @@ class ApiService {
     const response = await this.api.get<ApiResponse<T>>(url, { params })
     return response.data
   }
+
+  // Draft Assessment Management
+  async getDraftResponse<T>(assessmentId: string, carerId: string): Promise<T | null> {
+    try {
+      const response = await this.api.get<ApiResponse<T>>(`/api/assessments/${assessmentId}/carer/${carerId}/draft`)
+      return response.data.data || null
+    } catch (error: any) {
+      // Return null if draft doesn't exist (404)
+      if (error.response?.status === 404) {
+        return null
+      }
+      throw error
+    }
+  }
+
+  async saveDraftResponse<T>(assessmentId: string, carerId: string, draftData: any): Promise<T> {
+    const response = await this.api.post<ApiResponse<T>>(`/api/assessments/${assessmentId}/carer/${carerId}/draft`, {
+      draftData
+    })
+    return response.data.data!
+  }
+
+  async deleteDraftResponse(assessmentId: string, carerId: string): Promise<void> {
+    await this.api.delete(`/api/assessments/${assessmentId}/carer/${carerId}/draft`)
+  }
+
+  // Assessment Response Management
+  async getAssessmentResponseById<T>(responseId: string): Promise<T> {
+    const response = await this.api.get<ApiResponse<T>>(`/api/assessments/responses/${responseId}`)
+    return response.data.data!
+  }
+
+  async updateAssessmentResponse<T>(responseId: string, data: any): Promise<T> {
+    const response = await this.api.put<ApiResponse<T>>(`/api/assessments/responses/${responseId}`, data)
+    return response.data.data!
+  }
 }
 
 export const apiService = new ApiService()

@@ -579,6 +579,99 @@ export class ProgressController {
       next(error);
     }
   }
+
+  async getCarerAssessmentResponses(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { carerId } = req.params;
+
+      // Verify carer exists
+      const carer = await prisma.carer.findUnique({
+        where: { id: carerId, deletedAt: null },
+        select: { id: true, name: true, email: true }
+      });
+
+      if (!carer) {
+        return res.status(404).json({
+          success: false,
+          error: 'Carer not found'
+        });
+      }
+
+      // Get all assessment responses for this carer
+      const assessmentResponses = await prisma.assessmentResponse.findMany({
+        where: { carerId: carerId },
+        include: {
+          assessment: {
+            select: { 
+              id: true, 
+              name: true,
+              knowledgeQuestions: { 
+                orderBy: { order: 'asc' },
+                select: { id: true, question: true, modelAnswer: true, order: true }
+              },
+              practicalSkills: { 
+                orderBy: { order: 'asc' },
+                select: { id: true, skillDescription: true, canBeNotApplicable: true, order: true }
+              },
+              emergencyQuestions: { 
+                orderBy: { order: 'asc' },
+                select: { id: true, question: true, modelAnswer: true, order: true }
+              },
+              tasksCovered: {
+                include: {
+                  task: {
+                    select: { id: true, name: true }
+                  }
+                }
+              }
+            }
+          },
+          assessor: {
+            select: { id: true, name: true }
+          },
+          knowledgeResponses: {
+            include: {
+              question: {
+                select: { id: true, question: true, modelAnswer: true, order: true }
+              }
+            },
+            orderBy: { question: { order: 'asc' } }
+          },
+          practicalResponses: {
+            include: {
+              skill: {
+                select: { id: true, skillDescription: true, canBeNotApplicable: true, order: true }
+              }
+            },
+            orderBy: { skill: { order: 'asc' } }
+          },
+          emergencyResponses: {
+            include: {
+              question: {
+                select: { id: true, question: true, modelAnswer: true, order: true }
+              }
+            },
+            orderBy: { question: { order: 'asc' } }
+          }
+        },
+        orderBy: { completedAt: 'desc' }
+      });
+
+      const responseData = {
+        carer,
+        assessments: assessmentResponses
+      };
+
+      res.json({
+        success: true,
+        data: responseData
+      });
+
+    } catch (error) {
+      console.error('Error fetching carer assessment responses:', error);
+      next(error);
+    }
+  }
 }
 
 export const progressController = new ProgressController();

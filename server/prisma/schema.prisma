@@ -22,6 +22,7 @@ model AdminUser {
   invitedByAdmin      AdminUser?           @relation("AdminInvites", fields: [invitedBy], references: [id])
   invitedAdmins       AdminUser[]          @relation("AdminInvites")
   assessmentResponses AssessmentResponse[]
+  draftResponses      DraftAssessmentResponse[]
   auditLogs           AuditLog[]
   competencyRatings   CompetencyRating[]
   sentInvitations     Invitation[]
@@ -86,6 +87,7 @@ model Carer {
   updatedAt           DateTime                 @updatedAt @map("updated_at")
   deletedAt           DateTime?                @map("deleted_at")
   assessmentResponses AssessmentResponse[]
+  draftResponses      DraftAssessmentResponse[]
   packageAssignments  CarerPackageAssignment[]
   competencyRatings   CompetencyRating[]
   rotaEntries         RotaEntry[]
@@ -162,6 +164,7 @@ model Assessment {
   updatedAt           DateTime                 @updatedAt @map("updated_at")
   deletedAt           DateTime?                @map("deleted_at")
   assessmentResponses AssessmentResponse[]
+  draftResponses      DraftAssessmentResponse[]
   tasksCovered        AssessmentTaskCoverage[]
   emergencyQuestions  EmergencyQuestion[]
   knowledgeQuestions  KnowledgeQuestion[]
@@ -235,6 +238,24 @@ model AssessmentResponse {
   practicalResponses PracticalResponse[]
 
   @@map("assessment_responses")
+}
+
+model DraftAssessmentResponse {
+  id                   String      @id @default(cuid())
+  assessmentId         String      @map("assessment_id")
+  carerId              String      @map("carer_id")
+  createdByAdminId     String      @map("created_by_admin_id")
+  draftData            Json        @map("draft_data") // Stores the entire form data as JSON
+  lastSaved            DateTime    @updatedAt @map("last_saved")
+  createdAt            DateTime    @default(now()) @map("created_at")
+  syncedToServer       Boolean     @default(false) @map("synced_to_server")
+  
+  assessment           Assessment  @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+  carer                Carer       @relation(fields: [carerId], references: [id], onDelete: Cascade)
+  createdByAdmin       AdminUser   @relation(fields: [createdByAdminId], references: [id], onDelete: Cascade)
+
+  @@unique([assessmentId, carerId])
+  @@map("draft_assessment_responses")
 }
 
 model KnowledgeResponse {

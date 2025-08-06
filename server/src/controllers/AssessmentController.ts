@@ -663,4 +663,391 @@ export class AssessmentController {
       data: responses
     })
   })
+
+  // Get draft assessment response
+  getDraftResponse = asyncHandler(async (req: Request, res: Response): Promise<void> => {
+    const { assessmentId, carerId } = req.params
+
+    // Validate assessment exists and is active
+    const assessment = await prisma.assessment.findUnique({
+      where: { id: assessmentId, deletedAt: null, isActive: true }
+    })
+
+    if (!assessment) {
+      throw createError(404, 'Assessment not found or inactive')
+    }
+
+    // Validate carer exists and is active
+    const carer = await prisma.carer.findUnique({
+      where: { id: carerId, deletedAt: null, isActive: true }
+    })
+
+    if (!carer) {
+      throw createError(404, 'Carer not found or inactive')
+    }
+
+    // Get draft response
+    const draft = await prisma.draftAssessmentResponse.findUnique({
+      where: {
+        assessmentId_carerId: {
+          assessmentId,
+          carerId
+        }
+      },
+      include: {
+        assessment: {
+          select: { id: true, name: true }
+        },
+        carer: {
+          select: { id: true, name: true }
+        },
+        createdByAdmin: {
+          select: { id: true, name: true }
+        }
+      }
+    })
+
+    res.json({
+      success: true,
+      data: draft
+    })
+  })
+
+  // Save or update draft assessment response
+  saveDraftResponse = asyncHandler(async (req: Request, res: Response): Promise<void> => {
+    const { assessmentId, carerId } = req.params
+    const { draftData } = req.body
+    const admin = req.user!
+
+    // Validate assessment exists and is active
+    const assessment = await prisma.assessment.findUnique({
+      where: { id: assessmentId, deletedAt: null, isActive: true }
+    })
+
+    if (!assessment) {
+      throw createError(404, 'Assessment not found or inactive')
+    }
+
+    // Validate carer exists and is active
+    const carer = await prisma.carer.findUnique({
+      where: { id: carerId, deletedAt: null, isActive: true }
+    })
+
+    if (!carer) {
+      throw createError(404, 'Carer not found or inactive')
+    }
+
+    // Validate draft data structure
+    if (!draftData || typeof draftData !== 'object') {
+      throw createError(400, 'Draft data is required and must be an object')
+    }
+
+    // Upsert draft response
+    const draft = await prisma.draftAssessmentResponse.upsert({
+      where: {
+        assessmentId_carerId: {
+          assessmentId,
+          carerId
+        }
+      },
+      update: {
+        draftData,
+        syncedToServer: true
+      },
+      create: {
+        assessmentId,
+        carerId,
+        createdByAdminId: admin.id,
+        draftData,
+        syncedToServer: true
+      },
+      include: {
+        assessment: {
+          select: { id: true, name: true }
+        },
+        carer: {
+          select: { id: true, name: true }
+        }
+      }
+    })
+
+    res.json({
+      success: true,
+      data: draft,
+      message: 'Draft saved successfully'
+    })
+  })
+
+  // Delete draft assessment response
+  deleteDraftResponse = asyncHandler(async (req: Request, res: Response): Promise<void> => {
+    const { assessmentId, carerId } = req.params
+
+    // Check if draft exists
+    const existingDraft = await prisma.draftAssessmentResponse.findUnique({
+      where: {
+        assessmentId_carerId: {
+          assessmentId,
+          carerId
+        }
+      }
+    })
+
+    if (!existingDraft) {
+      throw createError(404, 'Draft not found')
+    }
+
+    // Delete draft
+    await prisma.draftAssessmentResponse.delete({
+      where: {
+        assessmentId_carerId: {
+          assessmentId,
+          carerId
+        }
+      }
+    })
+
+    res.json({
+      success: true,
+      message: 'Draft deleted successfully'
+    })
+  })
+
+  // Get individual assessment response by ID
+  getAssessmentResponseById = asyncHandler(async (req: Request, res: Response): Promise<void> => {
+    const { responseId } = req.params
+
+    const response = await prisma.assessmentResponse.findUnique({
+      where: { id: responseId },
+      include: {
+        assessment: {
+          include: {
+            knowledgeQuestions: { orderBy: { order: 'asc' } },
+            practicalSkills: { orderBy: { order: 'asc' } },
+            emergencyQuestions: { orderBy: { order: 'asc' } },
+            tasksCovered: {
+              include: {
+                task: {
+                  select: { id: true, name: true, targetCount: true }
+                }
+              }
+            }
+          }
+        },
+        carer: {
+          select: { id: true, name: true, email: true }
+        },
+        assessor: {
+          select: { id: true, name: true }
+        },
+        knowledgeResponses: {
+          include: {
+            question: {
+              select: { id: true, question: true, modelAnswer: true, order: true }
+            }
+          }
+        },
+        practicalResponses: {
+          include: {
+            skill: {
+              select: { id: true, skillDescription: true, canBeNotApplicable: true, order: true }
+            }
+          }
+        },
+        emergencyResponses: {
+          include: {
+            question: {
+              select: { id: true, question: true, modelAnswer: true, order: true }
+            }
+          }
+        }
+      }
+    })
+
+    if (!response) {
+      throw createError(404, 'Assessment response not found')
+    }
+
+    res.json({
+      success: true,
+      data: response
+    })
+  })
+
+  // Update existing assessment response
+  updateAssessmentResponse = asyncHandler(async (req: Request, res: Response): Promise<void> => {
+    const { responseId } = req.params
+    const {
+      assessorUniqueId,
+      overallRating,
+      knowledgeResponses,
+      practicalResponses,
+      emergencyResponses
+    } = req.body
+    const admin = req.user!
+
+    // Check if response exists
+    const existingResponse = await prisma.assessmentResponse.findUnique({
+      where: { id: responseId },
+      include: {
+        assessment: {
+          include: {
+            tasksCovered: true
+          }
+        },
+        carer: true
+      }
+    })
+
+    if (!existingResponse) {
+      throw createError(404, 'Assessment response not found')
+    }
+
+    // Validate overall rating if provided
+    if (overallRating && !Object.values(CompetencyLevel).includes(overallRating)) {
+      throw createError(400, 'Invalid overall rating')
+    }
+
+    // Update response in a transaction
+    const updatedResponse = await prisma.$transaction(async (tx) => {
+      // Update the main response
+      const response = await tx.assessmentResponse.update({
+        where: { id: responseId },
+        data: {
+          ...(assessorUniqueId !== undefined && { assessorUniqueId }),
+          ...(overallRating && { overallRating: overallRating as CompetencyLevel }),
+          assessorId: admin.id,
+          assessorName: admin.name
+        }
+      })
+
+      // Update knowledge responses if provided
+      if (knowledgeResponses && Array.isArray(knowledgeResponses)) {
+        await tx.knowledgeResponse.deleteMany({
+          where: { responseId }
+        })
+        
+        if (knowledgeResponses.length > 0) {
+          await tx.knowledgeResponse.createMany({
+            data: knowledgeResponses.map((kr: any) => ({
+              responseId,
+              questionId: kr.questionId,
+              carerAnswer: kr.carerAnswer
+            }))
+          })
+        }
+      }
+
+      // Update practical responses if provided
+      if (practicalResponses && Array.isArray(practicalResponses)) {
+        await tx.practicalResponse.deleteMany({
+          where: { responseId }
+        })
+        
+        if (practicalResponses.length > 0) {
+          await tx.practicalResponse.createMany({
+            data: practicalResponses.map((pr: any) => ({
+              responseId,
+              skillId: pr.skillId,
+              rating: pr.rating as PracticalRating
+            }))
+          })
+        }
+      }
+
+      // Update emergency responses if provided
+      if (emergencyResponses && Array.isArray(emergencyResponses)) {
+        await tx.emergencyResponse.deleteMany({
+          where: { responseId }
+        })
+        
+        if (emergencyResponses.length > 0) {
+          await tx.emergencyResponse.createMany({
+            data: emergencyResponses.map((er: any) => ({
+              responseId,
+              questionId: er.questionId,
+              carerAnswer: er.carerAnswer
+            }))
+          })
+        }
+      }
+
+      // Update competency ratings if overall rating changed
+      if (overallRating && existingResponse.assessment.tasksCovered.length > 0) {
+        for (const taskCoverage of existingResponse.assessment.tasksCovered) {
+          await tx.competencyRating.upsert({
+            where: {
+              carerId_taskId: {
+                carerId: existingResponse.carerId,
+                taskId: taskCoverage.taskId
+              }
+            },
+            update: {
+              level: overallRating as CompetencyLevel,
+              source: 'ASSESSMENT' as const,
+              assessmentResponseId: responseId,
+              setByAdminId: admin.id,
+              setByAdminName: admin.name,
+              setAt: new Date()
+            },
+            create: {
+              carerId: existingResponse.carerId,
+              taskId: taskCoverage.taskId,
+              level: overallRating as CompetencyLevel,
+              source: 'ASSESSMENT' as const,
+              assessmentResponseId: responseId,
+              setByAdminId: admin.id,
+              setByAdminName: admin.name,
+              setAt: new Date()
+            }
+          })
+        }
+      }
+
+      return response
+    })
+
+    // Log the update
+    await auditService.log({
+      action: 'UPDATE_ASSESSMENT_RESPONSE',
+      entityType: 'AssessmentResponse',
+      entityId: responseId,
+      oldValues: {
+        overallRating: existingResponse.overallRating,
+        assessorId: existingResponse.assessorId
+      },
+      newValues: {
+        overallRating: overallRating || existingResponse.overallRating,
+        assessorId: admin.id
+      },
+      performedByAdminId: admin.id,
+      performedByAdminName: admin.name,
+      ipAddress: req.ip,
+      userAgent: req.get('User-Agent')
+    })
+
+    // Fetch complete updated response
+    const completeResponse = await prisma.assessmentResponse.findUnique({
+      where: { id: responseId },
+      include: {
+        assessment: {
+          select: { id: true, name: true }
+        },
+        carer: {
+          select: { id: true, name: true, email: true }
+        },
+        assessor: {
+          select: { id: true, name: true }
+        },
+        knowledgeResponses: true,
+        practicalResponses: true,
+        emergencyResponses: true
+      }
+    })
+
+    res.json({
+      success: true,
+      data: completeResponse,
+      message: `Assessment response updated for ${existingResponse.carer.name}`
+    })
+  })
 }

@@ -23,6 +23,27 @@ export default defineConfig({
       '/api': {
         target: 'http://localhost:3000',
         changeOrigin: true,
+        secure: false,
+        timeout: 0,
+        configure: (proxy, _options) => {
+          proxy.on('error', (err, req, res) => {
+            console.log('Proxy error:', err.message, 'for', req.url);
+            if (res && !res.headersSent) {
+              res.writeHead(500, {
+                'Content-Type': 'application/json'
+              });
+              res.end(JSON.stringify({ success: false, error: 'Proxy connection failed' }));
+            }
+          });
+          proxy.on('proxyReq', (proxyReq, req) => {
+            console.log('→ Proxying:', req.method, req.url);
+            proxyReq.removeHeader('origin');
+            proxyReq.setHeader('host', 'localhost:3000');
+          });
+          proxy.on('proxyRes', (proxyRes, req) => {
+            console.log('← Response:', req.url, proxyRes.statusCode);
+          });
+        },
       },
     },
   },

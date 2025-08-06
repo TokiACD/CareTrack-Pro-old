@@ -143,6 +143,14 @@ function App() {
             </ProtectedRoute>
           }
         />
+        <Route
+          path="/assessments/:assessmentId/edit/:carerId"
+          element={
+            <ProtectedRoute>
+              <TakeAssessmentPage />
+            </ProtectedRoute>
+          }
+        />
         
         {/* Redirect root to login if not authenticated */}
         <Route 

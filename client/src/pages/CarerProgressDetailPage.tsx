@@ -28,6 +28,7 @@ import {
   IconButton,
   Breadcrumbs,
   Link,
+  CircularProgress,
   Card,
   CardContent,
   Grid,
@@ -97,6 +98,81 @@ interface CompetencyRatingDetail {
   setAt: Date;
   setByAdminName?: string;
   notes?: string;
+}
+
+interface AssessmentResponse {
+  id: string;
+  completedAt: string;
+  overallRating: string;
+  assessorUniqueId?: string;
+  assessment: {
+    id: string;
+    name: string;
+    knowledgeQuestions: KnowledgeQuestion[];
+    practicalSkills: PracticalSkill[];
+    emergencyQuestions: EmergencyQuestion[];
+    tasksCovered: Array<{
+      task: {
+        id: string;
+        name: string;
+      }
+    }>;
+  };
+  assessor: {
+    id: string;
+    name: string;
+  };
+  knowledgeResponses: KnowledgeResponseData[];
+  practicalResponses: PracticalResponseData[];
+  emergencyResponses: EmergencyResponseData[];
+}
+
+interface KnowledgeQuestion {
+  id: string;
+  question: string;
+  modelAnswer: string;
+  order: number;
+}
+
+interface PracticalSkill {
+  id: string;
+  skillDescription: string;
+  canBeNotApplicable: boolean;
+  order: number;
+}
+
+interface EmergencyQuestion {
+  id: string;
+  question: string;
+  modelAnswer: string;
+  order: number;
+}
+
+interface KnowledgeResponseData {
+  questionId: string;
+  carerAnswer: string;
+  question: KnowledgeQuestion;
+}
+
+interface PracticalResponseData {
+  skillId: string;
+  rating: string;
+  skill: PracticalSkill;
+}
+
+interface EmergencyResponseData {
+  questionId: string;
+  carerAnswer: string;
+  question: EmergencyQuestion;
+}
+
+interface CarerAssessmentHistory {
+  carer: {
+    id: string;
+    name: string;
+    email: string;
+  };
+  assessments: AssessmentResponse[];
 }
 
 interface TabPanelProps {
@@ -353,6 +429,8 @@ const CarerProgressDetailPage: React.FC = () => {
   const { user } = useAuth();
 
   const [progressData, setProgressData] = useState<CarerProgressDetail | null>(null);
+  const [assessmentHistory, setAssessmentHistory] = useState<CarerAssessmentHistory | null>(null);
+  const [assessmentHistoryLoading, setAssessmentHistoryLoading] = useState(true);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState(0);
@@ -416,8 +494,31 @@ const CarerProgressDetailPage: React.FC = () => {
     }
   };
 
+  const fetchAssessmentHistory = async () => {
+    if (!carerId) return;
+    
+    try {
+      setAssessmentHistoryLoading(true);
+      const response = await apiService.get(`/api/progress/carer/${carerId}/assessments`) as any;
+      
+      // Handle unwrapped response from apiService (which extracts response.data.data)
+      if (response && response.carer && Array.isArray(response.assessments)) {
+        setAssessmentHistory(response);
+      } else if (response && response.success && response.data) {
+        setAssessmentHistory(response.data);
+      } else {
+        setAssessmentHistory({ carer: { id: carerId, name: '', email: '' }, assessments: [] });
+      }
+    } catch (err: any) {
+      setAssessmentHistory({ carer: { id: carerId, name: '', email: '' }, assessments: [] });
+    } finally {
+      setAssessmentHistoryLoading(false);
+    }
+  };
+
   useEffect(() => {
     fetchProgressData();
+    fetchAssessmentHistory();
   }, [carerId]);
 
   const handleTabChange = (_event: React.SyntheticEvent, newValue: number) => {
@@ -429,7 +530,7 @@ const CarerProgressDetailPage: React.FC = () => {
       return { completedTasks: 0, totalTasks: 0, packageName: '', percentage: 0 };
     }
     
-    // If we're on the "All Competencies" tab (last tab)
+    // If we're on the "All Competencies" tab (second to last tab) or "Assessment History" tab (last tab)
     if (activeTab >= progressData.packages.length) {
       const allTasks = progressData.packages.flatMap(pkg => pkg.tasks);
       const completedTasks = allTasks.filter(task => task.completionPercentage === 100).length;
@@ -721,6 +822,132 @@ const CarerProgressDetailPage: React.FC = () => {
     </TableContainer>
   );
 
+  const renderAssessmentHistory = () => {
+    if (assessmentHistoryLoading) {
+      return (
+        <Box display="flex" justifyContent="center" alignItems="center" py={4}>
+          <CircularProgress />
+        </Box>
+      );
+    }
+
+    if (!assessmentHistory || assessmentHistory.assessments.length === 0) {
+      return (
+        <Alert severity="info">
+          No assessment responses found for this carer yet.
+        </Alert>
+      );
+    }
+
+    return (
+      <Grid container spacing={3}>
+        {assessmentHistory.assessments.map((assessment, index) => (
+          <Grid item xs={12} key={assessment.id}>
+            <Card elevation={2} sx={{ mb: 2 }}>
+              <CardContent>
+                <Box display="flex" justifyContent="space-between" alignItems="start" mb={2}>
+                  <Box>
+                    <Typography variant="h6" gutterBottom>
+                      {assessment.assessment.name}
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary" gutterBottom>
+                      Completed: {new Date(assessment.completedAt).toLocaleDateString('en-GB')} at {new Date(assessment.completedAt).toLocaleTimeString('en-GB')}
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary" gutterBottom>
+                      Assessor: {assessment.assessor.name}
+                    </Typography>
+                    {assessment.assessorUniqueId && (
+                      <Typography variant="body2" color="text.secondary" gutterBottom>
+                        Assessor ID: {assessment.assessorUniqueId}
+                      </Typography>
+                    )}
+                  </Box>
+                  <Box display="flex" flexDirection="column" alignItems="end" gap={1}>
+                    <Chip
+                      label={assessment.overallRating.replace('_', ' ')}
+                      size="medium"
+                      sx={{
+                        backgroundColor: getCompetencyColor(assessment.overallRating),
+                        color: 'white',
+                        fontWeight: 'bold'
+                      }}
+                    />
+                    <Button
+                      variant="outlined"
+                      size="small"
+                      startIcon={<Assessment />}
+                      onClick={() => navigate(`/assessments/${assessment.assessment.id}/edit/${carerId}?responseId=${assessment.id}`)}
+                    >
+                      Review & Edit
+                    </Button>
+                  </Box>
+                </Box>
+
+                {/* Tasks Covered */}
+                <Box mb={2}>
+                  <Typography variant="subtitle2" gutterBottom sx={{ fontWeight: 600 }}>
+                    Tasks Covered:
+                  </Typography>
+                  <Box display="flex" flexWrap="wrap" gap={1}>
+                    {assessment.assessment.tasksCovered.map((taskCoverage) => (
+                      <Chip 
+                        key={taskCoverage.task.id}
+                        label={taskCoverage.task.name}
+                        size="small"
+                        variant="outlined"
+                        color="primary"
+                      />
+                    ))}
+                  </Box>
+                </Box>
+
+                {/* Response Summary */}
+                <Grid container spacing={2}>
+                  {assessment.knowledgeResponses.length > 0 && (
+                    <Grid item xs={12} sm={4}>
+                      <Paper variant="outlined" sx={{ p: 2, bgcolor: 'info.50' }}>
+                        <Typography variant="subtitle2" gutterBottom sx={{ fontWeight: 600, color: 'info.main' }}>
+                          Knowledge Questions
+                        </Typography>
+                        <Typography variant="body2">
+                          {assessment.knowledgeResponses.filter(r => r.carerAnswer.trim()).length} / {assessment.knowledgeResponses.length} answered
+                        </Typography>
+                      </Paper>
+                    </Grid>
+                  )}
+                  {assessment.practicalResponses.length > 0 && (
+                    <Grid item xs={12} sm={4}>
+                      <Paper variant="outlined" sx={{ p: 2, bgcolor: 'success.50' }}>
+                        <Typography variant="subtitle2" gutterBottom sx={{ fontWeight: 600, color: 'success.main' }}>
+                          Practical Skills
+                        </Typography>
+                        <Typography variant="body2">
+                          {assessment.practicalResponses.length} skills assessed
+                        </Typography>
+                      </Paper>
+                    </Grid>
+                  )}
+                  {assessment.emergencyResponses.length > 0 && (
+                    <Grid item xs={12} sm={4}>
+                      <Paper variant="outlined" sx={{ p: 2, bgcolor: 'warning.50' }}>
+                        <Typography variant="subtitle2" gutterBottom sx={{ fontWeight: 600, color: 'warning.main' }}>
+                          Emergency Scenarios
+                        </Typography>
+                        <Typography variant="body2">
+                          {assessment.emergencyResponses.filter(r => r.carerAnswer.trim()).length} / {assessment.emergencyResponses.length} answered
+                        </Typography>
+                      </Paper>
+                    </Grid>
+                  )}
+                </Grid>
+              </CardContent>
+            </Card>
+          </Grid>
+        ))}
+      </Grid>
+    );
+  };
+
   if (loading) return <LoadingScreen />;
 
   if (error) {
@@ -915,6 +1142,7 @@ const CarerProgressDetailPage: React.FC = () => {
               />
             ))}
             <Tab label="All Competencies" {...a11yProps(progressData.packages.length)} />
+            <Tab label="Assessment History" {...a11yProps(progressData.packages.length + 1)} />
           </Tabs>
         </Box>
 
@@ -951,6 +1179,14 @@ const CarerProgressDetailPage: React.FC = () => {
               No competency ratings have been set for this carer yet.
             </Alert>
           )}
+        </TabPanel>
+
+        {/* Assessment History Tab */}
+        <TabPanel value={activeTab} index={progressData.packages.length + 1}>
+          <Typography variant="h6" gutterBottom>
+            Assessment History
+          </Typography>
+          {renderAssessmentHistory()}
         </TabPanel>
       </Paper>
 

@@ -31,6 +31,7 @@ import UsersCard from '../components/dashboard/UsersCard'
 import CarePackagesCard from '../components/dashboard/CarePackagesCard'
 import RecycleBinCard from '../components/dashboard/RecycleBinCard'
 import ProgressCard from '../components/dashboard/ProgressCard'
+import PDFReportsCard from '../components/dashboard/PDFReportsCard'
 
 // Dashboard card configurations
 const DASHBOARD_CARDS = [
@@ -75,6 +76,13 @@ const DASHBOARD_CARDS = [
     description: 'Monitor individual carer progress',
     icon: '📊',
     color: '#00796b',
+  },
+  {
+    id: 'pdf-reports',
+    title: 'PDF Reports',
+    description: 'Generate carer care record PDFs',
+    icon: '📄',
+    color: '#d32f2f',
   },
   {
     id: 'shift-sender',
@@ -178,6 +186,8 @@ export function DashboardPage() {
         return <RecycleBinCard />
       case 'progress':
         return <ProgressCard />
+      case 'pdf-reports':
+        return <PDFReportsCard />
       default:
         return (
           <Box textAlign="center" py={8}>

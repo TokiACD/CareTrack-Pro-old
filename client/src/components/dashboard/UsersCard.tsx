@@ -52,6 +52,7 @@ import EmailChangeDialog from '../profile/EmailChangeDialog';
 import { useAuth } from '../../contexts/AuthContext';
 import { useSmartMutation } from '../../hooks/useSmartMutation';
 import ConfirmationDialog from '../common/ConfirmationDialog';
+import CarerDeletionDialog from '../common/CarerDeletionDialog';
 import { useConfirmation } from '../../hooks/useConfirmation';
 
 interface TabPanelProps {
@@ -158,6 +159,10 @@ const UsersCard: React.FC = () => {
   });
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const [selectedUser, setSelectedUser] = useState<AdminUser | Carer | null>(null);
+  
+  // Carer deletion dialog state
+  const [carerDeletionDialogOpen, setCarerDeletionDialogOpen] = useState(false);
+  const [carerToDelete, setCarerToDelete] = useState<Carer | null>(null);
   
   // Notification state
   const [notification, setNotification] = useState<{
@@ -518,19 +523,40 @@ const UsersCard: React.FC = () => {
   };
 
   const handleDeleteUser = (user: AdminUser | Carer, type: 'admin' | 'carer') => {
-    showConfirmation(
-      {
-        title: `Delete ${type === 'admin' ? 'Admin User' : 'Carer'}`,
-        message: `Are you sure you want to delete "${user.name}"?`,
-        details: 'This action cannot be undone. The user will be moved to the recycle bin.',
-        confirmText: 'Delete',
-        severity: 'error'
-      },
-      () => {
-        setUserType(type);
-        deleteUserMutation.mutate(user.id);
-      }
-    );
+    if (type === 'carer') {
+      // Use specialized carer deletion dialog with CQC compliance
+      setCarerToDelete(user as Carer);
+      setCarerDeletionDialogOpen(true);
+    } else {
+      // Use standard confirmation dialog for admin users
+      showConfirmation(
+        {
+          title: 'Delete Admin User',
+          message: `Are you sure you want to delete "${user.name}"?`,
+          details: 'This action cannot be undone. The user will be moved to the recycle bin.',
+          confirmText: 'Delete',
+          severity: 'error'
+        },
+        () => {
+          setUserType(type);
+          deleteUserMutation.mutate(user.id);
+        }
+      );
+    }
+  };
+
+  const handleCarerDeletionConfirm = () => {
+    if (carerToDelete) {
+      setUserType('carer');
+      deleteUserMutation.mutate(carerToDelete.id);
+      setCarerDeletionDialogOpen(false);
+      setCarerToDelete(null);
+    }
+  };
+
+  const handleCarerDeletionClose = () => {
+    setCarerDeletionDialogOpen(false);
+    setCarerToDelete(null);
   };
 
 
@@ -1219,6 +1245,18 @@ const UsersCard: React.FC = () => {
         isLoading={confirmationState.isLoading}
         warnings={confirmationState.warnings}
       />
+
+      {/* Carer Deletion Dialog with CQC Compliance */}
+      {carerToDelete && (
+        <CarerDeletionDialog
+          open={carerDeletionDialogOpen}
+          onClose={handleCarerDeletionClose}
+          onConfirm={handleCarerDeletionConfirm}
+          carerName={carerToDelete.name}
+          carerId={carerToDelete.id}
+          isDeleting={deleteUserMutation.isPending}
+        />
+      )}
       </CardContent>
     </Card>
   );

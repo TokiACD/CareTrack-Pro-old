@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useCallback, useMemo } from 'react'
 import {
   Card,
   CardContent,
@@ -18,6 +18,9 @@ import {
   Alert,
   Snackbar,
   CircularProgress,
+  LinearProgress,
+  Tooltip,
+  Fade,
   FormControl,
   FormLabel,
   RadioGroup,
@@ -32,7 +35,10 @@ import {
   List,
   ListItem,
   ListItemText,
-  IconButton
+  IconButton,
+  Accordion,
+  AccordionSummary,
+  AccordionDetails
 } from '@mui/material'
 import {
   ArrowBack as ArrowBackIcon,
@@ -46,13 +52,21 @@ import {
   Warning as WarningIcon,
   Person as PersonIcon,
   Send as SendIcon,
-  Timer as TimerIcon
+  Timer as TimerIcon,
+  ExpandMore as ExpandMoreIcon,
+  NavigateNext as NavigateNextIcon,
+  Save as SaveIcon,
+  CloudDone as CloudDoneIcon,
+  Sync as SyncIcon,
+  Error as ErrorIcon,
+  Restore as RestoreIcon
 } from '@mui/icons-material'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useNavigate, useParams, useLocation } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { useSmartMutation } from '../hooks/useSmartMutation'
+import { useAssessmentDraft } from '../hooks/useAssessmentDraft'
 import { apiService } from '../services/api'
-import { API_ENDPOINTS, CompetencyLevel, PracticalRating } from '@caretrack/shared'
+import { API_ENDPOINTS, CompetencyLevel, PracticalRating, AssessmentDraftData } from '@caretrack/shared'
 import { useAuth } from '../contexts/AuthContext'
 
 interface AssessmentFormData {
@@ -81,12 +95,42 @@ interface EmergencyResponseData {
 
 const TakeAssessmentPage: React.FC = () => {
   const navigate = useNavigate()
+  const location = useLocation()
   const { assessmentId, carerId } = useParams<{ assessmentId: string; carerId: string }>()
   const { user } = useAuth()
+  
+  // Get responseId from URL query params for edit mode
+  const urlParams = new URLSearchParams(location.search)
+  const responseId = urlParams.get('responseId')
   
   const [activeStep, setActiveStep] = useState(0)
   const [startTime] = useState(Date.now())
   const [confirmDialogOpen, setConfirmDialogOpen] = useState(false)
+  const [expandedQuestions, setExpandedQuestions] = useState<string[]>([])  // Track expanded accordions
+  const [conflictDialogOpen, setConflictDialogOpen] = useState(false)
+
+  // Check if this is edit mode
+  const isEditMode = location.pathname.includes('/edit/')
+  
+  // Hybrid draft auto-save system
+  const {
+    draftData,
+    saveStatus,
+    lastSaved,
+    hasUnsavedChanges,
+    saveDraftLocal,
+    saveDraftToServer,
+    deleteDraft,
+    loadDraft,
+    draftConflict,
+    resolveDraftConflict,
+    setAutoSaveEnabled,
+    triggerServerSync
+  } = useAssessmentDraft({
+    assessmentId: assessmentId || '',
+    carerId: carerId || '',
+    enabled: !isEditMode && !!assessmentId && !!carerId
+  })
   
   const [formData, setFormData] = useState<AssessmentFormData>({
     carerId: carerId || '',
@@ -138,9 +182,20 @@ const TakeAssessmentPage: React.FC = () => {
     enabled: !!carerId
   })
 
+  // Fetch existing assessment response data in edit mode
+  const { data: existingResponseData, isLoading: responseLoading } = useQuery({
+    queryKey: ['assessment-response', responseId],
+    queryFn: async () => {
+      if (!responseId) return null
+      const response = await apiService.get(`${API_ENDPOINTS.ASSESSMENTS.LIST}/responses/${responseId}`)
+      return response
+    },
+    enabled: isEditMode && !!responseId
+  })
+
   // Initialize responses when assessment loads
   useEffect(() => {
-    if (assessmentData) {
+    if (assessmentData && !draftData) {  // Only initialize if no draft data exists
       const data = assessmentData as any
       setFormData(prev => ({
         ...prev,
@@ -157,31 +212,124 @@ const TakeAssessmentPage: React.FC = () => {
           carerAnswer: ''
         })) || []
       }))
+      
+      // Initialize first questions for each section
+      if (data.knowledgeQuestions?.length > 0) {
+        initializeFirstQuestion(data.knowledgeQuestions, 'knowledge')
+      }
+      if (data.practicalSkills?.length > 0) {
+        initializeFirstQuestion(data.practicalSkills, 'practical') 
+      }
+      if (data.emergencyQuestions?.length > 0) {
+        initializeFirstQuestion(data.emergencyQuestions, 'emergency')
+      }
     }
-  }, [assessmentData])
+  }, [assessmentData, draftData])
 
-  // Submit assessment mutation
+  // Load draft data when available (hybrid auto-save) - this takes priority
+  useEffect(() => {
+    if (draftData && !isEditMode && assessmentData) {
+      console.log('Loading draft data:', draftData)  // Debug log
+      setFormData({
+        carerId: draftData.carerId,
+        assessorUniqueId: draftData.assessorUniqueId || '',
+        overallRating: draftData.overallRating,
+        knowledgeResponses: draftData.knowledgeResponses,
+        practicalResponses: draftData.practicalResponses,
+        emergencyResponses: draftData.emergencyResponses
+      })
+      
+      // Initialize first questions for accordion after loading draft
+      const data = assessmentData as any
+      if (data.knowledgeQuestions?.length > 0) {
+        initializeFirstQuestion(data.knowledgeQuestions, 'knowledge')
+      }
+      if (data.practicalSkills?.length > 0) {
+        initializeFirstQuestion(data.practicalSkills, 'practical') 
+      }
+      if (data.emergencyQuestions?.length > 0) {
+        initializeFirstQuestion(data.emergencyQuestions, 'emergency')
+      }
+    }
+  }, [draftData, isEditMode, assessmentData])
+
+  // Load existing assessment response data when in edit mode
+  useEffect(() => {
+    if (existingResponseData && isEditMode && assessmentData) {
+      console.log('Loading existing response data for edit:', existingResponseData)
+      const responseData = existingResponseData as any
+      
+      setFormData({
+        carerId: responseData.carerId || carerId || '',
+        assessorUniqueId: responseData.assessorUniqueId || '',
+        overallRating: responseData.overallRating || CompetencyLevel.NOT_ASSESSED,
+        knowledgeResponses: responseData.knowledgeResponses?.map((r: any) => ({
+          questionId: r.questionId,
+          carerAnswer: r.carerAnswer
+        })) || [],
+        practicalResponses: responseData.practicalResponses?.map((r: any) => ({
+          skillId: r.skillId,
+          rating: r.rating
+        })) || [],
+        emergencyResponses: responseData.emergencyResponses?.map((r: any) => ({
+          questionId: r.questionId,
+          carerAnswer: r.carerAnswer
+        })) || []
+      })
+      
+      // Initialize first questions for accordion after loading existing data
+      const data = assessmentData as any
+      if (data.knowledgeQuestions?.length > 0) {
+        initializeFirstQuestion(data.knowledgeQuestions, 'knowledge')
+      }
+      if (data.practicalSkills?.length > 0) {
+        initializeFirstQuestion(data.practicalSkills, 'practical') 
+      }
+      if (data.emergencyQuestions?.length > 0) {
+        initializeFirstQuestion(data.emergencyQuestions, 'emergency')
+      }
+    }
+  }, [existingResponseData, isEditMode, assessmentData, carerId])
+
+  // Submit assessment mutation (handles both create and update)
   const submitAssessmentMutation = useSmartMutation<any, Error, AssessmentFormData>(
     async (data: AssessmentFormData) => {
       if (!assessmentId) throw new Error('Assessment ID is required')
-      return await apiService.post(`${API_ENDPOINTS.ASSESSMENTS.LIST}/${assessmentId}/responses`, data)
+      
+      if (isEditMode && responseId) {
+        // Update existing assessment response
+        return await apiService.put(`${API_ENDPOINTS.ASSESSMENTS.LIST}/responses/${responseId}`, data)
+      } else {
+        // Create new assessment response
+        return await apiService.post(`${API_ENDPOINTS.ASSESSMENTS.LIST}/${assessmentId}/responses`, data)
+      }
     },
     {
-      mutationType: 'assessments.submitResponse',
-      customInvalidations: [`carer-progress-${carerId}`, 'assessments'], 
+      mutationType: isEditMode ? 'assessments.updateResponse' : 'assessments.submitResponse',
+      customInvalidations: [`carer-progress-${carerId}`, 'assessments', `assessment-response-${responseId}`], 
       onSuccess: () => {
         const duration = Math.round((Date.now() - startTime) / 60000) // minutes
-        showNotification(`Assessment completed successfully in ${duration} minutes`, 'success')
+        const message = isEditMode 
+          ? 'Assessment updated successfully' 
+          : `Assessment completed successfully in ${duration} minutes`
+        showNotification(message, 'success')
         setTimeout(() => navigate(`/progress/carer/${carerId}`), 2000)
       },
       onError: (error: any) => {
-        showNotification(error.message || 'Failed to submit assessment', 'error')
+        const message = isEditMode 
+          ? 'Failed to update assessment' 
+          : 'Failed to submit assessment'
+        showNotification(error.message || message, 'error')
       }
     }
   )
 
   const handleNext = () => {
     setActiveStep(prev => prev + 1)
+    // Trigger server sync when navigating between sections
+    if (!isEditMode) {
+      triggerServerSync()
+    }
   }
 
   const handleBack = () => {
@@ -190,6 +338,10 @@ const TakeAssessmentPage: React.FC = () => {
 
   const handleStepChange = (step: number) => {
     setActiveStep(step)
+    // Trigger server sync when jumping between steps
+    if (!isEditMode) {
+      triggerServerSync()
+    }
   }
 
   const handleSubmit = () => {
@@ -208,31 +360,153 @@ const TakeAssessmentPage: React.FC = () => {
     setConfirmDialogOpen(false)
   }
 
-  const updateKnowledgeResponse = (questionId: string, answer: string) => {
-    setFormData(prev => ({
-      ...prev,
-      knowledgeResponses: prev.knowledgeResponses.map(response =>
-        response.questionId === questionId ? { ...response, carerAnswer: answer } : response
-      )
-    }))
+  const updateKnowledgeResponse = useCallback((questionId: string, answer: string) => {
+    setFormData(prev => {
+      const newFormData = {
+        ...prev,
+        knowledgeResponses: prev.knowledgeResponses.map(response =>
+          response.questionId === questionId ? { ...response, carerAnswer: answer } : response
+        )
+      }
+      
+      // Auto-save to localStorage (immediate)
+      if (!isEditMode) {
+        const draftData: AssessmentDraftData = {
+          carerId: newFormData.carerId,
+          assessorUniqueId: newFormData.assessorUniqueId,
+          overallRating: newFormData.overallRating,
+          knowledgeResponses: newFormData.knowledgeResponses,
+          practicalResponses: newFormData.practicalResponses,
+          emergencyResponses: newFormData.emergencyResponses
+        }
+        saveDraftLocal(draftData)
+      }
+      
+      return newFormData
+    })
+  }, [isEditMode, saveDraftLocal])
+
+  const updatePracticalResponse = useCallback((skillId: string, rating: PracticalRating) => {
+    setFormData(prev => {
+      const newFormData = {
+        ...prev,
+        practicalResponses: prev.practicalResponses.map(response =>
+          response.skillId === skillId ? { ...response, rating } : response
+        )
+      }
+      
+      // Auto-save to localStorage (immediate)
+      if (!isEditMode) {
+        const draftData: AssessmentDraftData = {
+          carerId: newFormData.carerId,
+          assessorUniqueId: newFormData.assessorUniqueId,
+          overallRating: newFormData.overallRating,
+          knowledgeResponses: newFormData.knowledgeResponses,
+          practicalResponses: newFormData.practicalResponses,
+          emergencyResponses: newFormData.emergencyResponses
+        }
+        saveDraftLocal(draftData)
+      }
+      
+      return newFormData
+    })
+  }, [isEditMode, saveDraftLocal])
+
+  const updateEmergencyResponse = useCallback((questionId: string, answer: string) => {
+    setFormData(prev => {
+      const newFormData = {
+        ...prev,
+        emergencyResponses: prev.emergencyResponses.map(response =>
+          response.questionId === questionId ? { ...response, carerAnswer: answer } : response
+        )
+      }
+      
+      // Auto-save to localStorage (immediate)
+      if (!isEditMode) {
+        const draftData: AssessmentDraftData = {
+          carerId: newFormData.carerId,
+          assessorUniqueId: newFormData.assessorUniqueId,
+          overallRating: newFormData.overallRating,
+          knowledgeResponses: newFormData.knowledgeResponses,
+          practicalResponses: newFormData.practicalResponses,
+          emergencyResponses: newFormData.emergencyResponses
+        }
+        saveDraftLocal(draftData)
+      }
+      
+      return newFormData
+    })
+  }, [isEditMode, saveDraftLocal])
+
+  const updateOverallRating = useCallback((rating: CompetencyLevel) => {
+    setFormData(prev => {
+      const newFormData = { ...prev, overallRating: rating }
+      
+      // Auto-save to localStorage (immediate)
+      if (!isEditMode) {
+        const draftData: AssessmentDraftData = {
+          carerId: newFormData.carerId,
+          assessorUniqueId: newFormData.assessorUniqueId,
+          overallRating: newFormData.overallRating,
+          knowledgeResponses: newFormData.knowledgeResponses,
+          practicalResponses: newFormData.practicalResponses,
+          emergencyResponses: newFormData.emergencyResponses
+        }
+        saveDraftLocal(draftData)
+      }
+      
+      return newFormData
+    })
+  }, [isEditMode, saveDraftLocal])
+
+  const updateAssessorUniqueId = useCallback((id: string) => {
+    setFormData(prev => {
+      const newFormData = { ...prev, assessorUniqueId: id }
+      
+      // Auto-save to localStorage (immediate)
+      if (!isEditMode) {
+        const draftData: AssessmentDraftData = {
+          carerId: newFormData.carerId,
+          assessorUniqueId: newFormData.assessorUniqueId,
+          overallRating: newFormData.overallRating,
+          knowledgeResponses: newFormData.knowledgeResponses,
+          practicalResponses: newFormData.practicalResponses,
+          emergencyResponses: newFormData.emergencyResponses
+        }
+        saveDraftLocal(draftData)
+      }
+      
+      return newFormData
+    })
+  }, [isEditMode, saveDraftLocal])
+
+  // Accordion management functions
+  const handleQuestionToggle = (questionId: string) => {
+    setExpandedQuestions(prev => 
+      prev.includes(questionId) 
+        ? prev.filter(id => id !== questionId)
+        : [...prev, questionId]
+    )
   }
 
-  const updatePracticalResponse = (skillId: string, rating: PracticalRating) => {
-    setFormData(prev => ({
-      ...prev,
-      practicalResponses: prev.practicalResponses.map(response =>
-        response.skillId === skillId ? { ...response, rating } : response
-      )
-    }))
+  const handleQuestionNext = (currentQuestionId: string, nextQuestionId?: string) => {
+    // Collapse current question
+    setExpandedQuestions(prev => prev.filter(id => id !== currentQuestionId))
+    // Expand next question if it exists
+    if (nextQuestionId) {
+      setExpandedQuestions(prev => [...prev, nextQuestionId])
+    }
+    
+    // Trigger server sync when navigating between questions
+    if (!isEditMode) {
+      triggerServerSync()
+    }
   }
 
-  const updateEmergencyResponse = (questionId: string, answer: string) => {
-    setFormData(prev => ({
-      ...prev,
-      emergencyResponses: prev.emergencyResponses.map(response =>
-        response.questionId === questionId ? { ...response, carerAnswer: answer } : response
-      )
-    }))
+  const initializeFirstQuestion = (questions: any[], section: string) => {
+    if (questions.length > 0 && !expandedQuestions.some(id => id.startsWith(section))) {
+      setExpandedQuestions(prev => [...prev, `${section}-${questions[0].id}`])
+    }
   }
 
   const getCompletionStats = () => {
@@ -247,7 +521,80 @@ const TakeAssessmentPage: React.FC = () => {
     }
   }
 
-  if (assessmentLoading || carerLoading) {
+  // Save status display helpers
+  const getSaveStatusIcon = () => {
+    switch (saveStatus) {
+      case 'saving_local':
+        return <SaveIcon fontSize="small" sx={{ 
+          '@keyframes pulse': {
+            '0%': { opacity: 0.5 },
+            '50%': { opacity: 1 },
+            '100%': { opacity: 0.5 }
+          },
+          animation: 'pulse 1s infinite'
+        }} />
+      case 'saving_server':
+        return <SyncIcon fontSize="small" sx={{ 
+          '@keyframes rotate': {
+            '0%': { transform: 'rotate(0deg)' },
+            '100%': { transform: 'rotate(360deg)' }
+          },
+          animation: 'rotate 1s linear infinite'
+        }} />
+      case 'saved_local':
+        return <SaveIcon fontSize="small" color="warning" />
+      case 'saved_server':
+        return <CloudDoneIcon fontSize="small" color="success" />
+      case 'error':
+        return <ErrorIcon fontSize="small" color="error" />
+      default:
+        return hasUnsavedChanges ? <SaveIcon fontSize="small" sx={{ opacity: 0.5 }} /> : null
+    }
+  }
+
+  const getSaveStatusText = () => {
+    switch (saveStatus) {
+      case 'saving_local':
+        return 'Saving...'
+      case 'saving_server':
+        return 'Syncing...'
+      case 'saved_local':
+        return 'Saved locally'
+      case 'saved_server':
+        return 'Saved'
+      case 'error':
+        return 'Save error'
+      default:
+        return hasUnsavedChanges ? 'Unsaved changes' : ''
+    }
+  }
+
+  const getSaveStatusTooltip = () => {
+    switch (saveStatus) {
+      case 'saving_local':
+        return 'Saving draft to local storage...'
+      case 'saving_server':
+        return 'Syncing draft to server...'
+      case 'saved_local':
+        return `Saved locally ${lastSaved ? `at ${lastSaved.toLocaleTimeString()}` : ''} - will sync to server automatically`
+      case 'saved_server':
+        return `Saved to server ${lastSaved ? `at ${lastSaved.toLocaleTimeString()}` : ''}`
+      case 'error':
+        return 'Failed to save draft. Your progress is saved locally.'
+      default:
+        return hasUnsavedChanges ? 'You have unsaved changes' : 'All changes saved'
+    }
+  }
+
+  // Handle draft conflict resolution
+  const handleConflictResolution = (action: 'use_local' | 'use_server' | 'merge') => {
+    if (draftConflict) {
+      resolveDraftConflict(action)
+      setConflictDialogOpen(false)
+    }
+  }
+
+  if (assessmentLoading || carerLoading || (isEditMode && responseLoading)) {
     return (
       <Container maxWidth="lg" sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '50vh' }}>
         <CircularProgress />
@@ -287,9 +634,32 @@ const TakeAssessmentPage: React.FC = () => {
           </IconButton>
           <QuizIcon sx={{ mr: 2 }} />
           <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
-            Assessment: {assessment.name}
+            {isEditMode ? 'Edit Assessment:' : 'Assessment:'} {assessment.name}
           </Typography>
           <Box display="flex" alignItems="center" gap={2}>
+            {/* Save Status Display */}
+            {!isEditMode && (
+              <Tooltip title={getSaveStatusTooltip()} arrow>
+                <Fade in={saveStatus !== 'idle' || hasUnsavedChanges}>
+                  <Box 
+                    display="flex" 
+                    alignItems="center" 
+                    gap={0.5}
+                    sx={{ 
+                      px: 1, 
+                      py: 0.5, 
+                      borderRadius: 1, 
+                      bgcolor: 'rgba(255,255,255,0.1)' 
+                    }}
+                  >
+                    {getSaveStatusIcon()}
+                    <Typography variant="caption" sx={{ fontSize: '0.75rem' }}>
+                      {getSaveStatusText()}
+                    </Typography>
+                  </Box>
+                </Fade>
+              </Tooltip>
+            )}
             <Box display="flex" alignItems="center" gap={0.5}>
               <TimerIcon fontSize="small" />
               <Typography variant="body2">{assessmentDuration}m</Typography>
@@ -331,7 +701,9 @@ const TakeAssessmentPage: React.FC = () => {
             <PersonIcon sx={{ mr: 0.5 }} fontSize="inherit" />
             {carer.name}
           </Link>
-          <Typography color="text.primary">Take Assessment</Typography>
+          <Typography color="text.primary">
+            {isEditMode ? 'Edit Assessment' : 'Take Assessment'}
+          </Typography>
         </Breadcrumbs>
       </Container>
 
@@ -395,15 +767,92 @@ const TakeAssessmentPage: React.FC = () => {
                     
                     {assessment.knowledgeQuestions.map((question: any, index: number) => {
                       const response = formData.knowledgeResponses.find(r => r.questionId === question.id)
+                      const questionId = `knowledge-${question.id}`
+                      const isExpanded = expandedQuestions.includes(questionId)
+                      const isAnswered = response?.carerAnswer?.trim()
+                      const nextQuestion = assessment.knowledgeQuestions[index + 1]
+                      const nextQuestionId = nextQuestion ? `knowledge-${nextQuestion.id}` : null
+                      
                       return (
-                        <Card key={question.id} variant="outlined" sx={{ mb: 2 }}>
-                          <CardContent>
-                            <Typography variant="h6" gutterBottom>
-                              Question {index + 1}
-                            </Typography>
-                            <Typography variant="body1" sx={{ mb: 2 }}>
+                        <Accordion 
+                          key={question.id} 
+                          expanded={isExpanded}
+                          onChange={() => handleQuestionToggle(questionId)}
+                          elevation={1}
+                          sx={{ 
+                            mb: 1,
+                            '&.Mui-expanded': { 
+                              backgroundColor: 'primary.50' 
+                            },
+                            border: isAnswered ? '2px solid' : '1px solid',
+                            borderColor: isAnswered ? 'success.light' : 'divider'
+                          }}
+                        >
+                          <AccordionSummary 
+                            expandIcon={<ExpandMoreIcon />}
+                            sx={{ 
+                              '& .MuiAccordionSummary-content': { alignItems: 'center' },
+                              '& .MuiAccordionSummary-expandIconWrapper.Mui-expanded': {
+                                transform: 'rotate(180deg)'
+                              }
+                            }}
+                          >
+                            <Box sx={{ width: '100%' }}>
+                              <Box display="flex" alignItems="center" gap={2} sx={{ mb: 1 }}>
+                                <Typography variant="h6" component="div">
+                                  Question {index + 1}
+                                </Typography>
+                                {isAnswered && (
+                                  <CheckCircleIcon color="success" fontSize="small" />
+                                )}
+                                <Box sx={{ flexGrow: 1 }} />
+                                <Typography variant="caption" color="text.secondary">
+                                  {isAnswered ? 'Answered' : 'Not answered'}
+                                </Typography>
+                              </Box>
+                              {!isExpanded && (
+                                <Typography 
+                                  variant="body2" 
+                                  color="text.secondary" 
+                                  sx={{ 
+                                    overflow: 'hidden',
+                                    textOverflow: 'ellipsis',
+                                    display: '-webkit-box',
+                                    WebkitLineClamp: 2,
+                                    WebkitBoxOrient: 'vertical',
+                                    fontSize: '0.875rem'
+                                  }}
+                                >
+                                  {question.question}
+                                </Typography>
+                              )}
+                            </Box>
+                          </AccordionSummary>
+                          <AccordionDetails>
+                            <Typography variant="body1" sx={{ mb: 2, fontWeight: 500 }}>
                               {question.question}
                             </Typography>
+                            
+                            {question.modelAnswer && (
+                              <Paper 
+                                variant="outlined" 
+                                sx={{ 
+                                  p: 2, 
+                                  mb: 3, 
+                                  bgcolor: 'info.50',
+                                  borderColor: 'info.200'
+                                }}
+                              >
+                                <Typography variant="subtitle2" color="info.main" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                  <PsychologyIcon fontSize="small" />
+                                  Model Answer (Reference)
+                                </Typography>
+                                <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic' }}>
+                                  {question.modelAnswer}
+                                </Typography>
+                              </Paper>
+                            )}
+                            
                             <TextField
                               fullWidth
                               multiline
@@ -412,21 +861,57 @@ const TakeAssessmentPage: React.FC = () => {
                               value={response?.carerAnswer || ''}
                               onChange={(e) => updateKnowledgeResponse(question.id, e.target.value)}
                               placeholder="Provide your detailed answer here..."
+                              sx={{ mb: 3 }}
                             />
-                          </CardContent>
-                        </Card>
+                            <Box display="flex" justifyContent="space-between" alignItems="center">
+                              <Typography variant="body2" color="text.secondary">
+                                Question {index + 1} of {assessment.knowledgeQuestions.length}
+                              </Typography>
+                              <Box display="flex" gap={1}>
+                                {index > 0 && (
+                                  <Button
+                                    variant="outlined"
+                                    size="small"
+                                    onClick={() => {
+                                      const prevQuestion = assessment.knowledgeQuestions[index - 1]
+                                      const prevQuestionId = `knowledge-${prevQuestion.id}`
+                                      handleQuestionNext(questionId, prevQuestionId)
+                                    }}
+                                  >
+                                    Previous
+                                  </Button>
+                                )}
+                                {index < assessment.knowledgeQuestions.length - 1 ? (
+                                  <Button
+                                    variant="contained"
+                                    size="small"
+                                    onClick={() => handleQuestionNext(questionId, nextQuestionId)}
+                                    endIcon={<NavigateNextIcon />}
+                                  >
+                                    Next Question
+                                  </Button>
+                                ) : (
+                                  <Button
+                                    variant="contained"
+                                    size="small"
+                                    onClick={() => {
+                                      handleQuestionToggle(questionId)
+                                      // Auto-advance to next section after a brief delay
+                                      setTimeout(() => {
+                                        handleNext()
+                                      }, 300)
+                                    }}
+                                    color="success"
+                                  >
+                                    Complete Section
+                                  </Button>
+                                )}
+                              </Box>
+                            </Box>
+                          </AccordionDetails>
+                        </Accordion>
                       )
                     })}
-                    
-                    <Box sx={{ mb: 1 }}>
-                      <Button
-                        variant="contained"
-                        onClick={handleNext}
-                        sx={{ mt: 1, mr: 1 }}
-                      >
-                        Continue
-                      </Button>
-                    </Box>
                   </StepContent>
                 </Step>
               )}
@@ -450,59 +935,172 @@ const TakeAssessmentPage: React.FC = () => {
                     
                     {assessment.practicalSkills.map((skill: any, index: number) => {
                       const response = formData.practicalResponses.find(r => r.skillId === skill.id)
+                      const skillId = `practical-${skill.id}`
+                      const isExpanded = expandedQuestions.includes(skillId)
+                      const isRated = response?.rating !== undefined
+                      const nextSkill = assessment.practicalSkills[index + 1]
+                      const nextSkillId = nextSkill ? `practical-${nextSkill.id}` : null
+                      
                       return (
-                        <Card key={skill.id} variant="outlined" sx={{ mb: 2 }}>
-                          <CardContent>
-                            <Typography variant="h6" gutterBottom>
-                              Skill {index + 1}
-                            </Typography>
-                            <Typography variant="body1" sx={{ mb: 2 }}>
+                        <Accordion 
+                          key={skill.id} 
+                          expanded={isExpanded}
+                          onChange={() => handleQuestionToggle(skillId)}
+                          elevation={1}
+                          sx={{ 
+                            mb: 1,
+                            '&.Mui-expanded': { 
+                              backgroundColor: 'primary.50' 
+                            },
+                            border: isRated ? '2px solid' : '1px solid',
+                            borderColor: isRated ? 'success.light' : 'divider'
+                          }}
+                        >
+                          <AccordionSummary 
+                            expandIcon={<ExpandMoreIcon />}
+                            sx={{ 
+                              '& .MuiAccordionSummary-content': { alignItems: 'center' },
+                              '& .MuiAccordionSummary-expandIconWrapper.Mui-expanded': {
+                                transform: 'rotate(180deg)'
+                              }
+                            }}
+                          >
+                            <Box sx={{ width: '100%' }}>
+                              <Box display="flex" alignItems="center" gap={2} sx={{ mb: 1 }}>
+                                <Typography variant="h6" component="div">
+                                  Skill {index + 1}
+                                </Typography>
+                                {isRated && (
+                                  <CheckCircleIcon color="success" fontSize="small" />
+                                )}
+                                <Box sx={{ flexGrow: 1 }} />
+                                <Typography variant="caption" color="text.secondary">
+                                  {isRated ? `Rated: ${response?.rating}` : 'Not rated'}
+                                </Typography>
+                              </Box>
+                              {!isExpanded && (
+                                <Typography 
+                                  variant="body2" 
+                                  color="text.secondary" 
+                                  sx={{ 
+                                    overflow: 'hidden',
+                                    textOverflow: 'ellipsis',
+                                    display: '-webkit-box',
+                                    WebkitLineClamp: 2,
+                                    WebkitBoxOrient: 'vertical',
+                                    fontSize: '0.875rem'
+                                  }}
+                                >
+                                  {skill.skillDescription}
+                                </Typography>
+                              )}
+                            </Box>
+                          </AccordionSummary>
+                          <AccordionDetails>
+                            <Typography variant="body1" sx={{ mb: 3, fontWeight: 500 }}>
                               {skill.skillDescription}
                             </Typography>
                             
-                            <FormControl component="fieldset">
-                              <FormLabel component="legend">Competency Rating</FormLabel>
+                            <FormControl component="fieldset" fullWidth sx={{ mb: 3 }}>
+                              <FormLabel component="legend" sx={{ mb: 2, fontWeight: 500 }}>
+                                Competency Rating *
+                              </FormLabel>
                               <RadioGroup
                                 row
                                 value={response?.rating || PracticalRating.COMPETENT}
                                 onChange={(e) => updatePracticalResponse(skill.id, e.target.value as PracticalRating)}
+                                sx={{ gap: 2 }}
                               >
                                 <FormControlLabel 
                                   value={PracticalRating.COMPETENT} 
                                   control={<Radio />} 
-                                  label="Competent" 
+                                  label={
+                                    <Box>
+                                      <Typography variant="body2" fontWeight={500}>Competent</Typography>
+                                      <Typography variant="caption" color="text.secondary">
+                                        Meets standards
+                                      </Typography>
+                                    </Box>
+                                  }
                                 />
                                 <FormControlLabel 
                                   value={PracticalRating.NEEDS_SUPPORT} 
                                   control={<Radio />} 
-                                  label="Needs Support" 
+                                  label={
+                                    <Box>
+                                      <Typography variant="body2" fontWeight={500}>Needs Support</Typography>
+                                      <Typography variant="caption" color="text.secondary">
+                                        Requires assistance
+                                      </Typography>
+                                    </Box>
+                                  }
                                 />
                                 {skill.canBeNotApplicable && (
                                   <FormControlLabel 
                                     value={PracticalRating.NOT_APPLICABLE} 
                                     control={<Radio />} 
-                                    label="Not Applicable" 
+                                    label={
+                                      <Box>
+                                        <Typography variant="body2" fontWeight={500}>Not Applicable</Typography>
+                                        <Typography variant="caption" color="text.secondary">
+                                          Not relevant
+                                        </Typography>
+                                      </Box>
+                                    }
                                   />
                                 )}
                               </RadioGroup>
                             </FormControl>
-                          </CardContent>
-                        </Card>
+                            
+                            <Box display="flex" justifyContent="space-between" alignItems="center">
+                              <Typography variant="body2" color="text.secondary">
+                                Skill {index + 1} of {assessment.practicalSkills.length}
+                              </Typography>
+                              <Box display="flex" gap={1}>
+                                {index > 0 && (
+                                  <Button
+                                    variant="outlined"
+                                    size="small"
+                                    onClick={() => {
+                                      const prevSkill = assessment.practicalSkills[index - 1]
+                                      const prevSkillId = `practical-${prevSkill.id}`
+                                      handleQuestionNext(skillId, prevSkillId)
+                                    }}
+                                  >
+                                    Previous
+                                  </Button>
+                                )}
+                                {index < assessment.practicalSkills.length - 1 ? (
+                                  <Button
+                                    variant="contained"
+                                    size="small"
+                                    onClick={() => handleQuestionNext(skillId, nextSkillId)}
+                                    endIcon={<NavigateNextIcon />}
+                                  >
+                                    Next Skill
+                                  </Button>
+                                ) : (
+                                  <Button
+                                    variant="contained"
+                                    size="small"
+                                    onClick={() => {
+                                      handleQuestionToggle(skillId)
+                                      // Auto-advance to next section after a brief delay
+                                      setTimeout(() => {
+                                        handleNext()
+                                      }, 300)
+                                    }}
+                                    color="success"
+                                  >
+                                    Complete Section
+                                  </Button>
+                                )}
+                              </Box>
+                            </Box>
+                          </AccordionDetails>
+                        </Accordion>
                       )
                     })}
-                    
-                    <Box sx={{ mb: 1 }}>
-                      <Button
-                        variant="contained"
-                        onClick={handleNext}
-                        sx={{ mt: 1, mr: 1 }}
-                      >
-                        Continue
-                      </Button>
-                      <Button onClick={handleBack} sx={{ mt: 1, mr: 1 }}>
-                        Back
-                      </Button>
-                    </Box>
                   </StepContent>
                 </Step>
               )}
@@ -531,15 +1129,92 @@ const TakeAssessmentPage: React.FC = () => {
                     
                     {assessment.emergencyQuestions.map((question: any, index: number) => {
                       const response = formData.emergencyResponses.find(r => r.questionId === question.id)
+                      const questionId = `emergency-${question.id}`
+                      const isExpanded = expandedQuestions.includes(questionId)
+                      const isAnswered = response?.carerAnswer?.trim()
+                      const nextQuestion = assessment.emergencyQuestions[index + 1]
+                      const nextQuestionId = nextQuestion ? `emergency-${nextQuestion.id}` : null
+                      
                       return (
-                        <Card key={question.id} variant="outlined" sx={{ mb: 2 }}>
-                          <CardContent>
-                            <Typography variant="h6" gutterBottom>
-                              Emergency Scenario {index + 1}
-                            </Typography>
-                            <Typography variant="body1" sx={{ mb: 2 }}>
+                        <Accordion 
+                          key={question.id} 
+                          expanded={isExpanded}
+                          onChange={() => handleQuestionToggle(questionId)}
+                          elevation={1}
+                          sx={{ 
+                            mb: 1,
+                            '&.Mui-expanded': { 
+                              backgroundColor: 'primary.50' 
+                            },
+                            border: isAnswered ? '2px solid' : '1px solid',
+                            borderColor: isAnswered ? 'success.light' : 'divider'
+                          }}
+                        >
+                          <AccordionSummary 
+                            expandIcon={<ExpandMoreIcon />}
+                            sx={{ 
+                              '& .MuiAccordionSummary-content': { alignItems: 'center' },
+                              '& .MuiAccordionSummary-expandIconWrapper.Mui-expanded': {
+                                transform: 'rotate(180deg)'
+                              }
+                            }}
+                          >
+                            <Box sx={{ width: '100%' }}>
+                              <Box display="flex" alignItems="center" gap={2} sx={{ mb: 1 }}>
+                                <Typography variant="h6" component="div">
+                                  Emergency Scenario {index + 1}
+                                </Typography>
+                                {isAnswered && (
+                                  <CheckCircleIcon color="success" fontSize="small" />
+                                )}
+                                <Box sx={{ flexGrow: 1 }} />
+                                <Typography variant="caption" color="text.secondary">
+                                  {isAnswered ? 'Answered' : 'Not answered'}
+                                </Typography>
+                              </Box>
+                              {!isExpanded && (
+                                <Typography 
+                                  variant="body2" 
+                                  color="text.secondary" 
+                                  sx={{ 
+                                    overflow: 'hidden',
+                                    textOverflow: 'ellipsis',
+                                    display: '-webkit-box',
+                                    WebkitLineClamp: 2,
+                                    WebkitBoxOrient: 'vertical',
+                                    fontSize: '0.875rem'
+                                  }}
+                                >
+                                  {question.question}
+                                </Typography>
+                              )}
+                            </Box>
+                          </AccordionSummary>
+                          <AccordionDetails>
+                            <Typography variant="body1" sx={{ mb: 2, fontWeight: 500 }}>
                               {question.question}
                             </Typography>
+                            
+                            {question.modelAnswer && (
+                              <Paper 
+                                variant="outlined" 
+                                sx={{ 
+                                  p: 2, 
+                                  mb: 3, 
+                                  bgcolor: 'warning.50',
+                                  borderColor: 'warning.200'
+                                }}
+                              >
+                                <Typography variant="subtitle2" color="warning.dark" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                  <EmergencyIcon fontSize="small" />
+                                  Model Emergency Response (Reference)
+                                </Typography>
+                                <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic' }}>
+                                  {question.modelAnswer}
+                                </Typography>
+                              </Paper>
+                            )}
+                            
                             <TextField
                               fullWidth
                               multiline
@@ -548,24 +1223,57 @@ const TakeAssessmentPage: React.FC = () => {
                               value={response?.carerAnswer || ''}
                               onChange={(e) => updateEmergencyResponse(question.id, e.target.value)}
                               placeholder="Describe the carer's response to this emergency scenario..."
+                              sx={{ mb: 3 }}
                             />
-                          </CardContent>
-                        </Card>
+                            <Box display="flex" justifyContent="space-between" alignItems="center">
+                              <Typography variant="body2" color="text.secondary">
+                                Scenario {index + 1} of {assessment.emergencyQuestions.length}
+                              </Typography>
+                              <Box display="flex" gap={1}>
+                                {index > 0 && (
+                                  <Button
+                                    variant="outlined"
+                                    size="small"
+                                    onClick={() => {
+                                      const prevQuestion = assessment.emergencyQuestions[index - 1]
+                                      const prevQuestionId = `emergency-${prevQuestion.id}`
+                                      handleQuestionNext(questionId, prevQuestionId)
+                                    }}
+                                  >
+                                    Previous
+                                  </Button>
+                                )}
+                                {index < assessment.emergencyQuestions.length - 1 ? (
+                                  <Button
+                                    variant="contained"
+                                    size="small"
+                                    onClick={() => handleQuestionNext(questionId, nextQuestionId)}
+                                    endIcon={<NavigateNextIcon />}
+                                  >
+                                    Next Scenario
+                                  </Button>
+                                ) : (
+                                  <Button
+                                    variant="contained"
+                                    size="small"
+                                    onClick={() => {
+                                      handleQuestionToggle(questionId)
+                                      // Auto-advance to next section after a brief delay
+                                      setTimeout(() => {
+                                        handleNext()
+                                      }, 300)
+                                    }}
+                                    color="success"
+                                  >
+                                    Complete Section
+                                  </Button>
+                                )}
+                              </Box>
+                            </Box>
+                          </AccordionDetails>
+                        </Accordion>
                       )
                     })}
-                    
-                    <Box sx={{ mb: 1 }}>
-                      <Button
-                        variant="contained"
-                        onClick={handleNext}
-                        sx={{ mt: 1, mr: 1 }}
-                      >
-                        Continue
-                      </Button>
-                      <Button onClick={handleBack} sx={{ mt: 1, mr: 1 }}>
-                        Back
-                      </Button>
-                    </Box>
                   </StepContent>
                 </Step>
               )}
@@ -624,7 +1332,7 @@ const TakeAssessmentPage: React.FC = () => {
                       <FormControl component="fieldset" fullWidth>
                         <RadioGroup
                           value={formData.overallRating}
-                          onChange={(e) => setFormData(prev => ({ ...prev, overallRating: e.target.value as CompetencyLevel }))}
+                          onChange={(e) => updateOverallRating(e.target.value as CompetencyLevel)}
                         >
                           <FormControlLabel 
                             value={CompetencyLevel.EXPERT} 
@@ -701,7 +1409,7 @@ const TakeAssessmentPage: React.FC = () => {
                         fullWidth
                         label="Assessor Unique ID (Optional)"
                         value={formData.assessorUniqueId}
-                        onChange={(e) => setFormData(prev => ({ ...prev, assessorUniqueId: e.target.value }))}
+                        onChange={(e) => updateAssessorUniqueId(e.target.value)}
                         placeholder="e.g., Trainer ID, Badge Number"
                         sx={{ mb: 2 }}
                       />
@@ -719,7 +1427,7 @@ const TakeAssessmentPage: React.FC = () => {
                       startIcon={<SendIcon />}
                       disabled={formData.overallRating === CompetencyLevel.NOT_ASSESSED}
                     >
-                      Submit Assessment
+                      {isEditMode ? 'Update Assessment' : 'Submit Assessment'}
                     </Button>
                     <Button onClick={handleBack} sx={{ mt: 1, mr: 1 }}>
                       Back
@@ -789,7 +1497,9 @@ const TakeAssessmentPage: React.FC = () => {
             disabled={submitAssessmentMutation.isPending}
             startIcon={submitAssessmentMutation.isPending ? <CircularProgress size={20} /> : <SendIcon />}
           >
-            {submitAssessmentMutation.isPending ? 'Submitting...' : 'Submit Assessment'}
+            {submitAssessmentMutation.isPending 
+              ? (isEditMode ? 'Updating...' : 'Submitting...') 
+              : (isEditMode ? 'Update Assessment' : 'Submit Assessment')}
           </Button>
         </DialogActions>
       </Dialog>
