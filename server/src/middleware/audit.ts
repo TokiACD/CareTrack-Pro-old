@@ -7,7 +7,6 @@ export enum AuditAction {
   DELETE = 'DELETE',
   LOGIN = 'LOGIN',
   LOGOUT = 'LOGOUT',
-  VIEW = 'VIEW',
   EXPORT = 'EXPORT',
   RESTORE = 'RESTORE'
 }

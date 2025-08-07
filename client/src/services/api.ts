@@ -7,7 +7,7 @@ class ApiService {
 
   constructor() {
     this.api = axios.create({
-      baseURL: import.meta.env.VITE_API_URL || (import.meta.env.DEV ? '' : 'http://localhost:3001'),
+      baseURL: import.meta.env.VITE_API_URL || 'http://localhost:3001',
       timeout: 10000,
       headers: {
         'Content-Type': 'application/json',
@@ -68,7 +68,7 @@ class ApiService {
   }
 
   // Generic request methods with type guards
-  async get<T>(url: string, params?: any): Promise<T> {
+  async get<T>(url: string, params?: Record<string, unknown>): Promise<T> {
     const response = await this.api.get<ApiResponse<T>>(url, { params })
     
     if (!isSuccessfulApiResponse<T>(response.data)) {
@@ -78,7 +78,7 @@ class ApiService {
     return response.data.data
   }
 
-  async post<T>(url: string, data?: any): Promise<T> {
+  async post<T>(url: string, data?: Record<string, unknown>): Promise<T> {
     const response = await this.api.post<ApiResponse<T>>(url, data)
     
     if (!isSuccessfulApiResponse<T>(response.data)) {
@@ -88,7 +88,7 @@ class ApiService {
     return response.data.data
   }
 
-  async put<T>(url: string, data?: any): Promise<T> {
+  async put<T>(url: string, data?: Record<string, unknown>): Promise<T> {
     const response = await this.api.put<ApiResponse<T>>(url, data)
     
     if (!isSuccessfulApiResponse<T>(response.data)) {
@@ -98,7 +98,7 @@ class ApiService {
     return response.data.data
   }
 
-  async patch<T>(url: string, data?: any): Promise<T> {
+  async patch<T>(url: string, data?: Record<string, unknown>): Promise<T> {
     const response = await this.api.patch<ApiResponse<T>>(url, data)
     
     if (!isSuccessfulApiResponse<T>(response.data)) {
@@ -108,17 +108,21 @@ class ApiService {
     return response.data.data
   }
 
-  async delete<T>(url: string, data?: any): Promise<T> {
-    const response = await this.api.delete<ApiResponse<T>>(url, { data })
-    
-    if (!isSuccessfulApiResponse<T>(response.data)) {
-      throw new Error(`Invalid API response from ${url}`)
+  async delete<T>(url: string, data?: Record<string, unknown>): Promise<T> {
+    try {
+      const response = await this.api.delete<ApiResponse<T>>(url, { data })
+      
+      if (!isSuccessfulApiResponse<T>(response.data)) {
+        throw new Error(`Invalid API response from ${url}`)
+      }
+      
+      return response.data.data
+    } catch (error: unknown) {
+      throw error;
     }
-    
-    return response.data.data
   }
 
-  async deleteWithResponse<T>(url: string, data?: any): Promise<ApiResponse<T>> {
+  async deleteWithResponse<T>(url: string, data?: Record<string, unknown>): Promise<ApiResponse<T>> {
     const response = await this.api.delete<ApiResponse<T>>(url, { data })
     return response.data
   }
@@ -161,8 +165,19 @@ class ApiService {
   }
 
   // Get full response (for cases like pagination)
-  async getFullResponse<T>(url: string, params?: any): Promise<ApiResponse<T>> {
+  async getFullResponse<T>(url: string, params?: Record<string, unknown>): Promise<ApiResponse<T>> {
     const response = await this.api.get<ApiResponse<T>>(url, { params })
+    
+    if (!isSuccessfulApiResponse<T>(response.data) && !isFailedApiResponse(response.data)) {
+      throw new Error(`Invalid API response from ${url}`)
+    }
+    
+    return response.data
+  }
+
+  // Post with full response (for cases like violation reporting)
+  async postWithFullResponse<T>(url: string, data?: Record<string, unknown>): Promise<ApiResponse<T>> {
+    const response = await this.api.post<ApiResponse<T>>(url, data)
     
     if (!isSuccessfulApiResponse<T>(response.data) && !isFailedApiResponse(response.data)) {
       throw new Error(`Invalid API response from ${url}`)
@@ -176,16 +191,19 @@ class ApiService {
     try {
       const response = await this.api.get<ApiResponse<T>>(`/api/assessments/${assessmentId}/carer/${carerId}/draft`)
       return response.data.data || null
-    } catch (error: any) {
+    } catch (error: unknown) {
       // Return null if draft doesn't exist (404)
-      if (error.response?.status === 404) {
-        return null
+      if (error && typeof error === 'object' && 'response' in error) {
+        const axiosError = error as { response?: { status?: number } }
+        if (axiosError.response?.status === 404) {
+          return null
+        }
       }
       throw error
     }
   }
 
-  async saveDraftResponse<T>(assessmentId: string, carerId: string, draftData: any): Promise<T> {
+  async saveDraftResponse<T>(assessmentId: string, carerId: string, draftData: Record<string, unknown>): Promise<T> {
     const response = await this.api.post<ApiResponse<T>>(`/api/assessments/${assessmentId}/carer/${carerId}/draft`, {
       draftData
     })
@@ -202,7 +220,7 @@ class ApiService {
     return response.data.data!
   }
 
-  async updateAssessmentResponse<T>(responseId: string, data: any): Promise<T> {
+  async updateAssessmentResponse<T>(responseId: string, data: Record<string, unknown>): Promise<T> {
     const response = await this.api.put<ApiResponse<T>>(`/api/assessments/responses/${responseId}`, data)
     return response.data.data!
   }

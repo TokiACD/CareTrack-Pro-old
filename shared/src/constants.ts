@@ -110,7 +110,12 @@ export const API_ENDPOINTS = {
     CREATE: '/api/rota',
     UPDATE: '/api/rota',
     DELETE: '/api/rota',
-    VALIDATE: '/api/rota/validate'
+    BATCH_DELETE: '/api/rota/batch',
+    GET_BY_ID: '/api/rota/:id',
+    WEEKLY_SCHEDULE: '/api/rota/weekly',
+    BULK_CREATE: '/api/rota/bulk',
+    VALIDATE: '/api/rota/validate',
+    CONFIRM: '/api/rota/:id/confirm'
   },
   RECYCLE_BIN: {
     LIST: '/api/recycle-bin',

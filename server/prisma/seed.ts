@@ -1,14 +1,20 @@
 import { PrismaClient } from '@prisma/client'
 import bcrypt from 'bcryptjs'
+import crypto from 'crypto'
 
 const prisma = new PrismaClient()
+
+// Generate a secure random password if not provided via environment
+function generateSecurePassword(): string {
+  return crypto.randomBytes(16).toString('base64').slice(0, 16) + '!Aa1'
+}
 
 async function main() {
   console.log('🌱 Starting database seed...')
 
   // Create initial admin user (dev admin)
-  const adminEmail = 'admin@caretrack.com'
-  const adminPassword = 'admin123' // Change this in production!
+  const adminEmail = process.env.SEED_ADMIN_EMAIL || 'admin@caretrack.com'
+  const adminPassword = process.env.SEED_ADMIN_PASSWORD || generateSecurePassword()
   
   // Check if admin already exists
   const existingAdmin = await prisma.adminUser.findUnique({
@@ -32,8 +38,12 @@ async function main() {
 
     console.log('✅ Created initial admin user:')
     console.log(`   Email: ${adminEmail}`)
-    console.log(`   Password: ${adminPassword}`)
-    console.log(`   ⚠️  CHANGE THE PASSWORD AFTER FIRST LOGIN!`)
+    if (process.env.NODE_ENV === 'development') {
+      console.log(`   Password: ${adminPassword}`)
+      console.log(`   ⚠️  CHANGE THE PASSWORD AFTER FIRST LOGIN!`)
+    } else {
+      console.log(`   ℹ️  Password has been set from environment or generated securely`)
+    }
   }
 
   // Create sample care packages
@@ -95,6 +105,60 @@ async function main() {
         data: carer,
       })
       console.log(`✅ Created carer: ${carer.name}`)
+    }
+  }
+
+  // Create package-task assignments for proper competency validation
+  console.log('🔗 Creating package-task assignments...')
+
+  // Get all packages and tasks for assignment
+  const allPackages = await prisma.carePackage.findMany()
+  const allTasks = await prisma.task.findMany()
+
+  // Create meaningful task assignments for each package
+  const packageTaskAssignments = [
+    // Sunrise Manor - Full service care home (most tasks)
+    { packageName: 'Sunrise Manor', taskNames: ['Personal Care', 'Medication Administration', 'Documentation'] },
+    // Oakwood Care - Community care (practical tasks)  
+    { packageName: 'Oakwood Care', taskNames: ['Personal Care', 'Mobility Assistance', 'Meal Preparation'] },
+    // Garden View - Basic care services (essential tasks)
+    { packageName: 'Garden View', taskNames: ['Personal Care', 'Documentation'] },
+  ]
+
+  for (const assignment of packageTaskAssignments) {
+    const carePackage = allPackages.find(p => p.name === assignment.packageName)
+    if (!carePackage) {
+      console.log(`⚠️  Package not found: ${assignment.packageName}`)
+      continue
+    }
+
+    for (const taskName of assignment.taskNames) {
+      const task = allTasks.find(t => t.name === taskName)
+      if (!task) {
+        console.log(`⚠️  Task not found: ${taskName}`)
+        continue
+      }
+
+      // Check if assignment already exists
+      const existingAssignment = await prisma.packageTaskAssignment.findUnique({
+        where: {
+          packageId_taskId: {
+            packageId: carePackage.id,
+            taskId: task.id
+          }
+        }
+      })
+
+      if (!existingAssignment) {
+        await prisma.packageTaskAssignment.create({
+          data: {
+            packageId: carePackage.id,
+            taskId: task.id,
+            isActive: true
+          }
+        })
+        console.log(`✅ Assigned task "${task.name}" to "${carePackage.name}"`)
+      }
     }
   }
 

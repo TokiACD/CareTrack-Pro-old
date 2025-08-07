@@ -1,19 +1,19 @@
 {
   "permissions": {
     "allow": [
-      "Bash(taskkill:*)",
-      "Bash(true)",
-      "Bash(npx ts-node:*)",
-      "Bash(git add:*)",
-      "Bash(PORT=3000 npx tsx src/index.ts)",
-      "Bash(npm run type-check:*)",
-      "Bash(sed:*)",
+      "mcp__ruv-swarm",
+      "mcp__claude-flow",
       "Bash(npx tsc:*)",
-      "Bash(npx prisma generate:*)",
-      "Bash(npx prisma migrate dev:*)",
+      "mcp__ide__getDiagnostics",
+      "Bash(npm run type-check:*)",
       "Bash(npm run build:*)",
-      "Bash(npm install:*)",
-      "Bash(npm run dev:*)"
+      "Bash(find:*)",
+      "Bash(npx cloc:*)",
+      "Bash(mkdir:*)",
+      "Bash(copy:*)",
+      "Bash(cp:*)",
+      "Bash(git add:*)",
+      "Bash(grep:*)"
     ],
     "deny": []
   }

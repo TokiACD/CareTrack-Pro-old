@@ -1,401 +1,272 @@
-# CLAUDE.md
+# Claude Code Configuration - SPARC Development Environment
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+## 🚨 CRITICAL: CONCURRENT EXECUTION & FILE MANAGEMENT
 
-## Project Architecture
+**ABSOLUTE RULES**:
+1. ALL operations MUST be concurrent/parallel in a single message
+2. **NEVER save working files, text/mds and tests to the root folder**
+3. ALWAYS organize files in appropriate subdirectories
 
-CareTrack Pro is a comprehensive care management system built with a monorepo structure:
+### ⚡ GOLDEN RULE: "1 MESSAGE = ALL RELATED OPERATIONS"
 
-- **Frontend**: React 18 + TypeScript + Material-UI + React Query (in `client/`)
-- **Backend**: Node.js + Express + TypeScript + Prisma ORM (in `server/`)
-- **Database**: PostgreSQL (containerized with Docker)
-- **Shared**: Common types and utilities (in `shared/`)
+**MANDATORY PATTERNS:**
+- **TodoWrite**: ALWAYS batch ALL todos in ONE call (5-10+ todos minimum)
+- **Task tool**: ALWAYS spawn ALL agents in ONE message with full instructions
+- **File operations**: ALWAYS batch ALL reads/writes/edits in ONE message
+- **Bash commands**: ALWAYS batch ALL terminal operations in ONE message
+- **Memory operations**: ALWAYS batch ALL memory store/retrieve in ONE message
 
-The application manages carers, care packages, tasks, assessments, and scheduling with a sophisticated permission and competency system.
+### 📁 File Organization Rules
 
-## Essential Development Commands
+**NEVER save to root folder. Use these directories:**
+- `/src` - Source code files
+- `/tests` - Test files
+- `/docs` - Documentation and markdown files
+- `/config` - Configuration files
+- `/scripts` - Utility scripts
+- `/examples` - Example code
 
-### Setup & Environment
+## Project Overview
+
+This project uses SPARC (Specification, Pseudocode, Architecture, Refinement, Completion) methodology with Claude-Flow orchestration for systematic Test-Driven Development.
+
+## SPARC Commands
+
+### Core Commands
+- `npx claude-flow sparc modes` - List available modes
+- `npx claude-flow sparc run <mode> "<task>"` - Execute specific mode
+- `npx claude-flow sparc tdd "<feature>"` - Run complete TDD workflow
+- `npx claude-flow sparc info <mode>` - Get mode details
+
+### Batchtools Commands
+- `npx claude-flow sparc batch <modes> "<task>"` - Parallel execution
+- `npx claude-flow sparc pipeline "<task>"` - Full pipeline processing
+- `npx claude-flow sparc concurrent <mode> "<tasks-file>"` - Multi-task processing
+
+### Build Commands
+- `npm run build` - Build project
+- `npm run test` - Run tests
+- `npm run lint` - Linting
+- `npm run typecheck` - Type checking
+
+## SPARC Workflow Phases
+
+1. **Specification** - Requirements analysis (`sparc run spec-pseudocode`)
+2. **Pseudocode** - Algorithm design (`sparc run spec-pseudocode`)
+3. **Architecture** - System design (`sparc run architect`)
+4. **Refinement** - TDD implementation (`sparc tdd`)
+5. **Completion** - Integration (`sparc run integration`)
+
+## Code Style & Best Practices
+
+- **Modular Design**: Files under 500 lines
+- **Environment Safety**: Never hardcode secrets
+- **Test-First**: Write tests before implementation
+- **Clean Architecture**: Separate concerns
+- **Documentation**: Keep updated
+
+## 🚀 Available Agents (54 Total)
+
+### Core Development
+`coder`, `reviewer`, `tester`, `planner`, `researcher`
+
+### Swarm Coordination
+`hierarchical-coordinator`, `mesh-coordinator`, `adaptive-coordinator`, `collective-intelligence-coordinator`, `swarm-memory-manager`
+
+### Consensus & Distributed
+`byzantine-coordinator`, `raft-manager`, `gossip-coordinator`, `consensus-builder`, `crdt-synchronizer`, `quorum-manager`, `security-manager`
+
+### Performance & Optimization
+`perf-analyzer`, `performance-benchmarker`, `task-orchestrator`, `memory-coordinator`, `smart-agent`
+
+### GitHub & Repository
+`github-modes`, `pr-manager`, `code-review-swarm`, `issue-tracker`, `release-manager`, `workflow-automation`, `project-board-sync`, `repo-architect`, `multi-repo-swarm`
+
+### SPARC Methodology
+`sparc-coord`, `sparc-coder`, `specification`, `pseudocode`, `architecture`, `refinement`
+
+### Specialized Development
+`backend-dev`, `mobile-dev`, `ml-developer`, `cicd-engineer`, `api-docs`, `system-architect`, `code-analyzer`, `base-template-generator`
+
+### Testing & Validation
+`tdd-london-swarm`, `production-validator`
+
+### Migration & Planning
+`migration-planner`, `swarm-init`
+
+## 🎯 Claude Code vs MCP Tools
+
+### Claude Code Handles ALL:
+- File operations (Read, Write, Edit, MultiEdit, Glob, Grep)
+- Code generation and programming
+- Bash commands and system operations
+- Implementation work
+- Project navigation and analysis
+- TodoWrite and task management
+- Git operations
+- Package management
+- Testing and debugging
+
+### MCP Tools ONLY:
+- Coordination and planning
+- Memory management
+- Neural features
+- Performance tracking
+- Swarm orchestration
+- GitHub integration
+
+**KEY**: MCP coordinates, Claude Code executes.
+
+## 🚀 Quick Setup
+
 ```bash
-# Complete development setup (one command does everything)
-npm run setup:dev
-
-# Start both frontend and backend for development
-npm run dev
-
-# Install dependencies across all workspaces
-npm run install:all
+# Add Claude Flow MCP server
+claude mcp add claude-flow npx claude-flow@alpha mcp start
 ```
 
-### Database Management
+## MCP Tool Categories
+
+### Coordination
+`swarm_init`, `agent_spawn`, `task_orchestrate`
+
+### Monitoring
+`swarm_status`, `agent_list`, `agent_metrics`, `task_status`, `task_results`
+
+### Memory & Neural
+`memory_usage`, `neural_status`, `neural_train`, `neural_patterns`
+
+### GitHub Integration
+`github_swarm`, `repo_analyze`, `pr_enhance`, `issue_triage`, `code_review`
+
+### System
+`benchmark_run`, `features_detect`, `swarm_monitor`
+
+## 📋 Agent Coordination Protocol
+
+### Every Agent MUST:
+
+**1️⃣ BEFORE Work:**
 ```bash
-# Generate Prisma client after schema changes
-npm run db:generate
-
-# Run database migrations
-npm run db:migrate
-
-# Open Prisma Studio (GUI for database)
-npm run db:studio
-
-# Seed development data
-npm run db:seed
-
-# Reset database (destructive)
-npm run db:reset
+npx claude-flow@alpha hooks pre-task --description "[task]"
+npx claude-flow@alpha hooks session-restore --session-id "swarm-[id]"
 ```
 
-### Docker & PostgreSQL
+**2️⃣ DURING Work:**
 ```bash
-# Start PostgreSQL container
-npm run docker:up
-
-# Stop PostgreSQL container
-npm run docker:down
-
-# View PostgreSQL logs
-npm run docker:logs
-
-# Remove container and data (careful!)
-npm run docker:clean
+npx claude-flow@alpha hooks post-edit --file "[file]" --memory-key "swarm/[agent]/[step]"
+npx claude-flow@alpha hooks notify --message "[what was done]"
 ```
 
-### Building & Type Checking
+**3️⃣ AFTER Work:**
 ```bash
-# Build all packages
-npm run build
-
-# Build individual packages
-npm run build:client
-npm run build:server
-npm run build:shared
-
-# Type check server code
-npm run type-check
+npx claude-flow@alpha hooks post-task --task-id "[task]"
+npx claude-flow@alpha hooks session-end --export-metrics true
 ```
 
-### Linting
-```bash
-# Client linting
-cd client && npm run lint
+## 🎯 Concurrent Execution Examples
 
-# Server linting  
-cd server && npm run lint
+### ✅ CORRECT (Single Message):
+```javascript
+[BatchTool]:
+  // Initialize swarm
+  mcp__claude-flow__swarm_init { topology: "mesh", maxAgents: 6 }
+  mcp__claude-flow__agent_spawn { type: "researcher" }
+  mcp__claude-flow__agent_spawn { type: "coder" }
+  mcp__claude-flow__agent_spawn { type: "tester" }
+  
+  // Spawn agents with Task tool
+  Task("Research agent: Analyze requirements...")
+  Task("Coder agent: Implement features...")
+  Task("Tester agent: Create test suite...")
+  
+  // Batch todos
+  TodoWrite { todos: [
+    {id: "1", content: "Research", status: "in_progress", priority: "high"},
+    {id: "2", content: "Design", status: "pending", priority: "high"},
+    {id: "3", content: "Implement", status: "pending", priority: "high"},
+    {id: "4", content: "Test", status: "pending", priority: "medium"},
+    {id: "5", content: "Document", status: "pending", priority: "low"}
+  ]}
+  
+  // File operations
+  Bash "mkdir -p app/{src,tests,docs}"
+  Write "app/src/index.js"
+  Write "app/tests/index.test.js"
+  Write "app/docs/README.md"
 ```
 
-## Database Schema Architecture
-
-The system uses Prisma ORM with PostgreSQL. Key entities:
-
-- **AdminUser**: System administrators with invitation capabilities
-- **Carer**: Care workers with competency ratings and progress tracking
-- **CarePackage**: Care locations with 3-digit UK postcodes
-- **Task**: Activities with target completion counts
-- **Assessment**: 4-section competency evaluations
-- **CompetencyRating**: Skills assessment (NOT_ASSESSED → EXPERT levels)
-- **TaskProgress**: Package-specific completion tracking
-- **RotaEntry**: Scheduling with complex validation rules
-- **Invitation**: Secure token-based user onboarding
-
-All entities support soft deletion with `deletedAt` timestamps.
-
-## Authentication & Security
-
-- JWT token authentication with 8-hour expiration
-- Password hashing with bcrypt
-- Email-based invitation system with secure tokens
-- Rate limiting and CORS protection
-- Audit logging for all administrative actions
-- Soft delete with 30-day retention policy
-
-## Frontend Architecture
-
-### State Management
-- React Query for server state and caching
-- React Context for authentication state
-- Custom hooks for data fetching and mutations
-
-### Key Patterns
-- Protected routes with `ProtectedRoute` component
-- Centralized API service with axios interceptors
-- Material-UI theming and responsive design
-- Form handling with react-hook-form
-- Error boundaries and loading states
-
-### API Integration
-The frontend uses a centralized `apiService` class that:
-- Automatically adds JWT tokens to requests
-- Handles 401 redirects to login
-- Transforms errors to standard format
-- Supports file upload/download
-
-## Backend Architecture
-
-### Route Structure
-All API routes are in `server/src/routes/`:
-- `/api/auth` - Authentication endpoints
-- `/api/invitations` - User invitation management
-- `/api/carers` - Carer CRUD operations
-- `/api/care-packages` - Care package management
-- `/api/tasks` - Task management
-- `/api/assessments` - Assessment system
-- `/api/progress` - Progress tracking and PDF generation
-- `/api/rota` - Scheduling with rule validation
-- `/api/audit` - Activity logging
-
-### Database Patterns
-- All operations use Prisma ORM
-- Soft delete pattern: `deletedAt: null` for active records
-- Audit logging for tracked operations
-- Relationship loading with Prisma includes
-- Transaction support for complex operations
-
-### Email System
-- SendGrid integration for production
-- SMTP fallback for development
-- Professional HTML email templates
-- Invitation and notification sending
-
-## Competency & Assessment System
-
-### Competency Levels (in priority order)
-1. `NOT_ASSESSED` - No evaluation yet
-2. `NOT_COMPETENT` - Requires training
-3. `ADVANCED_BEGINNER` - Basic skills
-4. `COMPETENT` - Meets standards
-5. `PROFICIENT` - Above average
-6. `EXPERT` - Advanced practitioner
-
-### Assessment Structure
-- **Section 1**: Knowledge questions with model answers
-- **Section 2**: Practical skills with competency ratings
-- **Section 3**: Emergency scenarios with model answers
-- **Section 4**: Task coverage selection
-
-### Competency Sources
-- `ASSESSMENT` - Derived from assessment completion
-- `MANUAL` - Set by administrators (takes precedence)
-
-## Scheduling Rules System
-
-The rota system enforces complex scheduling rules:
-- 36-hour weekly maximum per carer
-- Minimum 1 competent staff per shift
-- Day/night rotation requirements
-- No consecutive weekends
-- 48-hour rest between night-to-day shifts
-
-## Complete File Structure
-
-**🔍 TIP**: For detailed guidance on specific areas, refer to the CLAUDE.md files in each major subfolder. Use the Read tool to access these specialized guides:
-- `client/CLAUDE.md` - React frontend guidance
-- `server/CLAUDE.md` - Node.js backend guidance  
-- `shared/CLAUDE.md` - TypeScript types and constants
-- `client/src/CLAUDE.md` - Frontend source code structure
-- `server/src/CLAUDE.md` - Backend source code structure
-- `server/prisma/CLAUDE.md` - Database schema and Prisma ORM
-
-### 📁 Root Level Structure
-```
-CareTrack-Pro/
-├── 📁 client/                    # React frontend application
-├── 📁 server/                    # Node.js backend API
-├── 📁 shared/                    # Shared TypeScript types & utilities
-├── 📁 Docs/                      # Project documentation
-├── 📁 postgres_data/             # Docker PostgreSQL data (gitignored)
-├── 📄 package.json               # Root workspace configuration
-├── 📄 docker-compose.yml         # PostgreSQL container setup
-├── 📄 README.md                  # Main project documentation
-├── 📄 CLAUDE.md                  # This file - main AI guidance
-└── 📄 Setup files               # EMAIL_SETUP.md, SENDGRID_SETUP.md, etc.
+### ❌ WRONG (Multiple Messages):
+```javascript
+Message 1: mcp__claude-flow__swarm_init
+Message 2: Task("agent 1")
+Message 3: TodoWrite { todos: [single todo] }
+Message 4: Write "file.js"
+// This breaks parallel coordination!
 ```
 
-### 📁 CLIENT (`/client/`) - React Frontend
-**See `client/CLAUDE.md` for detailed frontend guidance**
+## Performance Benefits
 
-#### Entry Points & Configuration
-- **`index.html`** - Main HTML template with React root
-- **`src/main.tsx`** - React app entry point with providers setup
-- **`src/App.tsx`** - Main router with protected/public routes
-- **`vite.config.ts`** - Vite build configuration
-- **`package.json`** - Frontend dependencies (React 18, Material-UI, React Query)
+- **84.8% SWE-Bench solve rate**
+- **32.3% token reduction**
+- **2.8-4.4x speed improvement**
+- **27+ neural models**
 
-#### Source Code Structure (`/src/`)
-**See `client/src/CLAUDE.md` for detailed source code guidance**
+## Hooks Integration
 
-**`/contexts/`** - React Context Providers
-- **`AuthContext.tsx`** - JWT authentication state management
-- **`NotificationContext.tsx`** - Global notification system
+### Pre-Operation
+- Auto-assign agents by file type
+- Validate commands for safety
+- Prepare resources automatically
+- Optimize topology by complexity
+- Cache searches
 
-**`/pages/`** - Route Components
-- **`LoginPage.tsx`** - Admin login form
-- **`DashboardPage.tsx`** - Main dashboard with 10 management cards
-- **`AcceptInvitationPage.tsx`** - Multi-step invitation acceptance
-- **`TasksPage.tsx`** - Task management interface
-- **`AssessmentsPage.tsx`** - Assessment listing and management
-- **`CreateAssessmentPage.tsx`** - Assessment builder (4 sections)
-- **`AssignmentsPage.tsx`** - Assignment management
-- **Plus password reset and email change pages**
+### Post-Operation
+- Auto-format code
+- Train neural patterns
+- Update memory
+- Analyze performance
+- Track token usage
 
-**`/components/`** - Reusable UI Components
-- **`/auth/ProtectedRoute.tsx`** - Authentication wrapper
-- **`/common/LoadingScreen.tsx`** - Loading spinner
-- **`/dashboard/`** - Dashboard cards (DashboardCard, UsersCard, CarePackagesCard)
-- **`/profile/EmailChangeDialog.tsx`** - Email change dialog
+### Session Management
+- Generate summaries
+- Persist state
+- Track metrics
+- Restore context
+- Export workflows
 
-**`/hooks/`** - Custom React Hooks
-- **`useSmartMutation.ts`** - Enhanced React Query mutation
-- **`invalidationRules.ts`** - Cache invalidation configuration
+## Advanced Features (v2.0.0)
 
-**`/services/`** - API Integration
-- **`api.ts`** - Axios HTTP client with interceptors
-- **`authService.ts`** - Authentication API calls
+- 🚀 Automatic Topology Selection
+- ⚡ Parallel Execution (2.8-4.4x speed)
+- 🧠 Neural Training
+- 📊 Bottleneck Analysis
+- 🤖 Smart Auto-Spawning
+- 🛡️ Self-Healing Workflows
+- 💾 Cross-Session Memory
+- 🔗 GitHub Integration
 
-#### Configuration Files
-- **`theme.ts`** - Material-UI theme with competency colors
-- **`vite-env.d.ts`** - TypeScript environment definitions
+## Integration Tips
 
-### 📁 SERVER (`/server/`) - Node.js Backend
-**See `server/CLAUDE.md` for detailed backend guidance**
+1. Start with basic swarm init
+2. Scale agents gradually
+3. Use memory for context
+4. Monitor progress regularly
+5. Train patterns from success
+6. Enable hooks automation
+7. Use GitHub tools first
 
-#### Entry Points & Configuration
-- **`src/index.ts`** - Express server setup with middleware and routes
-- **`package.json`** - Backend dependencies (Express, Prisma, SendGrid, JWT)
-- **`nodemon.json`** - Development auto-reload configuration
-- **`tsconfig.json`** - TypeScript configuration
+## Support
 
-#### Database Layer (`/prisma/`)
-**See `server/prisma/CLAUDE.md` for detailed database guidance**
-- **`schema.prisma`** - Complete database schema (12+ entities)
-- **`seed.ts`** - Database seeding with admin user and sample data
-- **`/migrations/`** - Database migration history
+- Documentation: https://github.com/ruvnet/claude-flow
+- Issues: https://github.com/ruvnet/claude-flow/issues
 
-#### Source Code Structure (`/src/`)
-**See `server/src/CLAUDE.md` for detailed source code guidance**
+---
 
-**`/routes/`** - API Endpoint Definitions
-- **`authRoutes.ts`** - Authentication (`/api/auth/*`)
-- **`invitationRoutes.ts`** - Invitation system (`/api/invitations/*`)
-- **`adminUserRoutes.ts`** - Admin user management
-- **`carerRoutes.ts`** - Carer management with competencies
-- **`carePackageRoutes.ts`** - Care package CRUD
-- **`taskRoutes.ts`** - Task management
-- **`assignmentRoutes.ts`** - Assignment relationships
-- **`assessmentRoutes.ts`** - Assessment creation and responses
-- **`progressRoutes.ts`** - Progress tracking and PDF generation
-- **`shiftRoutes.ts`** - Shift management
-- **`rotaRoutes.ts`** - Scheduling with rule validation
-- **`recycleBinRoutes.ts`** - Soft delete management
-- **`auditRoutes.ts`** - Audit log retrieval
-- **`dashboardRoutes.ts`** - Dashboard data
-- **`emailChangeRoutes.ts`** - Email change handling
+Remember: **Claude Flow coordinates, Claude Code creates!**
 
-**`/controllers/`** - Business Logic Layer
-- **`AuthController.ts`** - Authentication logic
-- **`TaskController.ts`** - Task business logic
-- **`AssessmentController.ts`** - Assessment and competency logic
-- **`AssignmentController.ts`** - Assignment management
-- **`ProgressController.ts`** - Progress tracking
-- **`RotaController.ts`** - Scheduling rules engine
-- **Plus additional controllers for each domain**
-
-**`/middleware/`** - Request Processing
-- **`auth.ts`** - JWT token validation
-- **`audit.ts`** - Automatic audit logging
-- **`errorHandler.ts`** - Global error handling
-- **`validateRequest.ts`** - Input validation
-
-**`/services/`** - External Service Integration
-- **`emailService.ts`** - SendGrid and SMTP email service
-- **`auditService.ts`** - Audit trail management
-
-### 📁 SHARED (`/shared/`) - Common Types & Utilities
-**See `shared/CLAUDE.md` for detailed shared code guidance**
-
-#### Core Files
-- **`src/index.ts`** - Main export file
-- **`src/types.ts`** - Complete type definitions (200+ interfaces)
-- **`src/constants.ts`** - System-wide constants
-- **`src/utils.ts`** - Shared utility functions
-- **`package.json`** - TypeScript-only package
-
-#### Type System Highlights
-- **User Types**: AdminUser, Carer with relations
-- **Care Management**: CarePackage, Task, Assignment interfaces
-- **Assessment System**: 4-section assessment structure
-- **Progress & Competency**: TaskProgress, CompetencyRating with 6 levels
-- **Scheduling**: Shift, RotaEntry with complex validation
-- **System Types**: AuditLog, Invitation, API response wrappers
-- **Enums**: CompetencyLevel, ShiftStatus, InvitationType, etc.
-
-### File Locations Quick Reference
-
-#### Configuration Files
-- Database schema: `server/prisma/schema.prisma`
-- Shared types: `shared/src/types.ts`
-- Frontend theme: `client/src/theme.ts`
-- Server environment: `server/.env`
-- Client environment: `client/.env`
-
-#### Key Entry Points
-- Frontend app: `client/src/main.tsx`
-- Backend server: `server/src/index.ts`
-- Database client: Generated from `server/prisma/schema.prisma`
-
-#### Important Directories
-- API routes: `server/src/routes/`
-- Frontend pages: `client/src/pages/`
-- React components: `client/src/components/`
-- Business controllers: `server/src/controllers/`
-- Database migrations: `server/prisma/migrations/`
-
-## Development Workflow
-
-1. **Environment Setup**: Run `npm run setup:dev` for complete setup
-2. **Database Changes**: Update `schema.prisma`, run `npm run db:generate` and `npm run db:migrate`
-3. **Shared Types**: Update `shared/src/types.ts`, run `npm run build:shared`
-4. **Frontend Development**: Use `npm run dev:client` for frontend-only development
-5. **Backend Development**: Use `npm run dev:server` for backend-only development
-6. **Testing**: No test framework configured - verify functionality manually
-7. **Type Safety**: Run `npm run type-check` before commits
-
-## Common Tasks
-
-### Adding New Entities
-1. Update Prisma schema in `server/prisma/schema.prisma`
-2. Add corresponding TypeScript types in `shared/src/types.ts`
-3. Create API routes in `server/src/routes/`
-4. Generate database migration: `npm run db:migrate`
-5. Build shared package: `npm run build:shared`
-
-### Invitation System
-- Admin invitations: POST `/api/invitations/admin`
-- Carer invitations: POST `/api/invitations/carer`
-- Accept invitation: POST `/api/invitations/accept`
-- Email templates in `server/src/services/emailService.ts`
-
-### Dashboard Cards
-Each management feature is implemented as a dashboard card:
-- Users, Care Packages, Tasks, Assignments
-- Assessments, Progress, Shift Sender, Rota
-- Recycle Bin, Audit Login
-
-New cards should follow the existing pattern in `client/src/components/dashboard/`.
-
-## Production Considerations
-
-- Environment variables must be configured for email service
-- Database migrations should be run in production
-- Static files are served from the backend in production mode
-- Rate limiting and security headers are configured
-- Audit logging captures all administrative actions
-
-## Database Connection
-
-Development uses Docker PostgreSQL:
-- **Host**: localhost:5432
-- **Database**: caretrack_pro  
-- **Username**: caretrack
-- **Password**: dev_password
-
-Connection string is in `server/.env` as `DATABASE_URL`.
+# important-instruction-reminders
+Do what has been asked; nothing more, nothing less.
+NEVER create files unless they're absolutely necessary for achieving your goal.
+ALWAYS prefer editing an existing file to creating a new one.
+NEVER proactively create documentation files (*.md) or README files. Only create documentation files if explicitly requested by the User.
+Never save working files, text/mds and tests to the root folder.

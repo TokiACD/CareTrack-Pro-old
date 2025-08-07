@@ -29,6 +29,9 @@ model AdminUser {
   rotaEntries         RotaEntry[]
   shifts              Shift[]
 
+  @@index([deletedAt])                     // Soft delete filtering
+  @@index([isActive])                      // Active user queries
+  @@index([email])                         // Email lookup (already unique, but for partial matches)
   @@map("admin_users")
 }
 
@@ -96,6 +99,9 @@ model Carer {
   selectedShifts      Shift[]              @relation("SelectedCarer")
   taskProgress        TaskProgress[]
 
+  @@index([deletedAt])                     // Soft delete filtering
+  @@index([isActive])                      // Active carer queries
+  @@index([email])                         // Email lookup
   @@map("carers")
 }
 
@@ -113,6 +119,9 @@ model CarePackage {
   shifts           Shift[]
   taskProgress     TaskProgress[]
 
+  @@index([deletedAt])                     // Soft delete filtering
+  @@index([isActive])                      // Active package queries
+  @@index([postcode])                      // Postcode-based queries
   @@map("care_packages")
 }
 
@@ -129,6 +138,9 @@ model Task {
   packageAssignments     PackageTaskAssignment[]
   taskProgress           TaskProgress[]
 
+  @@index([deletedAt])                     // Soft delete filtering
+  @@index([isActive])                      // Active task queries
+  @@index([targetCount])                   // Target count filtering
   @@map("tasks")
 }
 
@@ -306,6 +318,10 @@ model TaskProgress {
   task                 Task        @relation(fields: [taskId], references: [id], onDelete: Cascade)
 
   @@unique([carerId, packageId, taskId])
+  @@index([carerId])                   // Carer progress queries
+  @@index([packageId])                 // Package progress queries
+  @@index([completionPercentage])      // Progress filtering queries
+  @@index([lastUpdated])               // Recent progress queries
   @@map("task_progress")
 }
 
@@ -326,6 +342,11 @@ model CompetencyRating {
   task                 Task                @relation(fields: [taskId], references: [id], onDelete: Cascade)
 
   @@unique([carerId, taskId])
+  @@index([carerId])                       // Carer competency queries
+  @@index([taskId])                        // Task-specific competency queries
+  @@index([level])                         // Competency level filtering
+  @@index([source])                        // Source-based queries (MANUAL vs ASSESSMENT)
+  @@index([setAt])                         // Recent competency updates
   @@map("competency_ratings")
 }
 
@@ -398,6 +419,13 @@ model RotaEntry {
   createdBy        AdminUser   @relation(fields: [createdByAdminId], references: [id])
   package          CarePackage @relation(fields: [packageId], references: [id], onDelete: Cascade)
 
+  // Performance indexes for common query patterns
+  @@index([packageId, date])           // Weekly schedule queries
+  @@index([carerId, date])             // Carer schedule queries
+  @@index([date, shiftType])           // Date-based shift queries
+  @@index([packageId, carerId, date])  // Specific assignment queries
+  @@index([isConfirmed])               // Confirmation status queries
+  @@index([createdAt])                 // Temporal queries
   @@map("rota_entries")
 }
 
@@ -415,6 +443,10 @@ model AuditLog {
   userAgent            String?   @map("user_agent")
   performedBy          AdminUser @relation(fields: [performedByAdminId], references: [id])
 
+  @@index([performedAt])                   // Temporal audit queries (most common)
+  @@index([entityType, entityId])         // Entity-specific audit history
+  @@index([performedByAdminId])           // Admin-specific audit history
+  @@index([action])                       // Action-based filtering
   @@map("audit_logs")
 }
 

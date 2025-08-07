@@ -3,6 +3,7 @@ import { Box } from '@mui/material'
 
 import { useAuth } from './contexts/AuthContext'
 import LoadingScreen from './components/common/LoadingScreen'
+import { PageErrorBoundary } from './components/common/ErrorBoundary'
 import { LoginPage } from './pages/LoginPage'
 import { DashboardPage } from './pages/DashboardPage'
 import { ForgotPasswordPage } from './pages/ForgotPasswordPage'
@@ -20,6 +21,8 @@ import TakeAssessmentPage from './pages/TakeAssessmentPage'
 import EmailChangeVerification from './pages/EmailChangeVerification'
 import ShiftCreationPage from './pages/ShiftCreationPage'
 import ShiftManagementPage from './pages/ShiftManagementPage'
+import RotaPage from './pages/RotaPage'
+import AuditLogPage from './pages/AuditLogPage'
 import { ProtectedRoute } from './components/auth/ProtectedRoute'
 
 function App() {
@@ -30,8 +33,9 @@ function App() {
   }
 
   return (
-    <Box sx={{ height: '100vh' }}>
-      <Routes>
+    <PageErrorBoundary>
+      <Box sx={{ height: '100vh' }}>
+        <Routes>
         {/* Public routes */}
         <Route 
           path="/login" 
@@ -169,6 +173,22 @@ function App() {
             </ProtectedRoute>
           }
         />
+        <Route
+          path="/rota"
+          element={
+            <ProtectedRoute>
+              <RotaPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/audit-logs"
+          element={
+            <ProtectedRoute>
+              <AuditLogPage />
+            </ProtectedRoute>
+          }
+        />
         
         {/* Redirect root to login if not authenticated */}
         <Route 
@@ -182,7 +202,8 @@ function App() {
           element={<Navigate to="/login" replace />} 
         />
       </Routes>
-    </Box>
+      </Box>
+    </PageErrorBoundary>
   )
 }
 
