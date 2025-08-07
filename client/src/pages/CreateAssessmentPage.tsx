@@ -5,13 +5,7 @@ import {
   CardHeader,
   Typography,
   Box,
-  TextField,
   Button,
-  Stepper,
-  Step,
-  StepLabel,
-  StepContent,
-  IconButton,
   Container,
   AppBar,
   Toolbar,
@@ -21,33 +15,46 @@ import {
   Snackbar,
   CircularProgress,
   Chip,
-  FormControlLabel,
-  Checkbox,
   Divider,
-  InputAdornment,
+  IconButton,
+  Stepper,
+  Step,
+  StepLabel,
+  StepContent,
+  TextField,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
+  Checkbox,
+  FormControlLabel,
+  RadioGroup,
+  Radio,
+  Grid,
+  Accordion,
+  AccordionSummary,
+  AccordionDetails,
   Dialog,
   DialogTitle,
   DialogContent,
   DialogActions,
-  Accordion,
-  AccordionSummary,
-  AccordionDetails
+  InputAdornment
 } from '@mui/material'
 import {
   ArrowBack as ArrowBackIcon,
   Home as HomeIcon,
   Quiz as QuizIcon,
-  Add as AddIcon,
-  Delete as DeleteIcon,
   Save as SaveIcon,
   Psychology as PsychologyIcon,
   Task as TaskIcon,
   LocalHospital as EmergencyIcon,
   Assignment as AssignmentIcon,
-  Search as SearchIcon,
+  Add as AddIcon,
+  Delete as DeleteIcon,
+  ExpandMore as ExpandMoreIcon,
   CheckCircle as CheckCircleIcon,
   Warning as WarningIcon,
-  ExpandMore as ExpandMoreIcon
+  Search as SearchIcon
 } from '@mui/icons-material'
 import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
@@ -55,6 +62,9 @@ import { useSmartMutation } from '../hooks/useSmartMutation'
 import { apiService } from '../services/api'
 import { API_ENDPOINTS, Task } from '@caretrack/shared'
 import { useAuth } from '../contexts/AuthContext'
+import { StepperNavigation, useStepper, StepData } from '../components/common/navigation/StepperNavigation'
+import { useNotification } from '../components/common/feedback/NotificationManager'
+import { STEPPER_CONSTANTS } from '../constants/ui'
 
 interface KnowledgeQuestion {
   question: string
@@ -143,6 +153,11 @@ const CreateAssessmentPage: React.FC = () => {
   const [taskSearchTerm, setTaskSearchTerm] = useState('')
   const [warningDialogOpen, setWarningDialogOpen] = useState(false)
   const [taskToWarning, setTaskToWarning] = useState<Task | null>(null)
+  const [notification, setNotification] = useState({
+    open: false,
+    message: '',
+    severity: 'success' as 'success' | 'error' | 'warning' | 'info'
+  })
   const [formData, setFormData] = useState<AssessmentFormData>({
     name: '',
     knowledgeQuestions: [],
@@ -156,24 +171,8 @@ const CreateAssessmentPage: React.FC = () => {
   const [expandedPractical, setExpandedPractical] = useState<string | false>(false)
   const [expandedEmergency, setExpandedEmergency] = useState<string | false>(false)
 
-  // Notification state
-  const [notification, setNotification] = useState<{
-    open: boolean
-    message: string
-    severity: 'success' | 'error'
-  }>({
-    open: false,
-    message: '',
-    severity: 'success'
-  })
-
-  const showNotification = (message: string, severity: 'success' | 'error') => {
-    setNotification({ open: true, message, severity })
-  }
-
-  const handleCloseNotification = () => {
-    setNotification(prev => ({ ...prev, open: false }))
-  }
+  const { showSuccess, showError } = useNotification()
+  const stepperState = useStepper(0, 5)
 
   // Fetch available tasks
   const { data: tasksData } = useQuery({
@@ -201,11 +200,11 @@ const CreateAssessmentPage: React.FC = () => {
     {
       mutationType: 'assessments.create',
       onSuccess: () => {
-        showNotification('Assessment created successfully', 'success')
+        showSuccess('Assessment created successfully')
         setTimeout(() => navigate('/assessments'), 1500)
       },
       onError: (error: any) => {
-        showNotification(error.message || 'Failed to create assessment', 'error')
+        showError(error.message || 'Failed to create assessment')
       }
     }
   )
@@ -220,8 +219,8 @@ const CreateAssessmentPage: React.FC = () => {
 
   const handleSubmit = () => {
     if (!formData.name.trim()) {
-      showNotification('Assessment name is required', 'error')
-      setActiveStep(0)
+      showError('Assessment name is required')
+      stepperState.handleStep(0)
       return
     }
 
@@ -369,6 +368,10 @@ const CreateAssessmentPage: React.FC = () => {
     }
     setWarningDialogOpen(false)
     setTaskToWarning(null)
+  }
+
+  const handleCloseNotification = () => {
+    setNotification(prev => ({ ...prev, open: false }))
   }
 
   const availableTasks = (tasksData as Task[] || []).filter(task => !task.deletedAt)

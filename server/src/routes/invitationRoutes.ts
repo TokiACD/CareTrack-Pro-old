@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { body, validationResult } from 'express-validator';
-import bcrypt from 'bcrypt';
+import bcrypt from 'bcryptjs';
+import { PASSWORD_CONFIG } from '../config/security';
 import crypto from 'crypto';
 import jwt from 'jsonwebtoken';
 import { prisma } from '../index';
@@ -201,14 +202,44 @@ router.post('/admin',
       // Send invitation email
       const acceptUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/invitation/accept?token=${invitation.token}`;
       
-      await emailService.sendAdminInvitation({
-        to: email,
-        adminName: name,
-        invitedByName: invitation.invitedByAdmin.name,
-        invitationToken: invitation.token,
-        acceptUrl,
-        expiresAt
-      });
+      try {
+        // Test email service before sending
+        const emailTest = await emailService.initializeService()
+        if (!emailTest.success) {
+          throw new Error(`Email service not configured: ${emailTest.error}`)
+        }
+        
+        await emailService.sendAdminInvitation({
+          to: email,
+          adminName: name,
+          invitedByName: invitation.invitedByAdmin.name,
+          invitationToken: invitation.token,
+          acceptUrl,
+          expiresAt
+        });
+      } catch (emailError: any) {
+        console.error('Failed to send admin invitation email:', emailError)
+        
+        // Clean up the invitation if email fails
+        if (shouldUpdateExisting && existingInvitation) {
+          // Restore the previous invitation state
+          await prisma.invitation.update({
+            where: { id: existingInvitation.id },
+            data: {
+              status: existingInvitation.status,
+              invitedAt: existingInvitation.invitedAt
+            }
+          })
+        } else {
+          await prisma.invitation.delete({ where: { id: invitation.id } })
+        }
+        
+        return res.status(500).json({
+          success: false,
+          message: 'Failed to send invitation email. Please check email configuration.',
+          error: process.env.NODE_ENV === 'development' ? emailError.message : undefined
+        })
+      }
 
       res.status(201).json({
         success: true,
@@ -422,14 +453,44 @@ router.post('/carer',
       // Send invitation email
       const acceptUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/invitation/accept?token=${invitation.token}`;
       
-      await emailService.sendCarerInvitation({
-        to: email,
-        carerName: name,
-        invitedByName: invitation.invitedByAdmin.name,
-        invitationToken: invitation.token,
-        acceptUrl,
-        expiresAt
-      });
+      try {
+        // Test email service before sending
+        const emailTest = await emailService.initializeService()
+        if (!emailTest.success) {
+          throw new Error(`Email service not configured: ${emailTest.error}`)
+        }
+        
+        await emailService.sendCarerInvitation({
+          to: email,
+          carerName: name,
+          invitedByName: invitation.invitedByAdmin.name,
+          invitationToken: invitation.token,
+          acceptUrl,
+          expiresAt
+        });
+      } catch (emailError: any) {
+        console.error('Failed to send carer invitation email:', emailError)
+        
+        // Clean up the invitation if email fails
+        if (shouldUpdateExisting && existingInvitation) {
+          // Restore the previous invitation state
+          await prisma.invitation.update({
+            where: { id: existingInvitation.id },
+            data: {
+              status: existingInvitation.status,
+              invitedAt: existingInvitation.invitedAt
+            }
+          })
+        } else {
+          await prisma.invitation.delete({ where: { id: invitation.id } })
+        }
+        
+        return res.status(500).json({
+          success: false,
+          message: 'Failed to send invitation email. Please check email configuration.',
+          error: process.env.NODE_ENV === 'development' ? emailError.message : undefined
+        })
+      }
 
       res.status(201).json({
         success: true,
@@ -516,7 +577,6 @@ router.get('/accept',
         data: {
           email: invitation.email,
           name: invitation.name,
-          phone: invitation.phone,
           userType: invitation.userType,
           invitedByName: invitation.invitedByAdmin.name,
           expiresAt: invitation.expiresAt
@@ -535,8 +595,7 @@ router.get('/accept',
 router.post('/accept',
   [
     body('token').notEmpty().withMessage('Invitation token is required'),
-    body('password').isLength({ min: 8 }).withMessage('Password must be at least 8 characters long'),
-    body('phone').notEmpty().withMessage('Phone number is required').isMobilePhone('any').withMessage('Valid phone number required')
+    body('password').isLength({ min: 8 }).withMessage('Password must be at least 8 characters long')
   ],
   async (req: Request, res: Response) => {
     try {
@@ -550,7 +609,7 @@ router.post('/accept',
         });
       }
 
-      const { token, password, phone } = req.body;
+      const { token, password } = req.body;
 
       // Find invitation
       const invitation = await prisma.invitation.findUnique({
@@ -593,7 +652,7 @@ router.post('/accept',
 
 
       // Hash password
-      const passwordHash = await bcrypt.hash(password, 12);
+      const passwordHash = await bcrypt.hash(password, PASSWORD_CONFIG.BCRYPT_ROUNDS);
 
       let newUser;
 
@@ -603,7 +662,6 @@ router.post('/accept',
           data: {
             email: invitation.email,
             name: invitation.name!,
-            phone: phone,
             passwordHash,
             isActive: true,
             invitedBy: invitation.invitedBy
@@ -612,7 +670,6 @@ router.post('/accept',
             id: true,
             email: true,
             name: true,
-            phone: true,
             isActive: true,
             createdAt: true
           }
@@ -623,14 +680,12 @@ router.post('/accept',
           data: {
             email: invitation.email,
             name: invitation.name!,
-            phone: phone, // Phone is required from user input
             isActive: true
           },
           select: {
             id: true,
             email: true,
             name: true,
-            phone: true,
             isActive: true,
             createdAt: true
           }

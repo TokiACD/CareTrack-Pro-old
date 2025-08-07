@@ -172,10 +172,20 @@ const theme = createTheme({
           borderRadius: 10,
           fontWeight: 600,
           fontSize: '0.875rem',
-          padding: '10px 20px',
+          padding: '12px 20px', // Increased for touch targets
+          minHeight: 44, // Touch-friendly minimum height
           boxShadow: 'none',
+          '@media (max-width:600px)': {
+            padding: '14px 24px', // Larger padding on mobile
+            fontSize: '0.9375rem', // Slightly larger text on mobile
+            minHeight: 48, // Larger touch target on mobile
+          },
           '&:hover': {
             boxShadow: '0px 4px 8px rgba(10, 34, 60, 0.16)',
+          },
+          // Prevent double-tap zoom on iOS
+          '&:active': {
+            transform: 'scale(0.98)',
           },
         },
         contained: {
@@ -185,12 +195,22 @@ const theme = createTheme({
           },
         },
         sizeLarge: {
-          padding: '14px 28px',
+          padding: '16px 32px',
           fontSize: '1rem',
+          minHeight: 52,
+          '@media (max-width:600px)': {
+            padding: '18px 36px',
+            minHeight: 56,
+          },
         },
         sizeSmall: {
-          padding: '6px 16px',
+          padding: '8px 16px',
           fontSize: '0.8125rem',
+          minHeight: 40,
+          '@media (max-width:600px)': {
+            padding: '10px 20px',
+            minHeight: 44,
+          },
         },
       },
     },
@@ -200,9 +220,17 @@ const theme = createTheme({
           borderRadius: 16,
           boxShadow: '0px 2px 4px rgba(10, 34, 60, 0.08)',
           border: '1px solid rgba(0, 0, 0, 0.05)',
+          '@media (max-width:600px)': {
+            borderRadius: 12, // Slightly smaller radius on mobile
+          },
           '&:hover': {
             boxShadow: '0px 8px 16px rgba(10, 34, 60, 0.12)',
             transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+          },
+          // Improve touch interaction
+          '&:active': {
+            transform: 'scale(0.98)',
+            transition: 'transform 0.1s ease-in-out',
           },
         },
       },
@@ -211,8 +239,14 @@ const theme = createTheme({
       styleOverrides: {
         root: {
           padding: '24px',
+          '@media (max-width:600px)': {
+            padding: '16px', // Reduced padding on mobile for more content space
+          },
           '&:last-child': {
             paddingBottom: '24px',
+            '@media (max-width:600px)': {
+              paddingBottom: '16px',
+            },
           },
         },
       },
@@ -223,6 +257,11 @@ const theme = createTheme({
           '& .MuiOutlinedInput-root': {
             borderRadius: 12,
             backgroundColor: '#ffffff',
+            minHeight: 48, // Touch-friendly input height
+            '@media (max-width:600px)': {
+              minHeight: 52, // Larger touch target on mobile
+              fontSize: '16px', // Prevent zoom on iOS
+            },
             '&:hover .MuiOutlinedInput-notchedOutline': {
               borderColor: 'rgba(10, 34, 60, 0.3)',
             },
@@ -231,8 +270,18 @@ const theme = createTheme({
               borderColor: '#0a223c',
             },
           },
+          '& .MuiInputBase-input': {
+            padding: '14px',
+            '@media (max-width:600px)': {
+              padding: '16px', // More padding on mobile
+              fontSize: '16px', // Prevent zoom on mobile browsers
+            },
+          },
           '& .MuiInputLabel-root': {
             fontWeight: 500,
+            '@media (max-width:600px)': {
+              fontSize: '1rem', // Larger labels on mobile
+            },
           },
         },
       },
@@ -279,15 +328,47 @@ const theme = createTheme({
         },
       },
     },
+    MuiIconButton: {
+      styleOverrides: {
+        root: {
+          minWidth: 44, // Touch-friendly minimum size
+          minHeight: 44,
+          '@media (max-width:600px)': {
+            minWidth: 48, // Larger on mobile
+            minHeight: 48,
+            padding: '12px',
+          },
+          // Improve touch feedback
+          '&:active': {
+            transform: 'scale(0.95)',
+            transition: 'transform 0.1s ease-in-out',
+          },
+        },
+      },
+    },
     MuiTable: {
       styleOverrides: {
         root: {
+          '@media (max-width:900px)': {
+            // Enable horizontal scroll on mobile with better touch scrolling
+            minWidth: 'auto',
+            overflowX: 'auto',
+            display: 'block',
+            whiteSpace: 'nowrap',
+            WebkitOverflowScrolling: 'touch', // Smooth touch scrolling
+          },
           '& .MuiTableHead-root': {
             '& .MuiTableCell-head': {
               backgroundColor: '#f8fafc',
               fontWeight: 600,
               fontSize: '0.875rem',
               color: 'rgba(0, 0, 0, 0.87)',
+              // Better mobile typography and touch targets
+              '@media (max-width:600px)': {
+                fontSize: '0.8125rem',
+                padding: '16px 12px', // Increased touch target
+                minHeight: 48,
+              },
             },
           },
         },
@@ -298,6 +379,11 @@ const theme = createTheme({
         root: {
           borderBottom: '1px solid rgba(0, 0, 0, 0.06)',
           padding: '16px',
+          '@media (max-width:600px)': {
+            padding: '16px 12px', // Improved touch targets
+            fontSize: '0.8125rem',
+            minHeight: 44, // Minimum touch target height
+          },
         },
       },
     },
@@ -350,6 +436,18 @@ const theme = createTheme({
       md: 900,
       lg: 1200,
       xl: 1536,
+    },
+  },
+  // Mobile-first responsive utilities - extending default mixins
+  mixins: {
+    toolbar: {
+      minHeight: 56,
+      '@media (min-width:0px) and (orientation: landscape)': {
+        minHeight: 48,
+      },
+      '@media (min-width:600px)': {
+        minHeight: 64,
+      },
     },
   },
 });

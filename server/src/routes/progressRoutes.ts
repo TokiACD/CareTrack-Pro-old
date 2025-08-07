@@ -13,6 +13,9 @@ router.use(requireAuth)
 // Get all carers with progress summaries
 router.get('/', progressController.getCarerProgressSummaries.bind(progressController))
 
+// Get carers ready for assessment
+router.get('/ready-for-assessment', progressController.getCarersReadyForAssessment.bind(progressController))
+
 // Get detailed progress for a specific carer
 router.get('/carer/:carerId', progressController.getCarerDetailedProgress.bind(progressController))
 

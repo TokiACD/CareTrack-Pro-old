@@ -16,7 +16,9 @@ import { CarerTabs } from '../components/rota/CarerTabs';
 import { CarePackageCards } from '../components/rota/CarePackageCards';
 import { ViolationsSidebar } from '../components/rota/ViolationsSidebar';
 import { ComponentErrorBoundary, QueryErrorBoundary } from '../components/common/ErrorBoundary';
-import { RotaHeader, WeekNavigation, ViolationsControls } from '../components/rota/ui';
+import { SmartLoading } from '../components/common';
+import { RotaHeader, WeekNavigation, ViolationsControls, EnhancedRotaControls } from '../components/rota/ui';
+import { BreadcrumbNavigation, useBreadcrumbItems } from '../components/common/BreadcrumbNavigation';
 import {
   useRotaData,
   useRotaMutations,
@@ -25,8 +27,13 @@ import {
 } from '../hooks/rota';
 
 
+type ViewMode = 'table' | 'card' | 'compact';
+
 const RotaPage: React.FC = () => {
   const navigate = useNavigate();
+  const breadcrumbItems = useBreadcrumbItems();
+  const [viewMode, setViewMode] = useState<ViewMode>('table');
+  const [showPerformanceMetrics, setShowPerformanceMetrics] = useState(false);
   
   // Custom hooks
   const {
@@ -57,8 +64,15 @@ const RotaPage: React.FC = () => {
     dragValidationResult,
     isDragInProgress,
     handleOnDragStart,
-    handleOnDragEnd
-  } = useRotaDragAndDrop(selectedPackageId, createRotaEntryMutation);
+    handleOnDragUpdate,
+    handleOnDragEnd,
+    getSchedulingSuggestions
+  } = useRotaDragAndDrop(selectedPackageId, createRotaEntryMutation, {
+    enableHapticFeedback: true,
+    enableVisualFeedback: true,
+    enableSmartSuggestions: true,
+    mobileOptimized: true
+  });
   
   const {
     showAllViolations,
@@ -95,26 +109,82 @@ const RotaPage: React.FC = () => {
     }
   };
 
+  // Performance metrics calculation
+  const performanceMetrics = useMemo(() => {
+    if (!weeklyData?.entries) return null;
+    
+    const entries = weeklyData.entries;
+    const totalShifts = entries.length;
+    const confirmedShifts = entries.filter(e => e.isConfirmed).length;
+    const dayShifts = entries.filter(e => e.shiftType === 'DAY').length;
+    const nightShifts = entries.filter(e => e.shiftType === 'NIGHT').length;
+    const weekendShifts = entries.filter(e => {
+      const date = new Date(e.date);
+      return date.getDay() === 0 || date.getDay() === 6;
+    }).length;
+    
+    const confirmationRate = totalShifts > 0 ? Math.round((confirmedShifts / totalShifts) * 100) : 0;
+    const dayNightRatio = dayShifts > 0 ? Math.round((nightShifts / dayShifts) * 100) : 0;
+    
+    return {
+      totalShifts,
+      confirmedShifts,
+      confirmationRate,
+      dayShifts,
+      nightShifts,
+      dayNightRatio,
+      weekendShifts,
+      coverage: totalShifts >= 14 ? 'Full' : totalShifts >= 10 ? 'Good' : 'Partial'
+    } as const;
+  }, [weeklyData?.entries]);
+
+  const handleViewModeChange = (
+    event: React.MouseEvent<HTMLElement>,
+    newViewMode: ViewMode
+  ) => {
+    if (newViewMode !== null) {
+      setViewMode(newViewMode);
+      // Add haptic feedback on mobile
+      if (navigator.vibrate) {
+        navigator.vibrate(30);
+      }
+    }
+  };
+
 
   return (
-    <Container maxWidth="xl" sx={{ py: 2 }}>
-      {/* Header */}
-      <RotaHeader
-        onNavigateHome={handleNavigateHome}
-        onNavigateBack={handleNavigateBack}
-      />
+    <Box sx={{ 
+      height: '100%', 
+      display: 'flex', 
+      flexDirection: 'column',
+      overflow: 'auto'
+    }}>
+      <Container maxWidth="xl" sx={{ 
+        py: { xs: 1, sm: 2 },
+        px: { xs: 1, sm: 2 },
+        flex: 1,
+        display: 'flex',
+        flexDirection: 'column',
+        overflow: 'auto'
+      }}>
+        {/* Breadcrumb Navigation */}
+        <BreadcrumbNavigation 
+          items={[breadcrumbItems.rota()]}
+          sx={{ mb: { xs: 2, sm: 3 } }}
+        />
 
-      {/* Care Package Cards Section */}
-      <Box sx={{ mb: 3 }}>
-        <Typography variant="h6" sx={{ mb: 2, fontWeight: 'bold' }}>
-          Select Care Package
-        </Typography>
+        {/* Care Package Cards Section */}
+        <Box sx={{ mb: { xs: 2, sm: 3 } }}>
+          <Typography variant="h6" sx={{ 
+            mb: { xs: 1.5, sm: 2 }, 
+            fontWeight: 'bold',
+            fontSize: { xs: '1.1rem', sm: '1.25rem' }
+          }}>
+            Select Care Package
+          </Typography>
         
         {isPackagesLoading ? (
-          <Box display="flex" justifyContent="center" py={4}>
-            <CircularProgress size={24} />
-            <Typography sx={{ ml: 2 }}>Loading packages...</Typography>
-          </Box>
+          <SmartLoading type="care-packages" animate={true} />
         ) : (
           <QueryErrorBoundary>
             <CarePackageCards
@@ -128,18 +198,18 @@ const RotaPage: React.FC = () => {
         )}
       </Box>
 
-      {/* Error States */}
-      {packagesError && (
-        <Alert severity="error" sx={{ mb: 3 }}>
-          Error loading care packages: {(packagesError as Error).message}
-        </Alert>
-      )}
+        {/* Error States */}
+        {packagesError && (
+          <Alert severity="error" sx={{ mb: { xs: 2, sm: 3 } }}>
+            Error loading care packages: {(packagesError as Error).message}
+          </Alert>
+        )}
 
-      {weeklyError && (
-        <Alert severity="error" sx={{ mb: 3 }}>
-          Error loading weekly schedule: {(weeklyError as Error).message}
-        </Alert>
-      )}
+        {weeklyError && (
+          <Alert severity="error" sx={{ mb: { xs: 2, sm: 3 } }}>
+            Error loading weekly schedule: {(weeklyError as Error).message}
+          </Alert>
+        )}
 
       {/* Loading State */}
       {isPackagesLoading && (
@@ -177,7 +247,17 @@ const RotaPage: React.FC = () => {
             canClearAll={!!weeklyData?.entries && weeklyData.entries.length > 0}
           />
           
-          <Box display="flex" justifyContent="flex-end">
+          {/* Enhanced Rota Controls */}
+          <EnhancedRotaControls
+            viewMode={viewMode}
+            onViewModeChange={handleViewModeChange}
+            showPerformanceMetrics={showPerformanceMetrics}
+            onTogglePerformanceMetrics={() => setShowPerformanceMetrics(!showPerformanceMetrics)}
+            performanceMetrics={performanceMetrics}
+            isLoading={isWeeklyLoading}
+          />
+          
+          <Box display="flex" justifyContent="flex-end" mt={2}>
             <ViolationsControls
               violationCount={getTotalViolationCount()}
               showAllViolations={showAllViolations}
@@ -191,21 +271,32 @@ const RotaPage: React.FC = () => {
       {selectedPackageId && !weeklyError && (
         <>
           {isWeeklyLoading ? (
-            <Box display="flex" justifyContent="center" py={8}>
-              <CircularProgress />
-              <Typography sx={{ ml: 2 }}>Loading weekly schedule...</Typography>
-            </Box>
+            <SmartLoading type={viewMode === 'card' ? 'rota-cards' : 'rota-table'} animate={true} />
           ) : (
             <DragDropContext 
               onDragStart={handleOnDragStart}
+              onDragUpdate={handleOnDragUpdate}
               onDragEnd={handleOnDragEnd}
             >
-              {/* Two Column Layout: Calendar + Carers */}
-              <Box display="flex" gap={3}>
+              {/* Responsive Layout: Calendar + Carers */}
+              <Box 
+                display="flex" 
+                gap={{ xs: 2, sm: 3 }}
+                flexDirection={{ xs: 'column', lg: 'row' }}
+                sx={{ flex: 1 }}
+              >
                 {/* Main Calendar */}
-                <Box sx={{ flex: 2 }}>
-                  <Card>
-                    <CardContent>
+                <Box sx={{ 
+                  flex: { lg: 2 },
+                  minHeight: { xs: '400px', sm: '500px', lg: 'auto' }
+                }}>
+                  <Card sx={{ height: { lg: '100%' } }}>
+                    <CardContent sx={{ 
+                      p: { xs: 1.5, sm: 3 },
+                      height: { lg: '100%' },
+                      display: { lg: 'flex' },
+                      flexDirection: { lg: 'column' }
+                    }}>
                       <ComponentErrorBoundary componentName="WeeklyCalendar">
                         <WeeklyCalendar
                           weekStart={currentWeekStart}
@@ -214,6 +305,8 @@ const RotaPage: React.FC = () => {
                           onRefresh={() => refetchWeekly()}
                           dragValidationResult={dragValidationResult}
                           isDragInProgress={isDragInProgress}
+                          viewMode={viewMode}
+                          onViewModeChange={setViewMode}
                         />
                       </ComponentErrorBoundary>
                     </CardContent>
@@ -221,14 +314,28 @@ const RotaPage: React.FC = () => {
                 </Box>
 
                 {/* Carers Sidebar */}
-                <Box sx={{ flex: 1 }}>
-                  <Card sx={{ height: 'fit-content' }}>
+                <Box sx={{ 
+                  flex: { lg: 1 },
+                  minHeight: { xs: '300px', lg: 'auto' }
+                }}>
+                  <Card sx={{ 
+                    height: { lg: 'fit-content' },
+                    maxHeight: { xs: '400px', lg: 'none' },
+                    display: 'flex',
+                    flexDirection: 'column'
+                  }}>
                     <CardHeader
                       title="Available Carers"
                       subheader="Drag to schedule shifts"
                       subheaderTypographyProps={{ variant: 'caption' }}
+                      sx={{ pb: 1 }}
                     />
-                    <CardContent>
+                    <CardContent sx={{ 
+                      p: { xs: 1.5, sm: 2 },
+                      pt: 0,
+                      flex: 1,
+                      overflow: 'auto'
+                    }}>
                       <CarerTabs
                         packageCarers={weeklyData?.packageCarers || []}
                         otherCarers={weeklyData?.otherCarers || []}
@@ -244,16 +351,17 @@ const RotaPage: React.FC = () => {
         </>
       )}
 
-      {/* Floating Violations Sidebar */}
-      <ViolationsSidebar
-        violations={getDisplayedViolations()}
-        onDismissViolation={handleDismissViolation}
-        onClearAll={() => clearAllViolationsOnNavigation()}
-        showToggleButton={true}
-        isShowingAll={showAllViolations}
-        onToggleShow={() => setShowAllViolations(!showAllViolations)}
-      />
-    </Container>
+        {/* Floating Violations Sidebar */}
+        <ViolationsSidebar
+          violations={getDisplayedViolations()}
+          onDismissViolation={handleDismissViolation}
+          onClearAll={() => clearAllViolationsOnNavigation()}
+          showToggleButton={true}
+          isShowingAll={showAllViolations}
+          onToggleShow={() => setShowAllViolations(!showAllViolations)}
+        />
+      </Container>
+    </Box>
   );
 };
 

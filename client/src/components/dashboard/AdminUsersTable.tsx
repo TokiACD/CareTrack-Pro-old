@@ -57,7 +57,6 @@ const AdminUsersTable: React.FC<AdminUsersTableProps> = ({
           <TableRow>
             <TableCell>Name</TableCell>
             <TableCell>Email</TableCell>
-            <TableCell>Phone</TableCell>
             <TableCell>Status</TableCell>
             <TableCell>Last Login</TableCell>
             <TableCell>Created</TableCell>
@@ -69,7 +68,6 @@ const AdminUsersTable: React.FC<AdminUsersTableProps> = ({
             <TableRow key={admin.id} hover>
               <TableCell>{admin.name}</TableCell>
               <TableCell>{admin.email}</TableCell>
-              <TableCell>{admin.phone}</TableCell>
               <TableCell>
                 <Chip 
                   size="small"

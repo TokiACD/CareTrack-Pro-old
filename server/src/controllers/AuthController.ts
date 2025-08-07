@@ -7,6 +7,8 @@ import { asyncHandler, createError } from '../middleware/errorHandler'
 import { emailService } from '../services/emailService'
 import { auditService } from '../services/auditService'
 import { AdminUser } from '@caretrack/shared'
+import { PASSWORD_CONFIG, JWT_CONFIG } from '../config/security'
+import { generateSecurePasswordResetToken, verifyPasswordResetToken, validatePasswordStrength } from '../config/passwordSecurity'
 
 export class AuthController {
   login = asyncHandler(async (req: Request, res: Response): Promise<void> => {
@@ -42,8 +44,15 @@ export class AuthController {
       throw createError(500, 'Server configuration error')
     }
 
-    const payload = { userId: user.id, email: user.email }
-    const token = jwt.sign(payload, jwtSecret as Secret, { expiresIn: '8h' })
+    const payload = { 
+      userId: user.id, 
+      email: user.email,
+      iat: Math.floor(Date.now() / 1000)
+    }
+    const token = jwt.sign(payload, jwtSecret as Secret, {
+      expiresIn: JWT_CONFIG.EXPIRES_IN,
+      algorithm: JWT_CONFIG.ALGORITHM
+    })
 
     // Update last login
     await prisma.adminUser.update({
@@ -196,21 +205,22 @@ export class AuthController {
     // Always return success to prevent email enumeration
     // but only send email if user exists
     if (user) {
-      // Generate secure reset token
-      const resetToken = crypto.randomBytes(32).toString('hex')
-      const expiresAt = new Date(Date.now() + 15 * 60 * 1000) // 15 minutes
+      // Generate cryptographically secure reset token
+      const { token: resetToken, hashedToken, expiresAt } = await generateSecurePasswordResetToken()
 
       // Clean up any existing tokens for this email
       await prisma.passwordResetToken.deleteMany({
         where: { email: user.email }
       })
 
-      // Create new reset token
+      // Create new reset token (store hashed version)
       await prisma.passwordResetToken.create({
         data: {
           email: user.email,
-          token: resetToken,
-          expiresAt
+          token: hashedToken, // Store hashed token, not plain token
+          expiresAt,
+          ipAddress: req.ip || 'unknown',
+          userAgent: req.get('User-Agent') || 'unknown'
         }
       })
 
@@ -262,15 +272,20 @@ export class AuthController {
     }
 
     // Find valid reset token
-    const resetToken = await prisma.passwordResetToken.findFirst({
+    const resetTokenRecord = await prisma.passwordResetToken.findFirst({
       where: {
-        token,
         expiresAt: { gt: new Date() },
         usedAt: null
       }
     })
 
-    if (!resetToken) {
+    if (!resetTokenRecord) {
+      throw createError(400, 'Invalid or expired reset token')
+    }
+
+    // Verify token using constant-time comparison
+    const isValidToken = verifyPasswordResetToken(token, resetTokenRecord.token)
+    if (!isValidToken) {
       throw createError(400, 'Invalid or expired reset token')
     }
 
@@ -278,7 +293,7 @@ export class AuthController {
     const user = await prisma.adminUser.findFirst({
       where: { 
         email: {
-          equals: resetToken.email,
+          equals: resetTokenRecord.email,
           mode: 'insensitive'
         },
         isActive: true,
@@ -290,8 +305,14 @@ export class AuthController {
       throw createError(400, 'User not found or inactive')
     }
 
-    // Hash new password
-    const passwordHash = await bcrypt.hash(password, 12)
+    // Validate password strength
+    const passwordValidation = validatePasswordStrength(password)
+    if (!passwordValidation.isValid) {
+      throw createError(400, `Password requirements not met: ${passwordValidation.errors.join(', ')}`)
+    }
+
+    // Hash new password with secure rounds
+    const passwordHash = await bcrypt.hash(password, PASSWORD_CONFIG.BCRYPT_ROUNDS)
 
     // Update password and mark token as used
     await prisma.$transaction([
@@ -300,7 +321,7 @@ export class AuthController {
         data: { passwordHash }
       }),
       prisma.passwordResetToken.update({
-        where: { id: resetToken.id },
+        where: { id: resetTokenRecord.id },
         data: { usedAt: new Date() }
       })
     ])
@@ -308,8 +329,8 @@ export class AuthController {
     // Clean up all reset tokens for this email
     await prisma.passwordResetToken.deleteMany({
       where: { 
-        email: resetToken.email,
-        id: { not: resetToken.id }
+        email: resetTokenRecord.email,
+        id: { not: resetTokenRecord.id }
       }
     })
 

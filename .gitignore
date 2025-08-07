@@ -1,36 +1,30 @@
 # Dependencies
 node_modules/
-*/node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
 
-# Production builds
+# Build outputs
 dist/
 build/
-*/dist/
-*/build/
+*.tsbuildinfo
 
-# Environment variables
+# Environment files
 .env
 .env.local
 .env.development.local
 .env.test.local
 .env.production.local
-*/.env
-*/.env.local
-
-# Database
-*.db
-*.sqlite
-/server/prisma/dev.db*
+.env.production
 
 # Logs
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-lerna-debug.log*
+logs/
 *.log
 
 # Runtime data
-pids
+pids/
 *.pid
 *.seed
 *.pid.lock
@@ -40,35 +34,22 @@ coverage/
 *.lcov
 
 # nyc test coverage
-.nyc_output
+.nyc_output/
 
-# IDE
-.vscode/
-.idea/
-*.swp
-*.swo
-*~
-
-# OS
-.DS_Store
-.DS_Store?
-._*
-.Spotlight-V100
-.Trashes
-ehthumbs.db
-Thumbs.db
-
-# Temporary folders
-tmp/
-temp/
-
-# Cache
-.cache/
-.npm
+# ESLint cache
 .eslintcache
 
 # Optional npm cache directory
 .npm
+
+# Optional eslint cache
+.eslintcache
+
+# Microbundle cache
+.rpt2_cache/
+.rts2_cache_cjs/
+.rts2_cache_es/
+.rts2_cache_umd/
 
 # Optional REPL history
 .node_repl_history
@@ -79,10 +60,6 @@ temp/
 # Yarn Integrity file
 .yarn-integrity
 
-# dotenv environment variables file
-.env
-.env.test
-
 # parcel-bundler cache (https://parceljs.org/)
 .cache
 .parcel-cache
@@ -92,7 +69,6 @@ temp/
 
 # Nuxt.js build / generate output
 .nuxt
-dist
 
 # Gatsby files
 .cache/
@@ -106,27 +82,84 @@ public
 tmp/
 temp/
 
-# Claude Flow generated files
-.claude/settings.local.json
-.mcp.json
-claude-flow.config.json
-.swarm/
-.hive-mind/
-memory/claude-flow-data.json
-memory/sessions/*
-!memory/sessions/README.md
-memory/agents/*
-!memory/agents/README.md
-coordination/memory_bank/*
-coordination/subtasks/*
-coordination/orchestration/*
-*.db
-*.db-journal
-*.db-wal
+# Vite
+dist-ssr
+*.local
+
+# Editor directories and files
+.vscode/
+!.vscode/extensions.json
+.idea/
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+*.swp
+*.swo
+*~
+
+# OS generated files
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Database
 *.sqlite
-*.sqlite-journal
-*.sqlite-wal
-claude-flow
-claude-flow.bat
-claude-flow.ps1
-hive-mind-prompt-*.txt
+*.db
+postgres_data/
+*.sql
+
+# Docker
+.dockerignore
+
+# Testing
+/coverage
+.nyc_output
+test-results/
+playwright-report/
+playwright/.cache/
+
+# TypeScript
+*.d.ts.map
+*.js.map
+
+# Prisma
+prisma/migrations/*/migration.sql
+
+# Security & sensitive files
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+secrets/
+credentials/
+
+# Backup files
+*.bak
+*.backup
+*.old
+
+# Lock files (uncomment if using yarn)
+# yarn.lock
+# package-lock.json
+
+# Runtime configuration
+ecosystem.config.js
+
+# Performance monitoring
+newrelic.js
+newrelic_agent.log
+
+# AWS
+.aws/
+
+# Claude Code related
+.claude-flow/
+memory/
+
+# Local development
+.local/
+local/

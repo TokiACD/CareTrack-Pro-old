@@ -92,7 +92,6 @@ interface UserFormData {
   firstName?: string;
   lastName?: string;
   email: string;
-  phone?: string;
   tempPassword?: string;
   isActive: boolean;
 }
@@ -109,7 +108,6 @@ const UsersCard: React.FC = () => {
   const [emailChangeDialogOpen, setEmailChangeDialogOpen] = useState(false);
   const [emailChangeUser, setEmailChangeUser] = useState<{ user: ExtendedAdminUser | ExtendedCarer; type: 'ADMIN' | 'CARER' } | null>(null);
   const [emailValidationError, setEmailValidationError] = useState<string>('');
-  const [phoneValidationError, setPhoneValidationError] = useState<string>('');
   
   // Confirmation dialog for deletions
   const { confirmationState, showConfirmation, hideConfirmation, handleConfirm } = useConfirmation();
@@ -119,7 +117,6 @@ const UsersCard: React.FC = () => {
     name: '',
     firstName: '',
     lastName: '',
-    phone: '',
     tempPassword: '',
     isActive: true
   });
@@ -374,13 +371,11 @@ const UsersCard: React.FC = () => {
       name: '',
       firstName: '',
       lastName: '',
-      phone: '',
       tempPassword: '',
       isActive: true
     });
     setEditingUser(null);
     setEmailValidationError('');
-    setPhoneValidationError('');
   };
 
   const validateEmailField = (email: string) => {
@@ -404,41 +399,6 @@ const UsersCard: React.FC = () => {
     validateEmailField(email);
   };
 
-  const validatePhoneField = (phone: string) => {
-    if (!phone) {
-      setPhoneValidationError('');
-      return true; // Empty is okay since phone is optional
-    }
-
-    // Remove all non-digit characters for validation
-    const digitsOnly = phone.replace(/\D/g, '');
-    
-    // Check for common phone number patterns
-    // UK: 10-11 digits, International: 7-15 digits
-    if (digitsOnly.length < 7 || digitsOnly.length > 15) {
-      setPhoneValidationError('Phone number must be between 7-15 digits');
-      return false;
-    }
-
-    // Comprehensive phone validation - accepts various international formats
-    // Supports: +44 20 1234 5678, 07123456789, +1 (555) 123-4567, etc.
-    const cleanPhone = phone.replace(/[\s\-\.\(\)]/g, '');
-    
-    // Check if it starts with + followed by digits, or just digits
-    const validFormatRegex = /^(\+\d{1,3}\d+|\d+)$/;
-    if (!validFormatRegex.test(cleanPhone)) {
-      setPhoneValidationError('Please enter a valid phone number (e.g., +44 20 1234 5678 or 07123456789)');
-      return false;
-    }
-
-    setPhoneValidationError('');
-    return true;
-  };
-
-  const handlePhoneChange = (phone: string) => {
-    setFormData({ ...formData, phone });
-    validatePhoneField(phone);
-  };
 
   const handleTabChange = (_event: React.SyntheticEvent, newValue: number) => {
     setActiveTab(newValue);
@@ -466,7 +426,6 @@ const UsersCard: React.FC = () => {
       setFormData({
         name: admin.name,
         email: admin.email,
-        phone: admin.phone,
         isActive: admin.isActive,
         tempPassword: '',
         firstName: '',
@@ -477,7 +436,6 @@ const UsersCard: React.FC = () => {
       setFormData({
         name: carer.name,
         email: carer.email,
-        phone: carer.phone,
         isActive: carer.isActive,
         firstName: '',
         lastName: '',
@@ -533,10 +491,6 @@ const UsersCard: React.FC = () => {
       return;
     }
     
-    if (editingUser && !formData.phone) {
-      showNotification('❌ Phone number is required for editing', 'error');
-      return;
-    }
     
     if (userType === 'admin' && !formData.name) {
       showNotification('❌ Name is required for admin users', 'error');
@@ -846,9 +800,7 @@ const UsersCard: React.FC = () => {
           formData={formData}
           setFormData={setFormData}
           handleEmailChange={handleEmailChange}
-          handlePhoneChange={handlePhoneChange}
           emailValidationError={emailValidationError}
-          phoneValidationError={phoneValidationError}
           isSubmitting={sendInvitationMutation.isPending || updateUserMutation.isPending}
         />
 
@@ -879,7 +831,7 @@ const UsersCard: React.FC = () => {
           />
         )}
 
-      {/* Confirmation Dialog */}
+        {/* Confirmation Dialog */}
       <ConfirmationDialog
         open={confirmationState.open}
         onClose={hideConfirmation}

@@ -189,7 +189,7 @@ export function isDashboardSummary(data: unknown): data is DashboardSummary {
 
 // Type guard for carer progress detail
 export function isCarerProgressDetail(data: unknown): data is {
-  carer: { id: string; name: string; email: string; phone: string; isActive: boolean };
+  carer: { id: string; name: string; email: string; isActive: boolean };
   packages: any[];
   competencyRatings: any[];
 } {

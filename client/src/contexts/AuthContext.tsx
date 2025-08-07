@@ -30,11 +30,17 @@ export function AuthProvider({ children }: AuthProviderProps) {
       if (token) {
         const userData = await authService.verifyToken()
         setUser(userData)
-      } else {
       }
     } catch (error) {
       console.error('Auth initialization failed:', error)
-      localStorage.removeItem('authToken')
+      // Only remove token if it's actually invalid (401/403), not on network errors
+      if (error?.response?.status === 401 || error?.response?.status === 403) {
+        localStorage.removeItem('authToken')
+        setUser(null)
+      } else {
+        // For network errors, keep the token and retry later
+        console.warn('Network error during auth initialization, keeping token for retry')
+      }
     } finally {
       setLoading(false)
     }

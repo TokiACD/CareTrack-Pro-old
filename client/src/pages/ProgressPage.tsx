@@ -1,5 +1,5 @@
 import React from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import {
   Container,
   Typography,
@@ -21,7 +21,11 @@ import ProgressCard from '../components/dashboard/ProgressCard';
 
 const ProgressPage: React.FC = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { user } = useAuth();
+  
+  // Get filter state from navigation
+  const filterReadyForAssessment = location.state?.filterReadyForAssessment || false;
 
   return (
     <Box sx={{ flexGrow: 1, bgcolor: 'background.default', minHeight: '100vh' }}>
@@ -70,7 +74,7 @@ const ProgressPage: React.FC = () => {
 
       {/* Main Content */}
       <Container maxWidth="lg" sx={{ pb: 4 }}>
-        <ProgressCard />
+        <ProgressCard filterReadyForAssessment={filterReadyForAssessment} />
       </Container>
     </Box>
   );

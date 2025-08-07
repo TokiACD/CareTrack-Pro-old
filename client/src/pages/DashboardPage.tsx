@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import React, { useState, useCallback, useMemo, memo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   Box,
@@ -12,7 +12,6 @@ import {
   Avatar,
   Menu,
   MenuItem,
-  Chip,
   Breadcrumbs,
   Link,
   Paper,
@@ -22,6 +21,13 @@ import {
   CardContent,
   alpha,
   useTheme,
+  useMediaQuery,
+  Drawer,
+  List,
+  ListItem,
+  ListItemIcon,
+  ListItemText,
+  ListItemButton,
 } from '@mui/material'
 import {
   Logout as LogoutIcon,
@@ -31,10 +37,15 @@ import {
   Dashboard as DashboardIcon,
   Settings as SettingsIcon,
   NotificationsActive as NotificationIcon,
+  Menu as MenuIcon,
+  Close as CloseIcon,
+  CheckCircle as CheckCircleIcon,
 } from '@mui/icons-material'
 
 import { useAuth } from '../contexts/AuthContext'
 import { useNotification } from '../contexts/NotificationContext'
+import { useQuery } from '@tanstack/react-query'
+import { apiService } from '../services/api'
 import { BrandHeader } from '../components/common'
 import DashboardCard from '../components/dashboard/DashboardCard'
 import UsersCard from '../components/dashboard/UsersCard'
@@ -44,9 +55,8 @@ import ProgressCard from '../components/dashboard/ProgressCard'
 import PDFReportsCard from '../components/dashboard/PDFReportsCard'
 import ShiftSenderCard from '../components/dashboard/ShiftSenderCard'
 import ShiftNotifications from '../components/dashboard/ShiftNotifications'
-import ActivityFeedCard from '../components/dashboard/ActivityFeedCard'
 
-// Professional Healthcare Dashboard Configuration
+// Essential Dashboard Cards - Simplified Configuration
 const DASHBOARD_CARDS = [
   {
     id: 'users',
@@ -54,8 +64,6 @@ const DASHBOARD_CARDS = [
     description: 'Manage admin and carer accounts with role-based access',
     icon: '👥',
     color: '#0288d1',
-    category: 'management',
-    priority: 'high',
   },
   {
     id: 'care-packages',
@@ -63,8 +71,6 @@ const DASHBOARD_CARDS = [
     description: 'Configure care packages and service locations',
     icon: '📦',
     color: '#2e7d32',
-    category: 'care',
-    priority: 'high',
   },
   {
     id: 'tasks',
@@ -72,8 +78,6 @@ const DASHBOARD_CARDS = [
     description: 'Define and monitor care tasks and completion targets',
     icon: '✅',
     color: '#ed6c02',
-    category: 'operations',
-    priority: 'high',
   },
   {
     id: 'assignments',
@@ -81,8 +85,6 @@ const DASHBOARD_CARDS = [
     description: 'Assign carers to packages and manage workloads',
     icon: '🔗',
     color: '#7b1fa2',
-    category: 'operations',
-    priority: 'high',
   },
   {
     id: 'assessments',
@@ -90,8 +92,6 @@ const DASHBOARD_CARDS = [
     description: 'Create and manage professional competency evaluations',
     icon: '📋',
     color: '#c2185b',
-    category: 'quality',
-    priority: 'medium',
   },
   {
     id: 'progress',
@@ -99,8 +99,6 @@ const DASHBOARD_CARDS = [
     description: 'Monitor individual carer development and performance',
     icon: '📊',
     color: '#00796b',
-    category: 'analytics',
-    priority: 'medium',
   },
   {
     id: 'pdf-reports',
@@ -108,8 +106,6 @@ const DASHBOARD_CARDS = [
     description: 'Generate comprehensive care documentation PDFs',
     icon: '📄',
     color: '#d32f2f',
-    category: 'documentation',
-    priority: 'medium',
   },
   {
     id: 'shift-sender',
@@ -117,8 +113,6 @@ const DASHBOARD_CARDS = [
     description: 'Send shift schedules and updates to care staff',
     icon: '📱',
     color: '#5d4037',
-    category: 'communication',
-    priority: 'high',
   },
   {
     id: 'rota',
@@ -126,8 +120,6 @@ const DASHBOARD_CARDS = [
     description: 'Advanced calendar and scheduling system',
     icon: '📅',
     color: '#303f9f',
-    category: 'operations',
-    priority: 'high',
   },
   {
     id: 'recycle-bin',
@@ -135,8 +127,6 @@ const DASHBOARD_CARDS = [
     description: 'Restore or permanently remove archived items',
     icon: '🗑️',
     color: '#616161',
-    category: 'system',
-    priority: 'low',
   },
   {
     id: 'audit-login',
@@ -144,107 +134,108 @@ const DASHBOARD_CARDS = [
     description: 'Comprehensive system activity and security logs',
     icon: '🔍',
     color: '#e64a19',
-    category: 'security',
-    priority: 'medium',
   },
 ] as const
 
-// Category colors for organization
-const CATEGORY_COLORS = {
-  management: '#0288d1',
-  care: '#2e7d32',
-  operations: '#ed6c02',
-  quality: '#c2185b',
-  analytics: '#00796b',
-  documentation: '#d32f2f',
-  communication: '#5d4037',
-  system: '#616161',
-  security: '#e64a19',
-} as const
-
-export function DashboardPage() {
+export const DashboardPage = memo(() => {
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null)
   const [activeCard, setActiveCard] = useState<string | null>(null)
-  const [selectedCategory, setSelectedCategory] = useState<string>('all')
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   
   const { user, logout } = useAuth()
   const { showSuccess } = useNotification()
   const navigate = useNavigate()
   const theme = useTheme()
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'))
+  const isSmallMobile = useMediaQuery(theme.breakpoints.down('sm'))
 
-  // Filter cards by category
-  const filteredCards = selectedCategory === 'all' 
-    ? DASHBOARD_CARDS 
-    : DASHBOARD_CARDS.filter(card => card.category === selectedCategory)
+  // Fetch carers ready for assessment
+  const { data: carersReadyData, isLoading: carersReadyLoading } = useQuery({
+    queryKey: ['carers-ready-for-assessment'],
+    queryFn: async () => {
+      const response = await apiService.get('/api/progress/ready-for-assessment')
+      return response.data
+    },
+    staleTime: 5 * 60 * 1000, // 5 minutes
+    gcTime: 10 * 60 * 1000, // 10 minutes
+  })
 
-  // Get unique categories
-  const categories = [...new Set(DASHBOARD_CARDS.map(card => card.category))]
+  // Fetch confirmed shifts count
+  const { data: confirmedShiftsData, isLoading: confirmedShiftsLoading } = useQuery({
+    queryKey: ['confirmed-shifts-count'],
+    queryFn: async () => {
+      const response = await apiService.get('/api/shift-sender/shifts?status=CONFIRMED')
+      return { count: response?.data?.length || 0 }
+    },
+    staleTime: 5 * 60 * 1000, // 5 minutes
+    gcTime: 10 * 60 * 1000, // 10 minutes
+  })
 
-  const handleMenuOpen = (event: React.MouseEvent<HTMLElement>) => {
+  // All cards are displayed - no filtering needed
+  const allCards = useMemo(() => DASHBOARD_CARDS, [])
+
+  const handleMenuOpen = useCallback((event: React.MouseEvent<HTMLElement>) => {
     setAnchorEl(event.currentTarget)
-  }
+  }, [])
 
-  const handleMenuClose = () => {
+  const handleMenuClose = useCallback(() => {
     setAnchorEl(null)
-  }
+  }, [])
 
-  const handleLogout = () => {
+  const handleLogout = useCallback(() => {
     logout()
     showSuccess('Successfully logged out')
     handleMenuClose()
-  }
+  }, [logout, showSuccess, handleMenuClose])
 
-  const handleCardClick = (cardId: string) => {
+  const handleCardClick = useCallback((cardId: string) => {
     // Navigate to dedicated pages for certain cards
-    if (cardId === 'tasks') {
-      navigate('/tasks')
-      return
+    const navigationMap: Record<string, string> = {
+      'tasks': '/tasks',
+      'assignments': '/assignments',
+      'assessments': '/assessments',
+      'recycle-bin': '/recycle-bin',
+      'progress': '/progress',
+      'rota': '/rota',
+      'audit-login': '/audit-logs'
     }
     
-    if (cardId === 'assignments') {
-      navigate('/assignments')
-      return
+    const route = navigationMap[cardId]
+    if (route) {
+      navigate(route)
+    } else {
+      // For other cards, use the existing internal navigation
+      setActiveCard(cardId)
     }
-    
-    if (cardId === 'assessments') {
-      navigate('/assessments')
-      return
-    }
-    
-    if (cardId === 'recycle-bin') {
-      navigate('/recycle-bin')
-      return
-    }
-    
-    if (cardId === 'progress') {
-      navigate('/progress')
-      return
-    }
-    
-    if (cardId === 'rota') {
-      navigate('/rota')
-      return
-    }
-    
-    if (cardId === 'audit-login') {
-      navigate('/audit-logs')
-      return
-    }
-    
-    // For other cards, use the existing internal navigation
-    setActiveCard(cardId)
-  }
+  }, [navigate])
 
-  const handleBackToDashboard = () => {
+  const handleBackToDashboard = useCallback(() => {
     setActiveCard(null)
-  }
+  }, [])
 
-  const getActiveCardTitle = () => {
+  const getActiveCardTitle = useCallback(() => {
     const card = DASHBOARD_CARDS.find(c => c.id === activeCard)
     return card?.title || 'Dashboard'
-  }
+  }, [activeCard])
 
-  const renderActiveCard = () => {
+  const handleMobileMenuToggle = useCallback(() => {
+    setMobileMenuOpen(prev => !prev)
+  }, [])
+
+  const handleMobileMenuClose = useCallback(() => {
+    setMobileMenuOpen(false)
+  }, [])
+
+  const handleAssessmentCardClick = useCallback(() => {
+    navigate('/progress', { state: { filterReadyForAssessment: true } })
+  }, [navigate])
+
+  // Navigation handlers for main status cards
+  const handleConfirmedShiftsClick = useCallback(() => {
+    navigate('/shift-sender/management', { state: { filterStatus: 'CONFIRMED' } })
+  }, [navigate])
+
+  const renderActiveCard = useMemo(() => {
     switch (activeCard) {
       case 'users':
         return <UsersCard />
@@ -270,7 +261,7 @@ export function DashboardPage() {
           </Box>
         )
     }
-  }
+  }, [activeCard, getActiveCardTitle])
 
   return (
     <Box sx={{ 
@@ -289,18 +280,30 @@ export function DashboardPage() {
           borderBottom: `1px solid ${alpha(theme.palette.primary.light, 0.2)}`,
         }}
       >
-        <Toolbar sx={{ py: 1 }}>
+        <Toolbar sx={{ py: isMobile ? 0.5 : 1, px: isMobile ? 1 : 3 }}>
+          {/* Mobile Menu Button */}
+          {isMobile && (
+            <IconButton
+              edge="start"
+              color="inherit"
+              aria-label="menu"
+              onClick={handleMobileMenuToggle}
+              sx={{ mr: 2, color: 'white' }}
+            >
+              {mobileMenuOpen ? <CloseIcon /> : <MenuIcon />}
+            </IconButton>
+          )}
+
           <Box sx={{ flexGrow: 1 }}>
             <BrandHeader 
-              size="md" 
-              variant="dark"
-              clickable
-              onLogoClick={() => handleBackToDashboard()}
+              size={isMobile ? "sm" : "md"} 
+              onClick={() => handleBackToDashboard()}
+              showText={!isSmallMobile} // Hide text on very small screens
             />
           </Box>
 
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 3 }}>
-            <ShiftNotifications />
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: isMobile ? 1 : 3 }}>
+            {!isMobile && <ShiftNotifications />}
 
             {/* Professional User Menu */}
             <Paper
@@ -333,14 +336,29 @@ export function DashboardPage() {
               >
                 <PersonIcon fontSize="small" />
               </Avatar>
-              <Box sx={{ display: { xs: 'none', md: 'block' } }}>
-                <Typography variant="body2" sx={{ color: 'white', fontWeight: 600 }}>
-                  {user?.name || 'Administrator'}
-                </Typography>
-                <Typography variant="caption" sx={{ color: 'rgba(255, 255, 255, 0.8)' }}>
-                  Healthcare Admin
-                </Typography>
-              </Box>
+              {!isSmallMobile && (
+                <Box>
+                  <Typography 
+                    variant="body2" 
+                    sx={{ 
+                      color: 'white', 
+                      fontWeight: 600,
+                      fontSize: isMobile ? '0.8125rem' : '0.875rem'
+                    }}
+                  >
+                    {user?.name || 'Admin'}
+                  </Typography>
+                  <Typography 
+                    variant="caption" 
+                    sx={{ 
+                      color: 'rgba(255, 255, 255, 0.8)',
+                      fontSize: isMobile ? '0.6875rem' : '0.75rem'
+                    }}
+                  >
+                    Healthcare Admin
+                  </Typography>
+                </Box>
+              )}
             </Paper>
 
             <Menu
@@ -380,8 +398,47 @@ export function DashboardPage() {
         </Toolbar>
       </AppBar>
 
+      {/* Mobile Navigation Drawer */}
+      <Drawer
+        anchor="left"
+        open={mobileMenuOpen}
+        onClose={handleMobileMenuClose}
+        ModalProps={{
+          keepMounted: true, // Better performance on mobile
+        }}
+        sx={{
+          display: { xs: 'block', md: 'none' },
+          '& .MuiDrawer-paper': {
+            boxSizing: 'border-box',
+            width: 280,
+            backgroundColor: theme.palette.background.paper,
+          },
+        }}
+      >
+        <Box sx={{ p: 3 }}>
+          <BrandHeader size="md" onClick={handleMobileMenuClose} />
+        </Box>
+        <Divider />
+        <List sx={{ px: 2 }}>
+          <ListItemButton onClick={() => handleMobileMenuClose()}>
+            <ListItemIcon><DashboardIcon /></ListItemIcon>
+            <ListItemText primary="Dashboard Overview" />
+          </ListItemButton>
+        </List>
+        <Divider />
+        <Box sx={{ p: 2 }}>
+          <ShiftNotifications />
+        </Box>
+      </Drawer>
+
       {/* Professional Dashboard Content */}
-      <Container maxWidth="xl" sx={{ py: 4 }}>
+      <Container 
+        maxWidth="xl" 
+        sx={{ 
+          py: isMobile ? 2 : 4,
+          px: isMobile ? 1 : 3, // Reduced padding on mobile
+        }}
+      >
         {activeCard ? (
           // Active Card View with Enhanced Navigation
           <>
@@ -438,7 +495,7 @@ export function DashboardPage() {
               </Stack>
             </Paper>
             
-            {renderActiveCard()}
+            {renderActiveCard}
           </>
         ) : (
           // Enhanced Dashboard Grid View
@@ -487,23 +544,96 @@ export function DashboardPage() {
               </Stack>
             </Box>
 
-            {/* System Status Cards */}
-            <Grid container spacing={3} sx={{ mb: 4 }}>
-              <Grid item xs={12} md={4}>
+            {/* Main Status Cards */}
+            <Grid container spacing={isMobile ? 2 : 3} sx={{ mb: isMobile ? 4 : 6 }}>
+              {/* Ready for Assessment Card */}
+              <Grid item xs={12} sm={6} md={6}>
+                <Card
+                  elevation={0}
+                  sx={{
+                    background: `linear-gradient(135deg, ${alpha(theme.palette.warning.main, 0.05)} 0%, ${alpha(theme.palette.warning.main, 0.02)} 100%)`,
+                    border: `1px solid ${alpha(theme.palette.warning.main, 0.1)}`,
+                    borderRadius: 3,
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease-in-out',
+                    height: '100%',
+                    '&:hover': {
+                      transform: 'translateY(-2px)',
+                      boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
+                      border: `1px solid ${alpha(theme.palette.warning.main, 0.2)}`,
+                    }
+                  }}
+                  onClick={handleAssessmentCardClick}
+                >
+                  <CardContent sx={{ p: isMobile ? 1.5 : 2.5 }}>
+                    <Stack direction="row" alignItems="center" spacing={2}>
+                      <Box
+                        sx={{
+                          width: isMobile ? 48 : 56,
+                          height: isMobile ? 48 : 56,
+                          borderRadius: 2,
+                          bgcolor: alpha(theme.palette.warning.main, 0.1),
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                        }}
+                      >
+                        <PersonIcon sx={{ color: theme.palette.warning.main, fontSize: isMobile ? '1.5rem' : '1.75rem' }} />
+                      </Box>
+                      <Box>
+                        <Typography 
+                          variant={isMobile ? "h6" : "h5"} 
+                          fontWeight={700} 
+                          color="warning.main"
+                          sx={{ mb: 0.5 }}
+                        >
+                          {carersReadyLoading ? 'Loading...' : `${carersReadyData?.count || 0}`}
+                        </Typography>
+                        <Typography 
+                          variant="body1" 
+                          fontWeight={600}
+                          color="text.primary"
+                          sx={{ mb: 0.5 }}
+                        >
+                          Ready for Assessment
+                        </Typography>
+                        <Typography 
+                          variant="body2" 
+                          color="text.secondary"
+                        >
+                          {carersReadyLoading ? 'Fetching data...' : carersReadyData?.count > 0 ? 'Click to view details' : 'All carers assessed'}
+                        </Typography>
+                      </Box>
+                    </Stack>
+                  </CardContent>
+                </Card>
+              </Grid>
+
+              {/* Confirmed Shifts Card */}
+              <Grid item xs={12} sm={6} md={6}>
                 <Card
                   elevation={0}
                   sx={{
                     background: `linear-gradient(135deg, ${alpha(theme.palette.success.main, 0.05)} 0%, ${alpha(theme.palette.success.main, 0.02)} 100%)`,
                     border: `1px solid ${alpha(theme.palette.success.main, 0.1)}`,
                     borderRadius: 3,
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease-in-out',
+                    height: '100%',
+                    '&:hover': {
+                      transform: 'translateY(-2px)',
+                      boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
+                      border: `1px solid ${alpha(theme.palette.success.main, 0.2)}`,
+                    }
                   }}
+                  onClick={handleConfirmedShiftsClick}
                 >
-                  <CardContent>
+                  <CardContent sx={{ p: isMobile ? 1.5 : 2.5 }}>
                     <Stack direction="row" alignItems="center" spacing={2}>
                       <Box
                         sx={{
-                          width: 48,
-                          height: 48,
+                          width: isMobile ? 48 : 56,
+                          height: isMobile ? 48 : 56,
                           borderRadius: 2,
                           bgcolor: alpha(theme.palette.success.main, 0.1),
                           display: 'flex',
@@ -511,86 +641,30 @@ export function DashboardPage() {
                           justifyContent: 'center',
                         }}
                       >
-                        <NotificationIcon sx={{ color: theme.palette.success.main }} />
+                        <CheckCircleIcon sx={{ color: theme.palette.success.main, fontSize: isMobile ? '1.5rem' : '1.75rem' }} />
                       </Box>
                       <Box>
-                        <Typography variant="h6" fontWeight={600} color="success.main">
-                          System Operational
+                        <Typography 
+                          variant={isMobile ? "h6" : "h5"} 
+                          fontWeight={700} 
+                          color="success.main"
+                          sx={{ mb: 0.5 }}
+                        >
+                          {confirmedShiftsLoading ? 'Loading...' : `${confirmedShiftsData?.count || 0}`}
                         </Typography>
-                        <Typography variant="body2" color="text.secondary">
-                          All services running normally
+                        <Typography 
+                          variant="body1" 
+                          fontWeight={600}
+                          color="text.primary"
+                          sx={{ mb: 0.5 }}
+                        >
+                          Confirmed Shifts
                         </Typography>
-                      </Box>
-                    </Stack>
-                  </CardContent>
-                </Card>
-              </Grid>
-              <Grid item xs={12} md={4}>
-                <Card
-                  elevation={0}
-                  sx={{
-                    background: `linear-gradient(135deg, ${alpha(theme.palette.info.main, 0.05)} 0%, ${alpha(theme.palette.info.main, 0.02)} 100%)`,
-                    border: `1px solid ${alpha(theme.palette.info.main, 0.1)}`,
-                    borderRadius: 3,
-                  }}
-                >
-                  <CardContent>
-                    <Stack direction="row" alignItems="center" spacing={2}>
-                      <Box
-                        sx={{
-                          width: 48,
-                          height: 48,
-                          borderRadius: 2,
-                          bgcolor: alpha(theme.palette.info.main, 0.1),
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                        }}
-                      >
-                        <PersonIcon sx={{ color: theme.palette.info.main }} />
-                      </Box>
-                      <Box>
-                        <Typography variant="h6" fontWeight={600} color="info.main">
-                          0 Pending Assessments
-                        </Typography>
-                        <Typography variant="body2" color="text.secondary">
-                          All staff evaluations current
-                        </Typography>
-                      </Box>
-                    </Stack>
-                  </CardContent>
-                </Card>
-              </Grid>
-              <Grid item xs={12} md={4}>
-                <Card
-                  elevation={0}
-                  sx={{
-                    background: `linear-gradient(135deg, ${alpha(theme.palette.primary.main, 0.05)} 0%, ${alpha(theme.palette.primary.main, 0.02)} 100%)`,
-                    border: `1px solid ${alpha(theme.palette.primary.main, 0.1)}`,
-                    borderRadius: 3,
-                  }}
-                >
-                  <CardContent>
-                    <Stack direction="row" alignItems="center" spacing={2}>
-                      <Box
-                        sx={{
-                          width: 48,
-                          height: 48,
-                          borderRadius: 2,
-                          bgcolor: alpha(theme.palette.primary.main, 0.1),
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                        }}
-                      >
-                        <SettingsIcon sx={{ color: theme.palette.primary.main }} />
-                      </Box>
-                      <Box>
-                        <Typography variant="h6" fontWeight={600} color="primary.main">
-                          System Health: 99.9%
-                        </Typography>
-                        <Typography variant="body2" color="text.secondary">
-                          Excellent system performance
+                        <Typography 
+                          variant="body2" 
+                          color="text.secondary"
+                        >
+                          {confirmedShiftsLoading ? 'Fetching data...' : 'Click to manage shifts'}
                         </Typography>
                       </Box>
                     </Stack>
@@ -599,138 +673,58 @@ export function DashboardPage() {
               </Grid>
             </Grid>
 
-            {/* Category Filter Tabs */}
-            <Paper 
-              elevation={0} 
-              sx={{ 
-                p: 2, 
-                mb: 4,
-                bgcolor: 'rgba(255, 255, 255, 0.8)',
-                backdropFilter: 'blur(8px)',
-                border: '1px solid rgba(255, 255, 255, 0.2)',
-                borderRadius: 3,
-              }}
-            >
-              <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-                <Chip
-                  label="All Modules"
-                  onClick={() => setSelectedCategory('all')}
-                  variant={selectedCategory === 'all' ? 'filled' : 'outlined'}
-                  color={selectedCategory === 'all' ? 'primary' : 'default'}
-                  sx={{ fontWeight: 600 }}
-                />
-                {categories.map((category) => (
-                  <Chip
-                    key={category}
-                    label={category.charAt(0).toUpperCase() + category.slice(1)}
-                    onClick={() => setSelectedCategory(category)}
-                    variant={selectedCategory === category ? 'filled' : 'outlined'}
-                    sx={{ 
-                      fontWeight: 600,
-                      backgroundColor: selectedCategory === category 
-                        ? CATEGORY_COLORS[category as keyof typeof CATEGORY_COLORS]
-                        : 'transparent',
-                      borderColor: CATEGORY_COLORS[category as keyof typeof CATEGORY_COLORS],
-                      color: selectedCategory === category 
-                        ? 'white'
-                        : CATEGORY_COLORS[category as keyof typeof CATEGORY_COLORS],
-                      '&:hover': {
-                        backgroundColor: alpha(CATEGORY_COLORS[category as keyof typeof CATEGORY_COLORS], 0.1),
-                      },
-                    }}
-                  />
-                ))}
-              </Stack>
-            </Paper>
 
-            {/* Professional Dashboard Cards Grid */}
-            <Grid container spacing={4}>
-              {filteredCards.map((card) => (
-                <Grid item xs={12} sm={6} md={4} lg={3} key={card.id}>
-                  <DashboardCard
-                    title={card.title}
-                    description={card.description}
-                    icon={card.icon}
-                    color={card.color}
-                    onClick={() => handleCardClick(card.id)}
-                    badge={card.priority === 'high' ? '!' : undefined}
-                    isActive={false}
+            {/* Essential Dashboard Cards Grid */}
+            <Grid container spacing={isMobile ? 2 : 3}>
+              {allCards.map((card) => (
+                <Grid 
+                  item 
+                  xs={12} 
+                  sm={6} 
+                  md={4} 
+                  lg={3} 
+                  key={card.id}
+                >
+                  <OptimizedDashboardCard
+                    key={card.id}
+                    card={card}
+                    onClick={handleCardClick}
                   />
                 </Grid>
               ))}
             </Grid>
-
-            {/* Enhanced Activity Feed Section */}
-            <Box sx={{ mt: 6 }}>
-              <Typography 
-                variant="h5" 
-                component="h2" 
-                gutterBottom 
-                sx={{ 
-                  fontWeight: 700, 
-                  mb: 3,
-                  color: theme.palette.text.primary,
-                }}
-              >
-                Recent Activity & System Insights
-              </Typography>
-              <Grid container spacing={4}>
-                <Grid item xs={12} lg={8}>
-                  <ActivityFeedCard />
-                </Grid>
-                <Grid item xs={12} lg={4}>
-                  <Paper
-                    elevation={0}
-                    sx={{
-                      p: 3,
-                      height: 400,
-                      border: '1px solid rgba(0, 0, 0, 0.05)',
-                      borderRadius: 3,
-                      bgcolor: 'background.paper',
-                    }}
-                  >
-                    <Typography variant="h6" fontWeight={600} gutterBottom>
-                      Quick Actions
-                    </Typography>
-                    <Stack spacing={2} sx={{ mt: 2 }}>
-                      <Button
-                        variant="outlined"
-                        fullWidth
-                        startIcon={<PersonIcon />}
-                        onClick={() => handleCardClick('users')}
-                        sx={{ justifyContent: 'flex-start', textTransform: 'none' }}
-                      >
-                        Add New User
-                      </Button>
-                      <Button
-                        variant="outlined"
-                        fullWidth
-                        startIcon={<DashboardIcon />}
-                        onClick={() => handleCardClick('assessments')}
-                        sx={{ justifyContent: 'flex-start', textTransform: 'none' }}
-                      >
-                        Create Assessment
-                      </Button>
-                      <Button
-                        variant="outlined"
-                        fullWidth
-                        startIcon={<SettingsIcon />}
-                        onClick={() => handleCardClick('audit-login')}
-                        sx={{ justifyContent: 'flex-start', textTransform: 'none' }}
-                      >
-                        View System Logs
-                      </Button>
-                    </Stack>
-                  </Paper>
-                </Grid>
-              </Grid>
-            </Box>
           </>
         )}
       </Container>
     </Box>
   )
-}
+})
+
+DashboardPage.displayName = 'DashboardPage'
+
+// Optimized sub-components
+
+const OptimizedDashboardCard = memo<{
+  card: typeof DASHBOARD_CARDS[number]
+  onClick: (cardId: string) => void
+}>(({ card, onClick }) => {
+  const handleClick = useCallback(() => onClick(card.id), [onClick, card.id])
+  
+  return (
+    <DashboardCard
+      title={card.title}
+      description={card.description}
+      icon={card.icon}
+      color={card.color}
+      onClick={handleClick}
+      badge={undefined}
+      isActive={false}
+    />
+  )
+})
+
+OptimizedDashboardCard.displayName = 'OptimizedDashboardCard'
+
 
 // Enhanced Dashboard Component
 export const HealthcareDashboard = DashboardPage

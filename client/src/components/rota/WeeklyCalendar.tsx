@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   Box,
   Table,
@@ -19,7 +19,13 @@ import {
   DialogActions,
   Button,
   Alert,
-  CircularProgress
+  CircularProgress,
+  Card,
+  CardContent,
+  Grid,
+  Tooltip,
+  Badge,
+  Skeleton
 } from '@mui/material';
 import {
   MoreVert as MoreVertIcon,
@@ -28,7 +34,17 @@ import {
   CheckCircle as CheckCircleIcon,
   Warning as WarningIcon,
   Delete as DeleteIcon,
-  Edit as EditIcon
+  Edit as EditIcon,
+  AccessTime as AccessTimeIcon,
+  CalendarToday as CalendarIcon,
+  Group as GroupIcon,
+  Assignment as AssignmentIcon,
+  LocalHospital as HealthIcon,
+  Security as SecurityIcon,
+  Brightness3 as NightIcon,
+  WbSunny as DayIcon,
+  Weekend as WeekendIcon,
+  TouchApp as TouchIcon
 } from '@mui/icons-material';
 import { Droppable } from 'react-beautiful-dnd';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
@@ -64,6 +80,8 @@ interface WeeklyCalendarProps {
   onRefresh: () => void;
   dragValidationResult?: DragValidationResult;
   isDragInProgress?: boolean;
+  viewMode?: 'table' | 'card' | 'compact';
+  onViewModeChange?: (mode: 'table' | 'card' | 'compact') => void;
 }
 
 interface ShiftSlotProps {
@@ -74,6 +92,8 @@ interface ShiftSlotProps {
   onRefresh: () => void;
   dragValidationResult?: DragValidationResult;
   isDragInProgress?: boolean;
+  viewMode?: 'table' | 'card' | 'compact';
+  showCompactView?: boolean;
 }
 
 const ShiftSlot: React.FC<ShiftSlotProps> = ({ 
@@ -426,7 +446,9 @@ export const WeeklyCalendar: React.FC<WeeklyCalendarProps> = ({
   packageId, 
   onRefresh,
   dragValidationResult,
-  isDragInProgress
+  isDragInProgress,
+  viewMode = 'table',
+  onViewModeChange
 }) => {
   const getDaysOfWeek = (startDate: Date): Date[] => {
     const days = [];

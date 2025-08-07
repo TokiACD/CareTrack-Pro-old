@@ -45,6 +45,7 @@ import {
 import { format } from 'date-fns'
 import { useDebounce } from '../hooks/useDebounce'
 import { apiService } from '../services/api'
+import { BreadcrumbNavigation, useBreadcrumbItems } from '../components/common/BreadcrumbNavigation'
 
 interface AuditLog {
   id: string
@@ -91,6 +92,7 @@ interface AuditStatistics {
 }
 
 const AuditLogPage: React.FC = () => {
+  const breadcrumbItems = useBreadcrumbItems()
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([])
   const [statistics, setStatistics] = useState<AuditStatistics | null>(null)
   const [loading, setLoading] = useState(false)
@@ -249,14 +251,20 @@ const AuditLogPage: React.FC = () => {
 
   return (
     <Container maxWidth="xl" sx={{ py: 4 }}>
+      {/* Breadcrumb Navigation */}
+      <BreadcrumbNavigation 
+        items={[breadcrumbItems.auditLogs()]}
+        sx={{ mb: 3 }}
+      />
+
       {/* Header */}
       <Box sx={{ mb: 4, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <Box>
           <Typography variant="h3" component="h1" gutterBottom>
-            Audit Logs
+            System Audit Logs
           </Typography>
           <Typography variant="body1" color="text.secondary">
-            Monitor system activity and user actions
+            Comprehensive monitoring of system activity and security events
           </Typography>
         </Box>
         <Box sx={{ display: 'flex', gap: 1 }}>

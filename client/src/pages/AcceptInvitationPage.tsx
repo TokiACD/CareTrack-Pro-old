@@ -30,7 +30,6 @@ import { useConfirmation } from '../hooks/useConfirmation';
 interface InvitationData {
   email: string;
   name?: string;
-  phone?: string;
   userType: 'ADMIN' | 'CARER';
   invitedByName: string;
   expiresAt: string;
@@ -45,8 +44,6 @@ const AcceptInvitationPage: React.FC = () => {
   const [invitation, setInvitation] = useState<InvitationData | null>(null);
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [phone, setPhone] = useState('');
-  const [phoneError, setPhoneError] = useState('');
   
   // Confirmation dialog for decline invitation
   const { confirmationState, showConfirmation, hideConfirmation, handleConfirm } = useConfirmation();
@@ -75,11 +72,6 @@ const AcceptInvitationPage: React.FC = () => {
         `${API_ENDPOINTS.INVITATIONS.ACCEPT}?token=${token}`
       );
       setInvitation(response);
-      // Pre-fill phone if provided in invitation
-      if (response.phone) {
-        setPhone(response.phone);
-        validatePhone(response.phone);
-      }
       setActiveStep(1);
       setLoading(false);
     } catch (error: any) {
@@ -88,38 +80,6 @@ const AcceptInvitationPage: React.FC = () => {
     }
   };
 
-  const validatePhone = (phoneNumber: string) => {
-    if (!phoneNumber) {
-      setPhoneError('Phone number is required');
-      return false;
-    }
-
-    // Remove all non-digit characters for validation
-    const digitsOnly = phoneNumber.replace(/\D/g, '');
-    
-    // Check for common phone number patterns (7-15 digits)
-    if (digitsOnly.length < 7 || digitsOnly.length > 15) {
-      setPhoneError('Phone number must be between 7-15 digits');
-      return false;
-    }
-
-    // Comprehensive phone validation - accepts various international formats
-    const cleanPhone = phoneNumber.replace(/[\s\-\.\(\)]/g, '');
-    const validFormatRegex = /^(\+\d{1,3}\d+|\d+)$/;
-    
-    if (!validFormatRegex.test(cleanPhone)) {
-      setPhoneError('Please enter a valid phone number (e.g., +44 20 1234 5678)');
-      return false;
-    }
-
-    setPhoneError('');
-    return true;
-  };
-
-  const handlePhoneChange = (phoneNumber: string) => {
-    setPhone(phoneNumber);
-    validatePhone(phoneNumber);
-  };
 
   const handleAcceptInvitation = async () => {
     if (password !== confirmPassword) {
@@ -132,10 +92,6 @@ const AcceptInvitationPage: React.FC = () => {
       return;
     }
 
-    // Validate phone - required for all users
-    if (!validatePhone(phone)) {
-      return;
-    }
 
     setSubmitting(true);
     setError('');
@@ -146,8 +102,6 @@ const AcceptInvitationPage: React.FC = () => {
         password
       };
 
-      // Include phone number for all users (required)
-      requestData.phone = phone;
 
       await apiService.post(API_ENDPOINTS.INVITATIONS.ACCEPT, requestData);
 
@@ -261,7 +215,7 @@ const AcceptInvitationPage: React.FC = () => {
                 {' '}Please create a secure password for your CareTrack Pro account.
               </Typography>
               <Typography variant="body2" color="primary" textAlign="center" mb={4}>
-                📱 Please provide your phone number below - this is required to ensure we can reach you for important updates.
+                📧 Your account will be created with the provided email address.
               </Typography>
 
               <Box component="form" onSubmit={(e) => { e.preventDefault(); handleAcceptInvitation(); }}>
@@ -318,19 +272,6 @@ const AcceptInvitationPage: React.FC = () => {
                   }}
                 />
 
-                {/* Phone number field - required for all users */}
-                <TextField
-                  fullWidth
-                  label="Phone Number (Required)"
-                  type="tel"
-                  value={phone}
-                  onChange={(e) => handlePhoneChange(e.target.value)}
-                  margin="normal"
-                  required
-                  error={!!phoneError}
-                  helperText={phoneError || 'Enter your phone number with country code (e.g., +44 20 1234 5678)'}
-                  placeholder="+44 20 1234 5678"
-                />
 
                 <Box mt={4} display="flex" gap={2} justifyContent="center">
                   <Button
@@ -343,7 +284,7 @@ const AcceptInvitationPage: React.FC = () => {
                   <Button
                     type="submit"
                     variant="contained"
-                    disabled={submitting || !password || !confirmPassword || password !== confirmPassword || !!phoneError || !phone}
+                    disabled={submitting || !password || !confirmPassword || password !== confirmPassword}
                     startIcon={submitting ? <CircularProgress size={20} /> : null}
                   >
                     {submitting ? 'Creating Account...' : 'Accept & Create Account'}

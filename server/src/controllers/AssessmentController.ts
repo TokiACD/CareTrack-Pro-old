@@ -144,6 +144,67 @@ export class AssessmentController {
       throw createError(400, 'Assessment name is required')
     }
 
+    // Validate that at least one section has content
+    const hasKnowledge = knowledgeQuestions && Array.isArray(knowledgeQuestions) && knowledgeQuestions.length > 0;
+    const hasPractical = practicalSkills && Array.isArray(practicalSkills) && practicalSkills.length > 0;
+    const hasEmergency = emergencyQuestions && Array.isArray(emergencyQuestions) && emergencyQuestions.length > 0;
+    
+    if (!hasKnowledge && !hasPractical && !hasEmergency) {
+      throw createError(400, 'Assessment must contain at least one question or skill section')
+    }
+
+    // Validate knowledge questions format
+    if (hasKnowledge) {
+      for (const [index, question] of knowledgeQuestions.entries()) {
+        if (!question.question?.trim()) {
+          throw createError(400, `Knowledge question ${index + 1} is missing question text`)
+        }
+        if (!question.modelAnswer?.trim()) {
+          throw createError(400, `Knowledge question ${index + 1} is missing model answer`)
+        }
+      }
+    }
+
+    // Validate practical skills format
+    if (hasPractical) {
+      for (const [index, skill] of practicalSkills.entries()) {
+        if (!skill.skillDescription?.trim()) {
+          throw createError(400, `Practical skill ${index + 1} is missing description`)
+        }
+      }
+    }
+
+    // Validate emergency questions format
+    if (hasEmergency) {
+      for (const [index, question] of emergencyQuestions.entries()) {
+        if (!question.question?.trim()) {
+          throw createError(400, `Emergency question ${index + 1} is missing question text`)
+        }
+        if (!question.modelAnswer?.trim()) {
+          throw createError(400, `Emergency question ${index + 1} is missing model answer`)
+        }
+      }
+    }
+
+    // Validate task coverage if provided
+    if (tasksCovered && Array.isArray(tasksCovered) && tasksCovered.length > 0) {
+      // Verify all provided task IDs exist
+      const existingTasks = await prisma.task.findMany({
+        where: {
+          id: { in: tasksCovered },
+          deletedAt: null
+        },
+        select: { id: true }
+      });
+
+      const existingTaskIds = existingTasks.map(t => t.id);
+      const invalidTaskIds = tasksCovered.filter(id => !existingTaskIds.includes(id));
+      
+      if (invalidTaskIds.length > 0) {
+        throw createError(400, `Invalid task IDs: ${invalidTaskIds.join(', ')}`)
+      }
+    }
+
     // Create assessment with all sections in a transaction
     const assessment = await prisma.$transaction(async (tx) => {
       // Create the assessment

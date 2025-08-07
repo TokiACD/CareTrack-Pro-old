@@ -60,6 +60,7 @@ import { apiService } from '../services/api'
 import { API_ENDPOINTS, CompetencyLevel, Assessment as SharedAssessment } from '@caretrack/shared'
 import { useAuth } from '../contexts/AuthContext'
 import { useSmartMutation } from '../hooks/useSmartMutation'
+import { BreadcrumbNavigation, useBreadcrumbItems } from '../components/common/BreadcrumbNavigation'
 
 // Extended assessment interface with UI-specific assessment response relations
 interface ExtendedAssessment extends SharedAssessment {
@@ -105,6 +106,7 @@ function TabPanel(props: TabPanelProps) {
 const AssessmentsPage: React.FC = () => {
   const navigate = useNavigate()
   const { user } = useAuth()
+  const breadcrumbItems = useBreadcrumbItems()
 
   // State management
   const [selectedAssessment, setSelectedAssessment] = useState<ExtendedAssessment | null>(null)
@@ -251,29 +253,16 @@ const AssessmentsPage: React.FC = () => {
         </Toolbar>
       </AppBar>
 
-      {/* Breadcrumbs */}
+      {/* Breadcrumb Navigation */}
       <Container maxWidth="lg" sx={{ mt: 2, mb: 2 }}>
-        <Breadcrumbs aria-label="breadcrumb">
-          <Link
-            underline="hover"
-            sx={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}
-            color="inherit"
-            onClick={() => navigate('/dashboard')}
-          >
-            <HomeIcon sx={{ mr: 0.5 }} fontSize="inherit" />
-            Dashboard
-          </Link>
-          <Typography
-            sx={{ display: 'flex', alignItems: 'center' }}
-            color="text.primary"
-          >
-            <QuizIcon sx={{ mr: 0.5 }} fontSize="inherit" />
-            Assessments
-          </Typography>
-          {selectedAssessment && (
-            <Typography color="text.primary">{selectedAssessment.name}</Typography>
-          )}
-        </Breadcrumbs>
+        <BreadcrumbNavigation 
+          items={selectedAssessment ? [
+            breadcrumbItems.assessments(),
+            { label: selectedAssessment.name, active: true }
+          ] : [
+            breadcrumbItems.assessments()
+          ]}
+        />
       </Container>
 
       {/* Main Content */}

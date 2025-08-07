@@ -158,7 +158,6 @@ export const ERROR_MESSAGES = {
     REQUIRED_FIELD: 'This field is required',
     INVALID_EMAIL: 'Please enter a valid email address',
     INVALID_POSTCODE: 'Please enter a valid UK postcode area (e.g., SW1A, M1, B33, E14)',
-    INVALID_PHONE: 'Please enter a valid phone number',
     TARGET_COUNT_MIN: 'Target count must be at least 1'
   },
   SYSTEM: {

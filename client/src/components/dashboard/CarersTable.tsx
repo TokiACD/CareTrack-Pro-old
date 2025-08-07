@@ -62,7 +62,6 @@ const CarersTable: React.FC<CarersTableProps> = ({
           <TableRow>
             <TableCell>Name</TableCell>
             <TableCell>Email</TableCell>
-            <TableCell>Phone</TableCell>
             <TableCell>Competency Status</TableCell>
             <TableCell>Assigned Packages</TableCell>
             <TableCell>Status</TableCell>
@@ -74,7 +73,6 @@ const CarersTable: React.FC<CarersTableProps> = ({
             <TableRow key={carer.id} hover>
               <TableCell>{carer.name}</TableCell>
               <TableCell>{carer.email}</TableCell>
-              <TableCell>{carer.phone}</TableCell>
               <TableCell>{getCompetencyChip(carer.competencyStatus)}</TableCell>
               <TableCell>
                 <Box display="flex" gap={0.5} flexWrap="wrap">

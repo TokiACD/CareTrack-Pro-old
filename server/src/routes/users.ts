@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
+import { PASSWORD_CONFIG } from '../config/security';
 import { requireAuth } from '../middleware/auth';
 import { body, validationResult } from 'express-validator';
 import { audit, AuditAction } from '../middleware/audit';
@@ -29,7 +30,6 @@ router.get('/admins', requireAuth, async (req, res) => {
         id: true,
         email: true,
         name: true,
-        phone: true,
         isActive: true,
         createdAt: true,
         updatedAt: true,
@@ -90,13 +90,12 @@ router.post('/admins',
       }
 
       // Hash temporary password
-      const passwordHash = await bcrypt.hash(tempPassword, 12);
+      const passwordHash = await bcrypt.hash(tempPassword, PASSWORD_CONFIG.BCRYPT_ROUNDS);
 
       const newAdmin = await prisma.adminUser.create({
         data: {
           email,
           name,
-          phone: '', // Phone field is required but not collected for admin creation
           passwordHash,
           isActive: true,
           invitedBy: req.user!.id
@@ -322,7 +321,6 @@ router.get('/carers', requireAuth, async (req, res) => {
       id: carer.id,
       name: carer.name,
       email: carer.email,
-      phone: carer.phone,
       isActive: carer.isActive,
       createdAt: carer.createdAt,
       updatedAt: carer.updatedAt,
@@ -360,8 +358,7 @@ router.post('/carers',
   [
     body('firstName').notEmpty().withMessage('First name is required'),
     body('lastName').notEmpty().withMessage('Last name is required'),
-    body('email').isEmail().withMessage('Valid email is required'),
-    body('phone').optional().isMobilePhone('any').withMessage('Valid phone number required')
+    body('email').isEmail().withMessage('Valid email is required')
   ],
   audit(AuditAction.CREATE, 'Carer'),
   async (req: Request, res: Response) => {
@@ -375,7 +372,7 @@ router.post('/carers',
         });
       }
 
-      const { firstName, lastName, email, phone } = req.body;
+      const { firstName, lastName, email } = req.body;
       const name = `${firstName} ${lastName}`.trim();
 
       // Check if email already exists
@@ -397,7 +394,6 @@ router.post('/carers',
         data: {
           name,
           email,
-          phone,
           isActive: true
         }
       });
@@ -410,7 +406,6 @@ router.post('/carers',
           firstName: newCarer.name.split(' ')[0] || '',
           lastName: newCarer.name.split(' ').slice(1).join(' ') || '',
           email: newCarer.email,
-          phone: newCarer.phone,
           isActive: newCarer.isActive,
           createdAt: newCarer.createdAt
         }
@@ -430,7 +425,6 @@ router.put('/carers/:id',
   [
     body('name').optional().notEmpty().withMessage('Full name cannot be empty'),
     body('email').optional().isEmail().withMessage('Valid email is required'),
-    body('phone').optional().isMobilePhone('any').withMessage('Valid phone number required'),
     body('isActive').optional().isBoolean().withMessage('isActive must be boolean')
   ],
   audit(AuditAction.UPDATE, 'Carer'),
@@ -447,7 +441,7 @@ router.put('/carers/:id',
       }
 
       const { id } = req.params;
-      const { name, email, phone, isActive } = req.body;
+      const { name, email, isActive } = req.body;
       
       // Only allow updating valid Carer fields
       const updates: any = {};
@@ -455,7 +449,6 @@ router.put('/carers/:id',
       // Handle name field directly (database has name field, not firstName/lastName)
       if (name !== undefined) updates.name = name;
       if (email !== undefined) updates.email = email;
-      if (phone !== undefined) updates.phone = phone || null; // Allow null for optional phone
       if (isActive !== undefined) updates.isActive = isActive;
 
       // Check if carer exists
@@ -494,7 +487,6 @@ router.put('/carers/:id',
           firstName: updatedCarer.name.split(' ')[0] || '',
           lastName: updatedCarer.name.split(' ').slice(1).join(' ') || '',
           email: updatedCarer.email,
-          phone: updatedCarer.phone,
           isActive: updatedCarer.isActive,
           updatedAt: updatedCarer.updatedAt
         }

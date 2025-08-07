@@ -1,4 +1,6 @@
-import { prisma } from '../index'
+import { PrismaClient } from '@prisma/client'
+
+const prisma = new PrismaClient()
 
 export interface AuditLogData {
   action: string
@@ -80,6 +82,52 @@ export enum AuditActionType {
   SYSTEM_MAINTENANCE = 'SYSTEM_MAINTENANCE'
 }
 
+export const auditLogger = {
+  log: async (data: AuditLogData) => {
+    try {
+      return await prisma.auditLog.create({ data });
+    } catch (error) {
+      console.error('Audit logging failed:', error);
+      throw error;
+    }
+  },
+  
+  query: async (filter: AuditLogFilter = {}, pagination: AuditLogPagination = {}): Promise<AuditLogResponse> => {
+    const { page = 1, limit = 50 } = pagination;
+    const skip = (page - 1) * limit;
+    
+    const where = {
+      ...(filter.action && { action: filter.action }),
+      ...(filter.entityType && { entityType: filter.entityType }),
+      ...(filter.entityId && { entityId: filter.entityId }),
+      ...(filter.performedByAdminId && { performedByAdminId: filter.performedByAdminId }),
+      ...(filter.dateFrom || filter.dateTo ? {
+        timestamp: {
+          ...(filter.dateFrom && { gte: filter.dateFrom }),
+          ...(filter.dateTo && { lte: filter.dateTo })
+        }
+      } : {}),
+    };
+    
+    const [logs, total] = await Promise.all([
+      prisma.auditLog.findMany({
+        where,
+        orderBy: { performedAt: 'desc' },
+        skip,
+        take: limit,
+      }),
+      prisma.auditLog.count({ where })
+    ]);
+    
+    return {
+      logs,
+      total,
+      page,
+      totalPages: Math.ceil(total / limit)
+    };
+  }
+}
+
 export enum AuditEntityType {
   ADMIN_USER = 'ADMIN_USER',
   CARER = 'CARER',
@@ -114,6 +162,26 @@ class AuditService {
       })
     } catch (error) {
       console.error('Audit logging failed:', error)
+    }
+  }
+
+  async logSystemEvent(data: Omit<AuditLogData, 'performedByAdminId' | 'performedByAdminName'>): Promise<void> {
+    try {
+      await prisma.auditLog.create({
+        data: {
+          action: data.action,
+          entityType: data.entityType,
+          entityId: data.entityId,
+          oldValues: data.oldValues || undefined,
+          newValues: data.newValues || undefined,
+          performedByAdminId: 'SYSTEM',
+          performedByAdminName: 'System',
+          ipAddress: data.ipAddress,
+          userAgent: data.userAgent,
+        },
+      })
+    } catch (error) {
+      console.error('System audit logging failed:', error)
     }
   }
 

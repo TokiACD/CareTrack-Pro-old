@@ -4,8 +4,6 @@ import {
   Button,
   Card,
   Typography,
-  VisuallyHidden,
-  alpha,
   useTheme,
   ButtonProps,
   CardProps,
@@ -23,7 +21,7 @@ interface AccessibleButtonProps extends ButtonProps {
 
 export const AccessibleButton = forwardRef<HTMLButtonElement, AccessibleButtonProps>(
   ({ children, ariaLabel, ariaDescribedBy, onClick, loading, ...props }, ref) => {
-    const { isHighContrast, getHighContrastStyles, prefersReducedMotion } = useAccessibility()
+    const { getHighContrastStyles, prefersReducedMotion } = useAccessibility()
     const theme = useTheme()
 
     return (
@@ -52,9 +50,18 @@ export const AccessibleButton = forwardRef<HTMLButtonElement, AccessibleButtonPr
       >
         {children}
         {loading && (
-          <VisuallyHidden>
+          <Box
+            component="span"
+            sx={{
+              position: 'absolute',
+              left: -10000,
+              width: 1,
+              height: 1,
+              overflow: 'hidden',
+            }}
+          >
             Loading, please wait
-          </VisuallyHidden>
+          </Box>
         )}
       </Button>
     )
@@ -74,7 +81,7 @@ interface AccessibleCardProps extends CardProps {
 
 export const AccessibleCard = forwardRef<HTMLDivElement, AccessibleCardProps>(
   ({ children, ariaLabel, ariaDescribedBy, clickable, onClick, ...props }, ref) => {
-    const { isHighContrast, getHighContrastStyles, prefersReducedMotion } = useAccessibility()
+    const { getHighContrastStyles, prefersReducedMotion } = useAccessibility()
     const theme = useTheme()
 
     return (

@@ -512,7 +512,6 @@ export class AssignmentController {
         id: true,
         name: true,
         email: true,
-        phone: true,
         createdAt: true
       },
       orderBy: { name: 'asc' }

@@ -66,10 +66,6 @@ export const validationUtils = {
     return /^\d{3}$/.test(postcode);
   },
 
-  isValidPhone: (phone: string): boolean => {
-    const phoneRegex = /^(\+44\s?|0)(\d{10}|\d{4}\s?\d{3}\s?\d{3}|\d{3}\s?\d{3}\s?\d{4})$/;
-    return phoneRegex.test(phone.replace(/\s/g, ''));
-  },
 
   validateTargetCount: (count: number): boolean => {
     return Number.isInteger(count) && count > 0;

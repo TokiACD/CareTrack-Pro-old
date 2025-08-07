@@ -77,7 +77,7 @@ export class RecycleBinController {
               id: true,
               name: true,
               email: true,
-              phone: true,
+              // phone: true, // Field removed - not in schema
               deletedAt: true,
               createdAt: true,
               updatedAt: true

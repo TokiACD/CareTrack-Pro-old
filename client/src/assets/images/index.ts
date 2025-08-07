@@ -1,2 +1,2 @@
-// Export all image assets
-export { default as logoWhite } from './logo-white.png'
+// Asset exports
+export { default as logoWhite } from './logo-white.png';

@@ -28,7 +28,6 @@ interface ExtendedCarer extends SharedCarer {
 interface FormData {
   name?: string
   email: string
-  phone?: string
   isActive: boolean
 }
 
@@ -41,9 +40,7 @@ interface UserFormDialogProps {
   formData: FormData
   setFormData: (data: FormData) => void
   handleEmailChange: (email: string) => void
-  handlePhoneChange: (phone: string) => void
   emailValidationError: string
-  phoneValidationError: string
   isSubmitting: boolean
 }
 
@@ -56,9 +53,7 @@ const UserFormDialog: React.FC<UserFormDialogProps> = ({
   formData,
   setFormData,
   handleEmailChange,
-  handlePhoneChange,
   emailValidationError,
-  phoneValidationError,
   isSubmitting
 }) => {
   return (
@@ -93,21 +88,9 @@ const UserFormDialog: React.FC<UserFormDialogProps> = ({
             error={!!emailValidationError}
             helperText={emailValidationError}
           />
-          {editingUser && (
-            <TextField
-              label="Phone Number"
-              value={formData.phone || ''}
-              onChange={(e) => handlePhoneChange(e.target.value)}
-              fullWidth
-              required
-              error={!!phoneValidationError}
-              helperText={phoneValidationError || 'Enter phone number with country code (e.g., +44 20 1234 5678)'}
-              placeholder="+44 20 1234 5678"
-            />
-          )}
           {!editingUser && (
             <Alert severity="info" sx={{ mt: 1 }}>
-              An invitation email will be sent with instructions to set up their password. Users will enter their phone number during account setup.
+              An invitation email will be sent with instructions to set up their password.
             </Alert>
           )}
           
@@ -127,7 +110,7 @@ const UserFormDialog: React.FC<UserFormDialogProps> = ({
         <Button 
           onClick={onSubmit}
           variant="contained"
-          disabled={isSubmitting || !!emailValidationError || !!phoneValidationError}
+          disabled={isSubmitting || !!emailValidationError}
         >
           {isSubmitting ? (
             <CircularProgress size={20} />

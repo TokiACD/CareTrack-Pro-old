@@ -4,9 +4,24 @@ import helmet from 'helmet'
 import morgan from 'morgan'
 import compression from 'compression'
 import rateLimit from 'express-rate-limit'
+import session from 'express-session'
 import path from 'path'
 import { PrismaClient } from '@prisma/client'
+import { validateSecurityConfig, SESSION_CONFIG, API_CONFIG, DATABASE_CONFIG } from './config/security'
+import {
+  enhancedSecurityHeaders,
+  csrfProtection,
+  generateCSRFToken,
+  adaptiveRateLimit,
+  authRateLimit,
+  progressiveDelay,
+  phiProtectionMiddleware,
+  enhancedInputValidation,
+  enhancedSessionSecurity,
+  comprehensiveAuditLogging
+} from './middleware/enhancedSecurity'
 
+import { enhancedErrorHandler } from './middleware/errorSanitization'
 import { errorHandler } from './middleware/errorHandler'
 import { notFoundHandler } from './middleware/notFoundHandler'
 import { authRoutes } from './routes/authRoutes'
@@ -27,62 +42,159 @@ import { recycleBinRoutes } from './routes/recycleBinRoutes'
 import { auditRoutes } from './routes/auditRoutes'
 import { dashboardRoutes } from './routes/dashboardRoutes'
 import { emailChangeRoutes } from './routes/emailChangeRoutes'
+import { confirmedShiftsRoutes } from './routes/confirmedShiftsRoutes'
 
-// Initialize Prisma Client
-export const prisma = new PrismaClient({
-  log: process.env.NODE_ENV === 'development' ? ['query', 'error'] : ['error'],
-})
+// Initialize Prisma Client with enhanced security and performance
+let prismaInstance: PrismaClient | null = null
+
+export const prisma = (() => {
+  if (!prismaInstance) {
+    prismaInstance = new PrismaClient({
+      log: process.env.NODE_ENV === 'development' ? ['warn', 'error'] : ['error'],
+      datasources: {
+        db: {
+          url: process.env.DATABASE_URL
+        }
+      },
+      // Enhanced connection pool configuration for security and performance
+      __internal: {
+        engine: {
+          // Connection pool configuration from security config
+          connection_limit: DATABASE_CONFIG.CONNECTION_LIMIT,
+          pool_timeout: DATABASE_CONFIG.ACQUIRE_TIMEOUT,
+          socket_timeout: DATABASE_CONFIG.TIMEOUT
+        }
+      }
+    })
+  }
+  return prismaInstance
+})()
+
+// Performance monitoring - only log very slow queries (>2s) to reduce overhead
+if (process.env.NODE_ENV === 'development') {
+  prisma.$on('query', (e) => {
+    if (e.duration > 2000) { // Only log very slow queries (>2s)
+      console.warn(`🐌 Very slow query detected: ${e.duration}ms - ${e.query.substring(0, 100)}...`)
+    }
+  })
+}
+
+// Validate security configuration
+validateSecurityConfig();
 
 // Initialize Express app
 const app = express()
 
 // Environment variables
-const PORT = process.env.PORT || 3000
+const PORT = process.env.PORT || 5001  // Default to 5001 to match development setup
 const NODE_ENV = process.env.NODE_ENV || 'development'
 
-// Rate limiting
-const limiter = rateLimit({
+// Trust proxy for production deployments
+if (API_CONFIG.TRUST_PROXY && NODE_ENV === 'production') {
+  app.set('trust proxy', 1)
+}
+
+// Optimized rate limiting for better performance
+const generalLimiter = rateLimit({
   windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS || '900000'), // 15 minutes
-  max: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS || '100'), // limit each IP to 100 requests per windowMs
+  max: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS || '2000'), // Increased limit
   message: {
     success: false,
     error: 'Too many requests from this IP, please try again later.',
   },
   standardHeaders: true,
   legacyHeaders: false,
+  skipSuccessfulRequests: true, // Skip counting successful requests for performance
+  // Simplified key generator for better performance
+  keyGenerator: (req) => {
+    return req.ip // Just use IP for simplicity and speed
+  },
+  skip: (req) => {
+    // Skip rate limiting for health checks and other fast endpoints
+    return req.path === '/health' || req.path === '/api/csrf-token'
+  }
 })
 
-// Middleware
-app.use(helmet({
-  contentSecurityPolicy: {
-    directives: {
-      defaultSrc: ["'self'"],
-      styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
-      fontSrc: ["'self'", "https://fonts.gstatic.com"],
-      imgSrc: ["'self'", "data:", "https:"],
-      scriptSrc: ["'self'"],
-      connectSrc: ["'self'"],
-    },
+// Strict rate limiting for auth endpoints
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 5, // limit each IP to 5 requests per windowMs for auth
+  message: {
+    success: false,
+    error: 'Too many authentication attempts, please try again later.',
   },
-  crossOriginEmbedderPolicy: false,
-}))
+  standardHeaders: true,
+  legacyHeaders: false,
+})
+
+// Enhanced Security Middleware
+app.use(enhancedSecurityHeaders)
 
 app.use(cors({
   origin: [
-    'http://localhost:3001',
-    'http://localhost:3000', 
-    'http://localhost:3002',
-    'http://localhost:3003',
+    'http://localhost:5000',  // Vite dev server
+    'http://localhost:3000',  // Legacy/backup
+    'http://localhost:3001',  // Legacy/backup
+    'http://localhost:3002',  // Legacy/backup
+    'http://localhost:3003',  // Legacy/backup
     process.env.FRONTEND_URL
   ].filter((url): url is string => Boolean(url)),
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'x-csrf-token', 'x-request-id'],
+  exposedHeaders: ['x-csrf-token']
 }))
 
-app.use(compression())
-app.use(express.json({ limit: '10mb' }))
-app.use(express.urlencoded({ extended: true, limit: '10mb' }))
+// Session configuration
+app.use(session({
+  secret: SESSION_CONFIG.SECRET,
+  resave: false,
+  saveUninitialized: false,
+  cookie: {
+    secure: SESSION_CONFIG.SECURE,
+    httpOnly: SESSION_CONFIG.HTTP_ONLY,
+    maxAge: SESSION_CONFIG.TIMEOUT_MS,
+    sameSite: SESSION_CONFIG.SAME_SITE
+  },
+  name: 'caretrack.sid' // Custom session name
+}))
+
+// Enhanced compression with better settings
+app.use(compression({
+  filter: (req, res) => {
+    // Don't compress responses with this request header
+    if (req.headers['x-no-compression']) {
+      return false
+    }
+    // Use compression filter function
+    return compression.filter(req, res)
+  },
+  level: 6, // Good balance of compression vs CPU
+  threshold: 1024, // Only compress if response is larger than 1KB
+  memLevel: 8 // Memory level for zlib
+}))
+app.use(express.json({ 
+  limit: API_CONFIG.MAX_REQUEST_SIZE,
+  // Reviver function for better JSON parsing performance
+  reviver: (key, value) => {
+    // Handle date strings if needed
+    if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/.test(value)) {
+      return new Date(value)
+    }
+    return value
+  }
+}))
+app.use(express.urlencoded({ 
+  extended: true, 
+  limit: API_CONFIG.MAX_REQUEST_SIZE,
+  parameterLimit: API_CONFIG.PARAMETER_LIMIT
+}))
+
+// Enhanced security middleware stack
+app.use(comprehensiveAuditLogging)
+app.use(enhancedInputValidation)
+app.use(phiProtectionMiddleware)
+app.use(enhancedSessionSecurity)
 
 // Logging
 if (NODE_ENV === 'development') {
@@ -91,18 +203,79 @@ if (NODE_ENV === 'development') {
   app.use(morgan('combined'))
 }
 
-// Apply rate limiting to all requests
-app.use(limiter)
-
-// Health check endpoint
-app.get('/health', (req, res) => {
-  res.json({
-    success: true,
-    message: 'CareTrack Pro API is running',
-    timestamp: new Date().toISOString(),
-    environment: NODE_ENV,
-  })
+// CSRF Protection - optimized for performance
+app.get('/api/csrf-token', generateCSRFToken) // Fast path for token generation
+app.use('/api', (req, res, next) => {
+  // Skip CSRF for GET requests and token endpoint to improve performance
+  if (req.method === 'GET' || req.path === '/csrf-token') {
+    return next();
+  }
+  return csrfProtection(req, res, next);
 })
+
+// Apply rate limiting with performance optimizations
+app.use('/api/auth', (req, res, next) => {
+  // Only apply strict rate limiting to login attempts
+  if (req.path.includes('/login') && req.method === 'POST') {
+    return authRateLimit(req, res, next)
+  }
+  next()
+}, progressiveDelay)
+app.use('/api', (req, res, next) => {
+  // Skip rate limiting for frequent GET requests
+  if (req.method === 'GET' && (req.path.includes('/verify') || req.path.includes('/csrf-token'))) {
+    return next()
+  }
+  return adaptiveRateLimit(req, res, next)
+})
+
+// Enhanced health check endpoint with database connectivity
+app.get('/health', async (req, res) => {
+  try {
+    // Test database connectivity
+    await prisma.$queryRaw`SELECT 1 as health`
+    
+    res.json({
+      success: true,
+      message: 'CareTrack Pro API is running',
+      timestamp: new Date().toISOString(),
+      environment: NODE_ENV,
+      database: 'connected',
+      version: process.env.npm_package_version || '1.0.0'
+    })
+  } catch (error) {
+    res.status(503).json({
+      success: false,
+      message: 'Service unavailable - database connection failed',
+      timestamp: new Date().toISOString(),
+      environment: NODE_ENV,
+      database: 'disconnected'
+    })
+  }
+})
+
+// Performance metrics endpoint (development only)
+if (NODE_ENV === 'development') {
+  app.get('/metrics', async (req, res) => {
+    const memoryUsage = process.memoryUsage()
+    const uptime = process.uptime()
+    
+    res.json({
+      success: true,
+      data: {
+        uptime: uptime,
+        memory: {
+          rss: Math.round(memoryUsage.rss / 1024 / 1024) + ' MB',
+          heapTotal: Math.round(memoryUsage.heapTotal / 1024 / 1024) + ' MB',
+          heapUsed: Math.round(memoryUsage.heapUsed / 1024 / 1024) + ' MB',
+          external: Math.round(memoryUsage.external / 1024 / 1024) + ' MB',
+        },
+        nodeVersion: process.version,
+        platform: process.platform
+      }
+    })
+  })
+}
 
 // API Routes
 app.use('/api/auth', authRoutes)
@@ -123,14 +296,71 @@ app.use('/api/recycle-bin', recycleBinRoutes)
 app.use('/api/audit', auditRoutes)
 app.use('/api/dashboard', dashboardRoutes)
 app.use('/api/email-change', emailChangeRoutes)
+app.use('/api/confirmed-shifts', confirmedShiftsRoutes)
 
-// Serve frontend static files in production
+// Serve frontend static files in production with enhanced security
 if (NODE_ENV === 'production') {
-  app.use(express.static(path.join(__dirname, '../../client/dist')))
+  // Secure static file serving with path sanitization
+  app.use(express.static(path.join(__dirname, '../../client/dist'), {
+    // Security options
+    dotfiles: 'deny', // Deny access to dotfiles
+    etag: API_CONFIG.ENABLE_ETAG,
+    extensions: ['html', 'js', 'css', 'png', 'jpg', 'jpeg', 'gif', 'ico', 'svg', 'woff', 'woff2'],
+    index: ['index.html'],
+    maxAge: '1h', // Cache for 1 hour
+    redirect: false,
+    // Custom setHeaders for security
+    setHeaders: (res, filePath) => {
+      // Prevent MIME type sniffing
+      res.setHeader('X-Content-Type-Options', 'nosniff')
+      
+      // Prevent caching of sensitive files
+      if (path.basename(filePath) === 'index.html') {
+        res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate')
+        res.setHeader('Pragma', 'no-cache')
+        res.setHeader('Expires', '0')
+      }
+      
+      // Add Content Security Policy
+      if (filePath.endsWith('.html')) {
+        res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:;")
+      }
+    },
+    // Fallback function for security
+    fallthrough: false
+  }))
   
-  // Catch-all handler: send back index.html for non-API routes
+  // Secure catch-all handler with path validation
   app.get('*', (req, res) => {
-    res.sendFile(path.join(__dirname, '../../client/dist/index.html'))
+    const indexPath = path.join(__dirname, '../../client/dist/index.html')
+    
+    // Validate that the requested path is safe
+    const sanitizedPath = path.normalize(req.path)
+    if (sanitizedPath.includes('..') || sanitizedPath.includes('~')) {
+      return res.status(403).json({
+        success: false,
+        error: 'Access denied',
+        code: 'INVALID_PATH'
+      })
+    }
+    
+    // Send index.html with security headers
+    res.sendFile(indexPath, {
+      headers: {
+        'X-Content-Type-Options': 'nosniff',
+        'X-Frame-Options': 'DENY',
+        'Cache-Control': 'no-cache, no-store, must-revalidate'
+      }
+    }, (err) => {
+      if (err) {
+        console.error('Error serving index.html:', err)
+        res.status(500).json({
+          success: false,
+          error: 'Internal server error',
+          code: 'SERVER_ERROR'
+        })
+      }
+    })
   })
 } else {
   // In development, redirect invitation URLs to frontend
@@ -144,9 +374,10 @@ if (NODE_ENV === 'production') {
   })
 }
 
-// Error handlers (must be last)
+// Enhanced Error handlers (must be last)
 app.use(notFoundHandler)
-app.use(errorHandler)
+app.use(enhancedErrorHandler) // Use enhanced error handler
+app.use(errorHandler) // Fallback
 
 // Graceful shutdown
 process.on('SIGINT', async () => {
@@ -161,23 +392,66 @@ process.on('SIGTERM', async () => {
   process.exit(0)
 })
 
-// Start server
+// Enhanced environment variable validation
+function validateEnvironmentVariables() {
+  const requiredVars = ['DATABASE_URL', 'JWT_SECRET']
+  const missingVars = requiredVars.filter(varName => !process.env[varName])
+  
+  if (missingVars.length > 0) {
+    console.error('❌ Missing required environment variables:', missingVars)
+    throw new Error(`Missing environment variables: ${missingVars.join(', ')}`)
+  }
+  
+  // Validate JWT_SECRET strength
+  if (process.env.JWT_SECRET && process.env.JWT_SECRET.length < 32) {
+    throw new Error('JWT_SECRET must be at least 32 characters long')
+  }
+  
+  console.log('✅ Environment variables validated')
+}
+
+// Start server with enhanced security validation
 async function startServer() {
   try {
-    // Test database connection
-    await prisma.$connect()
+    // Validate environment variables first
+    validateEnvironmentVariables()
+    
+    // Test database connection with timeout
+    console.log('🔍 Testing database connection...')
+    await Promise.race([
+      prisma.$connect(),
+      new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Database connection timeout')), 10000)
+      )
+    ])
+    console.log('✅ Database connection established')
+
+    // Validate database integrity
+    await prisma.$queryRaw`SELECT 1 as health`
+    console.log('✅ Database health check passed')
 
     app.listen(PORT, () => {
       console.log(`🚀 Server running on http://localhost:${PORT}`)
       console.log(`📊 Environment: ${NODE_ENV}`)
       console.log(`🔍 Health check: http://localhost:${PORT}/health`)
+      console.log(`🛡️  Security configuration: Enhanced`)
+      console.log(`🔒 Database connection pool: ${DATABASE_CONFIG.CONNECTION_LIMIT} connections`)
       
       if (NODE_ENV === 'development') {
         console.log(`📘 Prisma Studio: npx prisma studio`)
+        console.log(`📊 Metrics: http://localhost:${PORT}/metrics`)
       }
     })
   } catch (error) {
     console.error('❌ Failed to start server:', error)
+    
+    // Cleanup on startup failure
+    try {
+      await prisma.$disconnect()
+    } catch (disconnectError) {
+      console.error('Error during cleanup:', disconnectError)
+    }
+    
     process.exit(1)
   }
 }

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Box,
   Container,
@@ -53,10 +53,11 @@ import {
   Delete as DeleteIcon
 } from '@mui/icons-material';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { apiService } from '../services/api';
 import { useNotification } from '../contexts/NotificationContext';
 import { API_ENDPOINTS } from '@caretrack/shared';
+import { BreadcrumbNavigation, useBreadcrumbItems } from '../components/common/BreadcrumbNavigation';
 
 interface ShiftApplication {
   id: string;
@@ -104,11 +105,25 @@ interface SentShift {
 
 const ShiftManagementPage: React.FC = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const queryClient = useQueryClient();
   const { showSuccess, showError } = useNotification();
+  const breadcrumbItems = useBreadcrumbItems();
   
   const [selectedTab, setSelectedTab] = useState(0);
   const [statusFilter, setStatusFilter] = useState('ALL');
+
+  // Handle filter state from dashboard navigation
+  useEffect(() => {
+    const state = location.state as { filterStatus?: string } | null;
+    if (state?.filterStatus) {
+      setStatusFilter(state.filterStatus);
+      // Set appropriate tab based on filter
+      if (state.filterStatus === 'CONFIRMED') {
+        setSelectedTab(2); // Assigned tab includes confirmed shifts
+      }
+    }
+  }, [location.state]);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedShift, setSelectedShift] = useState<SentShift | null>(null);
   const [applicationDialogOpen, setApplicationDialogOpen] = useState(false);
@@ -292,39 +307,17 @@ const ShiftManagementPage: React.FC = () => {
 
   return (
     <Container maxWidth="xl" sx={{ py: 4 }}>
+      {/* Breadcrumb Navigation */}
+      <BreadcrumbNavigation 
+        items={[
+          breadcrumbItems.shiftSender(),
+          breadcrumbItems.manageShifts()
+        ]}
+        sx={{ mb: 3 }}
+      />
+
       {/* Header */}
       <Box sx={{ mb: 4 }}>
-        <Breadcrumbs sx={{ mb: 2 }}>
-          <Link
-            component="button"
-            variant="body1"
-            onClick={() => navigate('/dashboard')}
-            sx={{ 
-              display: 'flex', 
-              alignItems: 'center', 
-              gap: 0.5,
-              textDecoration: 'none',
-              color: 'text.secondary',
-              '&:hover': { color: 'primary.main' }
-            }}
-          >
-            <HomeIcon fontSize="small" />
-            Dashboard
-          </Link>
-          <Link
-            component="button"
-            variant="body1"
-            onClick={() => navigate('/dashboard')}
-            sx={{ 
-              textDecoration: 'none',
-              color: 'text.secondary',
-              '&:hover': { color: 'primary.main' }
-            }}
-          >
-            Shift Sender
-          </Link>
-          <Typography color="text.primary">Shift Management</Typography>
-        </Breadcrumbs>
 
         <Box display="flex" alignItems="center" gap={2}>
           <Button

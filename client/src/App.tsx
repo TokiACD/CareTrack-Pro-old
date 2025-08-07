@@ -1,31 +1,35 @@
+import React, { Suspense, memo } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { Box } from '@mui/material'
 
 import { useAuth } from './contexts/AuthContext'
-import LoadingScreen from './components/common/LoadingScreen'
+import { LoadingScreen } from './components/common/LoadingScreen'
+import { Footer } from './components/common/Footer'
 import { PageErrorBoundary } from './components/common/ErrorBoundary'
-import { LoginPage } from './pages/LoginPage'
-import { DashboardPage } from './pages/DashboardPage'
-import { ForgotPasswordPage } from './pages/ForgotPasswordPage'
-import { ResetPasswordPage } from './pages/ResetPasswordPage'
-import AcceptInvitationPage from './pages/AcceptInvitationPage'
-import TasksPage from './pages/TasksPage'
-import AssignmentsPage from './pages/AssignmentsPage'
-import AssessmentsPage from './pages/AssessmentsPage'
-import CreateAssessmentPage from './pages/CreateAssessmentPage'
-import EditAssessmentPage from './pages/EditAssessmentPage'
-import RecycleBinPage from './pages/RecycleBinPage'
-import ProgressPage from './pages/ProgressPage'
-import CarerProgressDetailPage from './pages/CarerProgressDetailPage'
-import TakeAssessmentPage from './pages/TakeAssessmentPage'
-import EmailChangeVerification from './pages/EmailChangeVerification'
-import ShiftCreationPage from './pages/ShiftCreationPage'
-import ShiftManagementPage from './pages/ShiftManagementPage'
-import RotaPage from './pages/RotaPage'
-import AuditLogPage from './pages/AuditLogPage'
 import { ProtectedRoute } from './components/auth/ProtectedRoute'
 
-function App() {
+// Lazy load components for better performance
+const LoginPage = React.lazy(() => import('./pages/LoginPage').then(module => ({ default: module.LoginPage })))
+const DashboardPage = React.lazy(() => import('./pages/DashboardPage').then(module => ({ default: module.DashboardPage })))
+const ForgotPasswordPage = React.lazy(() => import('./pages/ForgotPasswordPage').then(module => ({ default: module.ForgotPasswordPage })))
+const ResetPasswordPage = React.lazy(() => import('./pages/ResetPasswordPage').then(module => ({ default: module.ResetPasswordPage })))
+const AcceptInvitationPage = React.lazy(() => import('./pages/AcceptInvitationPage'))
+const TasksPage = React.lazy(() => import('./pages/TasksPage'))
+const AssignmentsPage = React.lazy(() => import('./pages/AssignmentsPage'))
+const AssessmentsPage = React.lazy(() => import('./pages/AssessmentsPage'))
+const CreateAssessmentPage = React.lazy(() => import('./pages/CreateAssessmentPage'))
+const EditAssessmentPage = React.lazy(() => import('./pages/EditAssessmentPage'))
+const RecycleBinPage = React.lazy(() => import('./pages/RecycleBinPage'))
+const ProgressPage = React.lazy(() => import('./pages/ProgressPage'))
+const CarerProgressDetailPage = React.lazy(() => import('./pages/CarerProgressDetailPage'))
+const TakeAssessmentPage = React.lazy(() => import('./pages/TakeAssessmentPage'))
+const EmailChangeVerification = React.lazy(() => import('./pages/EmailChangeVerification'))
+const ShiftCreationPage = React.lazy(() => import('./pages/ShiftCreationPage'))
+const ShiftManagementPage = React.lazy(() => import('./pages/ShiftManagementPage'))
+const RotaPage = React.lazy(() => import('./pages/RotaPage'))
+const AuditLogPage = React.lazy(() => import('./pages/AuditLogPage'))
+
+const App = memo(() => {
   const { user, loading } = useAuth()
 
   if (loading) {
@@ -34,37 +38,76 @@ function App() {
 
   return (
     <PageErrorBoundary>
-      <Box sx={{ height: '100vh' }}>
-        <Routes>
+      <Box sx={{ 
+        minHeight: '100vh', 
+        display: 'flex', 
+        flexDirection: 'column',
+        // Prevent scrolling below footer
+        height: '100vh',
+        overflow: 'hidden'
+      }}>
+        <Box sx={{ 
+          flex: 1,
+          overflow: 'auto',
+          // Smooth scrolling for better UX
+          scrollBehavior: 'smooth',
+          // Ensure proper touch scrolling on mobile
+          WebkitOverflowScrolling: 'touch'
+        }}>
+          <Routes>
         {/* Public routes */}
         <Route 
           path="/login" 
           element={
-            user ? <Navigate to="/dashboard" replace /> : <LoginPage />
+            user ? <Navigate to="/dashboard" replace /> : (
+              <Suspense fallback={<LoadingScreen />}>
+                <LoginPage />
+              </Suspense>
+            )
           } 
         />
         <Route 
           path="/invitation/accept" 
-          element={<AcceptInvitationPage />} 
+          element={
+            <Suspense fallback={<LoadingScreen />}>
+              <AcceptInvitationPage />
+            </Suspense>
+          } 
         />
         <Route 
           path="/email-change/verify" 
-          element={<EmailChangeVerification />} 
+          element={
+            <Suspense fallback={<LoadingScreen />}>
+              <EmailChangeVerification />
+            </Suspense>
+          } 
         />
         <Route 
           path="/email-change/cancel" 
-          element={<EmailChangeVerification />} 
+          element={
+            <Suspense fallback={<LoadingScreen />}>
+              <EmailChangeVerification />
+            </Suspense>
+          } 
         />
         <Route 
           path="/forgot-password" 
           element={
-            user ? <Navigate to="/dashboard" replace /> : <ForgotPasswordPage />
+            user ? <Navigate to="/dashboard" replace /> : (
+              <Suspense fallback={<LoadingScreen />}>
+                <ForgotPasswordPage />
+              </Suspense>
+            )
           } 
         />
         <Route 
           path="/reset-password" 
           element={
-            user ? <Navigate to="/dashboard" replace /> : <ResetPasswordPage />
+            user ? <Navigate to="/dashboard" replace /> : (
+              <Suspense fallback={<LoadingScreen />}>
+                <ResetPasswordPage />
+              </Suspense>
+            )
           } 
         />
         
@@ -73,7 +116,9 @@ function App() {
           path="/dashboard"
           element={
             <ProtectedRoute>
-              <DashboardPage />
+              <Suspense fallback={<LoadingScreen />}>
+                <DashboardPage />
+              </Suspense>
             </ProtectedRoute>
           }
         />
@@ -81,7 +126,9 @@ function App() {
           path="/tasks"
           element={
             <ProtectedRoute>
-              <TasksPage />
+              <Suspense fallback={<LoadingScreen />}>
+                <TasksPage />
+              </Suspense>
             </ProtectedRoute>
           }
         />
@@ -89,7 +136,9 @@ function App() {
           path="/assignments"
           element={
             <ProtectedRoute>
-              <AssignmentsPage />
+              <Suspense fallback={<LoadingScreen />}>
+                <AssignmentsPage />
+              </Suspense>
             </ProtectedRoute>
           }
         />
@@ -97,7 +146,9 @@ function App() {
           path="/assessments"
           element={
             <ProtectedRoute>
-              <AssessmentsPage />
+              <Suspense fallback={<LoadingScreen />}>
+                <AssessmentsPage />
+              </Suspense>
             </ProtectedRoute>
           }
         />
@@ -105,7 +156,9 @@ function App() {
           path="/assessments/create"
           element={
             <ProtectedRoute>
-              <CreateAssessmentPage />
+              <Suspense fallback={<LoadingScreen />}>
+                <CreateAssessmentPage />
+              </Suspense>
             </ProtectedRoute>
           }
         />
@@ -113,7 +166,9 @@ function App() {
           path="/assessments/:id/edit"
           element={
             <ProtectedRoute>
-              <EditAssessmentPage />
+              <Suspense fallback={<LoadingScreen />}>
+                <EditAssessmentPage />
+              </Suspense>
             </ProtectedRoute>
           }
         />
@@ -121,7 +176,9 @@ function App() {
           path="/recycle-bin"
           element={
             <ProtectedRoute>
-              <RecycleBinPage />
+              <Suspense fallback={<LoadingScreen />}>
+                <RecycleBinPage />
+              </Suspense>
             </ProtectedRoute>
           }
         />
@@ -129,7 +186,9 @@ function App() {
           path="/progress"
           element={
             <ProtectedRoute>
-              <ProgressPage />
+              <Suspense fallback={<LoadingScreen />}>
+                <ProgressPage />
+              </Suspense>
             </ProtectedRoute>
           }
         />
@@ -137,7 +196,9 @@ function App() {
           path="/progress/carer/:carerId"
           element={
             <ProtectedRoute>
-              <CarerProgressDetailPage />
+              <Suspense fallback={<LoadingScreen />}>
+                <CarerProgressDetailPage />
+              </Suspense>
             </ProtectedRoute>
           }
         />
@@ -145,7 +206,9 @@ function App() {
           path="/assessments/:assessmentId/take/:carerId"
           element={
             <ProtectedRoute>
-              <TakeAssessmentPage />
+              <Suspense fallback={<LoadingScreen />}>
+                <TakeAssessmentPage />
+              </Suspense>
             </ProtectedRoute>
           }
         />
@@ -153,7 +216,9 @@ function App() {
           path="/assessments/:assessmentId/edit/:carerId"
           element={
             <ProtectedRoute>
-              <TakeAssessmentPage />
+              <Suspense fallback={<LoadingScreen />}>
+                <TakeAssessmentPage />
+              </Suspense>
             </ProtectedRoute>
           }
         />
@@ -161,7 +226,9 @@ function App() {
           path="/shift-sender/create"
           element={
             <ProtectedRoute>
-              <ShiftCreationPage />
+              <Suspense fallback={<LoadingScreen />}>
+                <ShiftCreationPage />
+              </Suspense>
             </ProtectedRoute>
           }
         />
@@ -169,7 +236,9 @@ function App() {
           path="/shift-sender/management"
           element={
             <ProtectedRoute>
-              <ShiftManagementPage />
+              <Suspense fallback={<LoadingScreen />}>
+                <ShiftManagementPage />
+              </Suspense>
             </ProtectedRoute>
           }
         />
@@ -177,7 +246,9 @@ function App() {
           path="/rota"
           element={
             <ProtectedRoute>
-              <RotaPage />
+              <Suspense fallback={<LoadingScreen />}>
+                <RotaPage />
+              </Suspense>
             </ProtectedRoute>
           }
         />
@@ -185,7 +256,9 @@ function App() {
           path="/audit-logs"
           element={
             <ProtectedRoute>
-              <AuditLogPage />
+              <Suspense fallback={<LoadingScreen />}>
+                <AuditLogPage />
+              </Suspense>
             </ProtectedRoute>
           }
         />
@@ -202,9 +275,22 @@ function App() {
           element={<Navigate to="/login" replace />} 
         />
       </Routes>
+        </Box>
+        <Footer 
+          position="static" 
+          variant="primary" 
+          size="normal" 
+          sx={{ 
+            flexShrink: 0,
+            // Ensure footer stays at bottom without extra space
+            mt: 'auto'
+          }} 
+        />
       </Box>
     </PageErrorBoundary>
   )
-}
+})
+
+App.displayName = 'App'
 
 export default App

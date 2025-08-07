@@ -745,17 +745,62 @@ class EmailService {
   async testConnection(): Promise<boolean> {
     try {
       if (this.useSendGrid) {
+        // Test SendGrid API key validity
+        const apiKey = process.env.SENDGRID_API_KEY
+        if (!apiKey || apiKey.length < 10) {
+          console.error('Invalid SendGrid API key configuration')
+          return false
+        }
         return true
       }
       
       if (!this.transporter) {
+        console.error('SMTP transporter not initialized')
         return false
       }
       
       await this.transporter.verify()
       return true
     } catch (error) {
+      console.error('Email service connection test failed:', error)
       return false
+    }
+  }
+
+  /**
+   * Initialize email service with better error handling
+   */
+  async initializeService(): Promise<{ success: boolean; error?: string }> {
+    try {
+      if (this.useSendGrid) {
+        const apiKey = process.env.SENDGRID_API_KEY
+        if (!apiKey) {
+          return { success: false, error: 'SendGrid API key not configured' }
+        }
+        // Test API key with a lightweight request
+        try {
+          sgMail.setApiKey(apiKey)
+          return { success: true }
+        } catch (error) {
+          return { success: false, error: 'Invalid SendGrid API key' }
+        }
+      } else {
+        // Validate SMTP configuration
+        const requiredVars = ['SMTP_HOST', 'SMTP_PORT', 'SMTP_USER', 'SMTP_PASS']
+        const missing = requiredVars.filter(v => !process.env[v])
+        if (missing.length > 0) {
+          return { success: false, error: `Missing SMTP configuration: ${missing.join(', ')}` }
+        }
+        
+        if (this.transporter) {
+          const verified = await this.transporter.verify()
+          return { success: verified }
+        }
+        
+        return { success: false, error: 'SMTP transporter not initialized' }
+      }
+    } catch (error) {
+      return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
     }
   }
 }

@@ -3,7 +3,6 @@ export interface AdminUser {
   id: string;
   email: string;
   name: string;
-  phone: string;
   isActive: boolean;
   createdAt: Date;
   updatedAt: Date;
@@ -16,7 +15,6 @@ export interface Carer {
   id: string;
   email: string;
   name: string;
-  phone: string;
   isActive: boolean;
   createdAt: Date;
   updatedAt: Date;
@@ -319,7 +317,6 @@ export interface Invitation {
   // Carer-specific fields
   firstName?: string;
   lastName?: string;
-  phone?: string;
   // Common fields
   invitedBy: string;
   invitedAt: Date;
@@ -435,7 +432,6 @@ export interface InviteCarerRequest extends Record<string, unknown> {
   email: string;
   firstName: string;
   lastName: string;
-  phone?: string;
 }
 
 export interface AcceptInvitationRequest extends Record<string, unknown> {
@@ -446,7 +442,6 @@ export interface AcceptInvitationRequest extends Record<string, unknown> {
 export interface CreateCarerRequest extends Record<string, unknown> {
   email: string;
   name: string;
-  phone: string;
 }
 
 export interface CreateCarePackageRequest extends Record<string, unknown> {

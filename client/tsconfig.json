@@ -29,9 +29,12 @@
       "@/hooks/*": ["src/hooks/*"],
       "@/services/*": ["src/services/*"],
       "@/contexts/*": ["src/contexts/*"],
-      "@/utils/*": ["src/utils/*"]
+      "@/utils/*": ["src/utils/*"],
+      "@/constants/*": ["src/constants/*"],
+      "@caretrack/shared": ["../shared/src/index"],
+      "@caretrack/shared/*": ["../shared/src/*"]
     }
   },
-  "include": ["src"],
+  "include": ["src", "../shared/src"],
   "references": [{ "path": "./tsconfig.node.json" }]
 }

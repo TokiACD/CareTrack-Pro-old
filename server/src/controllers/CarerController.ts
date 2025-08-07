@@ -101,7 +101,7 @@ export class CarerController {
 
   // Create new carer
   createCarer = asyncHandler(async (req: Request, res: Response): Promise<void> => {
-    const { email, name, phone } = req.body
+    const { email, name } = req.body
     const admin = req.user!
 
     // Check if carer with email already exists
@@ -117,7 +117,6 @@ export class CarerController {
       data: {
         email: email.toLowerCase(),
         name: name.trim(),
-        phone: phone?.trim() || '',
         isActive: true
       },
       include: {
@@ -143,7 +142,7 @@ export class CarerController {
       action: 'CREATE_CARER',
       entityType: 'Carer',
       entityId: carer.id,
-      newValues: { email, name, phone },
+      newValues: { email, name },
       performedByAdminId: admin.id,
       performedByAdminName: admin.name,
       ipAddress: req.ip,
@@ -160,7 +159,7 @@ export class CarerController {
   // Update carer
   updateCarer = asyncHandler(async (req: Request, res: Response): Promise<void> => {
     const { id } = req.params
-    const { email, name, phone, isActive } = req.body
+    const { email, name, isActive } = req.body
     const admin = req.user!
 
     const existingCarer = await prisma.carer.findUnique({
@@ -190,7 +189,6 @@ export class CarerController {
       data: {
         ...(email && { email: email.toLowerCase() }),
         ...(name && { name: name.trim() }),
-        ...(phone !== undefined && { phone: phone?.trim() || '' }),
         ...(isActive !== undefined && { isActive }),
         updatedAt: new Date()
       },
@@ -220,10 +218,9 @@ export class CarerController {
       oldValues: { 
         email: existingCarer.email, 
         name: existingCarer.name, 
-        phone: existingCarer.phone,
         isActive: existingCarer.isActive
       },
-      newValues: { email, name, phone, isActive },
+      newValues: { email, name, isActive },
       performedByAdminId: admin.id,
       performedByAdminName: admin.name,
       ipAddress: req.ip,

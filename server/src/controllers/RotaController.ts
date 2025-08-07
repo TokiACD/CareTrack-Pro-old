@@ -110,7 +110,7 @@ export class RotaController {
                 id: true,
                 name: true,
                 email: true,
-                phone: true,
+                // phone: true, // Field removed - not in schema
                 competencyRatings: {
                   include: { task: true }
                 }

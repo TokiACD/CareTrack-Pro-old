@@ -32,7 +32,7 @@ import { useForm } from 'react-hook-form'
 import { useAuth } from '../contexts/AuthContext'
 import { useNotification } from '../contexts/NotificationContext'
 import { ERROR_MESSAGES } from '@caretrack/shared'
-import BrandHeader from '../components/common/BrandHeader'
+import { BrandHeader } from '../components/common'
 
 interface LoginFormData {
   email: string
@@ -161,13 +161,14 @@ export function LoginPage() {
         }}
       />
       
-      <Container maxWidth="sm">
+      <Container maxWidth="sm" sx={{ px: { xs: 2, sm: 3 } }}>
         <Box
           sx={{
             animation: isAnimated ? `${slideUpAnimation} 0.8s ease-out` : 'none',
             transform: isAnimated ? 'translateY(0)' : 'translateY(30px)',
             opacity: isAnimated ? 1 : 0,
             transition: 'all 0.8s ease-out',
+            mx: { xs: 1, sm: 0 }, // Add margin on mobile
           }}
         >
           <Paper
@@ -186,7 +187,7 @@ export function LoginPage() {
             <Box
               sx={{
                 background: `linear-gradient(135deg, ${alpha(theme.palette.primary.main, 0.05)} 0%, ${alpha(theme.palette.primary.main, 0.02)} 100%)`,
-                p: 4,
+                p: { xs: 3, sm: 4 }, // Responsive padding
                 textAlign: 'center',
                 borderBottom: '1px solid rgba(0, 0, 0, 0.05)',
               }}
@@ -194,7 +195,6 @@ export function LoginPage() {
               <Box sx={{ mb: 3 }}>
                 <BrandHeader 
                   size="lg" 
-                  variant="light"
                   sx={{
                     justifyContent: 'center',
                     animation: isAnimated ? `${fadeInAnimation} 1s ease-out 0.3s both` : 'none',
@@ -202,7 +202,12 @@ export function LoginPage() {
                 />
               </Box>
               
-              <Stack direction="row" spacing={1} justifyContent="center" sx={{ mb: 2 }}>
+              <Stack 
+                direction={{ xs: 'column', sm: 'row' }} 
+                spacing={1} 
+                justifyContent="center" 
+                sx={{ mb: 2, alignItems: 'center' }}
+              >
                 <Chip
                   icon={<SecurityIcon />}
                   label="Secure Login"
@@ -212,6 +217,7 @@ export function LoginPage() {
                     borderColor: alpha(theme.palette.primary.main, 0.3),
                     color: theme.palette.primary.main,
                     fontWeight: 600,
+                    minHeight: { xs: 32, sm: 28 }, // Touch-friendly on mobile
                   }}
                 />
                 <Chip
@@ -223,6 +229,7 @@ export function LoginPage() {
                     borderColor: alpha(theme.palette.success.main, 0.3),
                     color: theme.palette.success.main,
                     fontWeight: 600,
+                    minHeight: { xs: 32, sm: 28 }, // Touch-friendly on mobile
                   }}
                 />
               </Stack>
@@ -253,9 +260,9 @@ export function LoginPage() {
             </Box>
 
             {/* Login Form Section */}
-            <Box sx={{ p: 4 }}>
+            <Box sx={{ p: { xs: 3, sm: 4 } }}>
               <form onSubmit={handleSubmit(onSubmit)} noValidate>
-                <Stack spacing={3}>
+                <Stack spacing={{ xs: 2.5, sm: 3 }}>
                   {/* Email Field */}
                   <Box>
                     <TextField
@@ -487,7 +494,7 @@ export function LoginPage() {
                 <Stack direction="row" spacing={2} justifyContent="center">
                   <Chip
                     icon={<SecurityIcon />}
-                    label="HIPAA Compliant"
+                    label="GDPR Compliant"
                     size="small"
                     variant="outlined"
                     sx={{
@@ -510,7 +517,7 @@ export function LoginPage() {
                 </Stack>
                 
                 <Typography variant="caption" color="text.secondary">
-                  CareTrack Pro © 2024 | Professional Healthcare Management
+                  © 2023 Joshs care company Ltd. All rights reserved.
                 </Typography>
               </Stack>
             </Box>

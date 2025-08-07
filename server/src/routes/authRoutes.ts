@@ -3,6 +3,7 @@ import { body } from 'express-validator'
 import { AuthController } from '../controllers/AuthController'
 import { validateRequest } from '../middleware/validateRequest'
 import { requireAuth } from '../middleware/auth'
+import { requireFastAuth } from '../middleware/fastAuth'
 
 const router = Router()
 const authController = new AuthController()
@@ -26,8 +27,8 @@ router.post(
 // Logout
 router.post('/logout', requireAuth, authController.logout)
 
-// Verify token
-router.get('/verify', requireAuth, authController.verifyToken)
+// Verify token - use fast auth for performance-critical endpoint
+router.get('/verify', requireFastAuth, authController.verifyToken)
 
 // Forgot password
 router.post('/forgot-password', authController.forgotPassword)

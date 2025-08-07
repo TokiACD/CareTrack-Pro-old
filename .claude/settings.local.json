@@ -1,19 +1,7 @@
 {
   "permissions": {
     "allow": [
-      "mcp__ruv-swarm",
-      "mcp__claude-flow",
-      "Bash(npx tsc:*)",
-      "mcp__ide__getDiagnostics",
-      "Bash(npm run type-check:*)",
-      "Bash(npm run build:*)",
-      "Bash(find:*)",
-      "Bash(npx cloc:*)",
-      "Bash(mkdir:*)",
-      "Bash(copy:*)",
-      "Bash(cp:*)",
-      "Bash(git add:*)",
-      "Bash(grep:*)"
+      "Bash(npm install:*)"
     ],
     "deny": []
   }

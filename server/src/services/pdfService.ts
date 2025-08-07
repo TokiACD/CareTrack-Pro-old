@@ -8,7 +8,6 @@ interface CarerPDFData {
     id: string
     name: string
     email: string
-    phone: string
     createdAt: Date
   }
   packageAssignments: Array<{
@@ -175,7 +174,6 @@ export class PDFService {
         id: carer.id,
         name: carer.name,
         email: carer.email,
-        phone: carer.phone,
         createdAt: carer.createdAt
       },
       packageAssignments: carer.packageAssignments.map(assignment => ({
@@ -270,10 +268,7 @@ export class PDFService {
     doc.fillColor('#000000').text(`  ${carer.email}`)
     doc.moveDown(0.3)
     
-    // Phone
-    doc.fillColor('#34495e').text('Phone:', { continued: true })
-    doc.fillColor('#000000').text(`  ${carer.phone}`)
-    doc.moveDown(2)
+    doc.moveDown(1)
   }
 
   private addProgressSummary(doc: PDFKit.PDFDocument, taskProgress: CarerPDFData['taskProgress']): void {

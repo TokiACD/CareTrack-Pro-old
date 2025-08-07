@@ -58,11 +58,7 @@ router.post(
     body('name')
       .isString()
       .isLength({ min: 2, max: 100 })
-      .withMessage('Name must be between 2 and 100 characters'),
-    body('phone')
-      .optional()
-      .isString()
-      .withMessage('Phone must be a string')
+      .withMessage('Name must be between 2 and 100 characters')
   ],
   validateRequest,
   carerController.createCarer
@@ -85,10 +81,6 @@ router.patch(
       .isString()
       .isLength({ min: 2, max: 100 })
       .withMessage('Name must be between 2 and 100 characters'),
-    body('phone')
-      .optional()
-      .isString()
-      .withMessage('Phone must be a string'),
     body('isActive')
       .optional()
       .isBoolean()

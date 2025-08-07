@@ -40,7 +40,26 @@ interface CarerProgressSummary extends Carer {
   lastActivity?: Date;
 }
 
-const ProgressCard: React.FC = () => {
+interface CarerReadyForAssessment {
+  id: string;
+  name: string;
+  email: string;
+  isActive: boolean;
+  readyTasks: Array<{
+    taskId: string;
+    taskName: string;
+    packageId: string;
+    packageName: string;
+    packagePostcode: string;
+    completedAt: Date;
+  }>;
+}
+
+interface ProgressCardProps {
+  filterReadyForAssessment?: boolean;
+}
+
+const ProgressCard: React.FC<ProgressCardProps> = ({ filterReadyForAssessment = false }) => {
   const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState('');
   
@@ -74,18 +93,44 @@ const ProgressCard: React.FC = () => {
       // Extract data from the response structure
       const result = (response as any)?.data || response;
       return result;
-    }
+    },
+    enabled: !filterReadyForAssessment
   });
 
-  // Filter carers based on search
+  // Fetch carers ready for assessment when filter is active
+  const {
+    data: carersReadyData,
+    isLoading: carersReadyLoading,
+    error: carersReadyError
+  } = useQuery({
+    queryKey: ['progress', 'carers-ready-for-assessment', searchTerm],
+    queryFn: async () => {
+      const response = await apiService.get('/api/progress/ready-for-assessment');
+      return response.data;
+    },
+    enabled: filterReadyForAssessment
+  });
+
+  // Filter carers based on search and current mode
   const filteredCarers = useMemo(() => {
-    if (!carersData) {
-      return [];
+    if (filterReadyForAssessment) {
+      if (!carersReadyData) return [];
+      const readyCarers = Array.isArray(carersReadyData) ? carersReadyData : [];
+      return readyCarers.filter((carer: CarerReadyForAssessment) =>
+        !searchTerm || 
+        carer.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        carer.email.toLowerCase().includes(searchTerm.toLowerCase())
+      );
+    } else {
+      if (!carersData) return [];
+      const allCarers = Array.isArray(carersData) ? carersData : [];
+      return allCarers;
     }
-    
-    const result = Array.isArray(carersData) ? carersData : [];
-    return result;
-  }, [carersData]);
+  }, [carersData, carersReadyData, filterReadyForAssessment, searchTerm]);
+
+  // Get current loading and error states based on active mode
+  const isLoading = filterReadyForAssessment ? carersReadyLoading : carersLoading;
+  const error = filterReadyForAssessment ? carersReadyError : carersError;
 
   const handleViewCarerProgress = (carer: CarerProgressSummary) => {
     navigate(`/progress/carer/${carer.id}`);
@@ -109,10 +154,16 @@ const ProgressCard: React.FC = () => {
         title={
           <Box display="flex" alignItems="center" gap={1}>
             <ProgressIcon />
-            <Typography variant="h6">Progress Tracking</Typography>
+            <Typography variant="h6">
+              {filterReadyForAssessment ? 'Carers Ready for Assessment' : 'Progress Tracking'}
+            </Typography>
           </Box>
         }
-        subheader="Monitor individual carer progress and competency assessments"
+        subheader={
+          filterReadyForAssessment 
+            ? "Carers who have completed tasks (100%) and need competency assessment"
+            : "Monitor individual carer progress and competency assessments"
+        }
       />
       
       <CardContent>
@@ -136,34 +187,53 @@ const ProgressCard: React.FC = () => {
 
         {/* Summary Stats */}
         <Box display="flex" gap={2} mb={3}>
-          <Chip
-            icon={<PersonIcon />}
-            label={`${filteredCarers.length} Active Carers`}
-            color="primary"
-            variant="outlined"
-          />
-          <Chip
-            icon={<AssessmentIcon />}
-            label={`${filteredCarers.filter(c => c.needsAssessment).length} Need Assessment`}
-            color={filteredCarers.filter(c => c.needsAssessment).length > 0 ? 'warning' : 'success'}
-            variant="outlined"
-          />
-          <Chip
-            icon={<PackageIcon />}
-            label={`${filteredCarers.reduce((acc, c) => acc + c.packageCount, 0)} Package Assignments`}
-            color="info"
-            variant="outlined"
-          />
+          {filterReadyForAssessment ? (
+            <>
+              <Chip
+                icon={<AssessmentIcon />}
+                label={`${filteredCarers.length} Ready for Assessment`}
+                color="warning"
+                variant="outlined"
+              />
+              <Chip
+                icon={<PackageIcon />}
+                label={`${filteredCarers.reduce((acc, c) => acc + (c as CarerReadyForAssessment).readyTasks.length, 0)} Completed Tasks`}
+                color="success"
+                variant="outlined"
+              />
+            </>
+          ) : (
+            <>
+              <Chip
+                icon={<PersonIcon />}
+                label={`${filteredCarers.length} Active Carers`}
+                color="primary"
+                variant="outlined"
+              />
+              <Chip
+                icon={<AssessmentIcon />}
+                label={`${filteredCarers.filter((c: CarerProgressSummary) => c.needsAssessment).length} Need Assessment`}
+                color={filteredCarers.filter((c: CarerProgressSummary) => c.needsAssessment).length > 0 ? 'warning' : 'success'}
+                variant="outlined"
+              />
+              <Chip
+                icon={<PackageIcon />}
+                label={`${filteredCarers.reduce((acc, c) => acc + (c as CarerProgressSummary).packageCount, 0)} Package Assignments`}
+                color="info"
+                variant="outlined"
+              />
+            </>
+          )}
         </Box>
 
         {/* Progress Table */}
-        {carersLoading ? (
+        {isLoading ? (
           <Box display="flex" justifyContent="center" p={3}>
             <CircularProgress />
           </Box>
-        ) : carersError ? (
+        ) : error ? (
           <Alert severity="error">
-            Failed to load carer progress data: {String(carersError)}. Please try again.
+            Failed to load carer data: {String(error)}. Please try again.
           </Alert>
         ) : (
           <TableContainer component={Paper} variant="outlined">
@@ -171,10 +241,20 @@ const ProgressCard: React.FC = () => {
               <TableHead>
                 <TableRow>
                   <TableCell>Carer</TableCell>
-                  <TableCell align="center">Packages</TableCell>
-                  <TableCell align="center">Overall Progress</TableCell>
-                  <TableCell align="center">Assessment Status</TableCell>
-                  <TableCell align="center">Last Activity</TableCell>
+                  {filterReadyForAssessment ? (
+                    <>
+                      <TableCell align="center">Ready Tasks</TableCell>
+                      <TableCell align="center">Packages</TableCell>
+                      <TableCell align="center">Completed</TableCell>
+                    </>
+                  ) : (
+                    <>
+                      <TableCell align="center">Packages</TableCell>
+                      <TableCell align="center">Overall Progress</TableCell>
+                      <TableCell align="center">Assessment Status</TableCell>
+                      <TableCell align="center">Last Activity</TableCell>
+                    </>
+                  )}
                   <TableCell align="right">Actions</TableCell>
                 </TableRow>
               </TableHead>
@@ -187,6 +267,55 @@ const ProgressCard: React.FC = () => {
                       </Typography>
                     </TableCell>
                   </TableRow>
+                ) : filterReadyForAssessment ? (
+                  filteredCarers.map((carer: CarerReadyForAssessment) => (
+                    <TableRow
+                      key={carer.id}
+                      sx={{ '&:hover': { bgcolor: 'action.hover' } }}
+                    >
+                      <TableCell>
+                        <Box>
+                          <Typography variant="body2" fontWeight="medium">
+                            {carer.name}
+                          </Typography>
+                          <Typography variant="caption" color="text.secondary">
+                            {carer.email}
+                          </Typography>
+                        </Box>
+                      </TableCell>
+                      <TableCell align="center">
+                        <Chip
+                          label={carer.readyTasks.length}
+                          size="small"
+                          color="warning"
+                          variant="filled"
+                        />
+                      </TableCell>
+                      <TableCell align="center">
+                        <Typography variant="body2">
+                          {[...new Set(carer.readyTasks.map(t => t.packageName))].join(', ')}
+                        </Typography>
+                      </TableCell>
+                      <TableCell align="center">
+                        <Chip
+                          label="100% Complete"
+                          size="small"
+                          color="success"
+                          variant="outlined"
+                        />
+                      </TableCell>
+                      <TableCell align="right">
+                        <Button
+                          variant="outlined"
+                          size="small"
+                          onClick={() => navigate(`/progress/carer/${carer.id}`)}
+                          startIcon={<AssessmentIcon />}
+                        >
+                          View Details
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))
                 ) : (
                   filteredCarers.map((carer: CarerProgressSummary) => (
                     <TableRow

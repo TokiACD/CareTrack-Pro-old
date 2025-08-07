@@ -49,6 +49,7 @@ import { apiService } from '../services/api'
 import { API_ENDPOINTS, Task } from '@caretrack/shared'
 import { useAuth } from '../contexts/AuthContext'
 import { useSmartMutation } from '../hooks/useSmartMutation'
+import ConfirmationDialog from '../components/common/ConfirmationDialog'
 
 interface TaskFormData {
   name: string
@@ -64,9 +65,14 @@ const TasksPage: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('')
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editingTask, setEditingTask] = useState<Task | null>(null)
-  const [usageDialogOpen, setUsageDialogOpen] = useState(false)
   const [selectedTask, setSelectedTask] = useState<Task | null>(null)
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null)
+  const [confirmationDialog, setConfirmationDialog] = useState({
+    open: false,
+    title: '',
+    message: '',
+    onConfirm: () => {}
+  })
   
   const [formData, setFormData] = useState<TaskFormData>({
     name: '',
@@ -109,16 +115,6 @@ const TasksPage: React.FC = () => {
     }
   })
 
-  // Fetch task usage
-  const { data: taskUsage } = useQuery<{ data: { packageCount: number; assessmentCount: number; competencyRatingCount: number; progressRecordCount: number } } | null>({
-    queryKey: ['task-usage', selectedTask?.id],
-    queryFn: async () => {
-      if (!selectedTask?.id) return null
-      const response = await apiService.get(`${API_ENDPOINTS.TASKS.LIST}/${selectedTask.id}/usage`)
-      return response as { data: { packageCount: number; assessmentCount: number; competencyRatingCount: number; progressRecordCount: number } }
-    },
-    enabled: !!selectedTask?.id && usageDialogOpen
-  })
 
   // Create task mutation
   const createTaskMutation = useSmartMutation<any, Error, TaskFormData>(
@@ -243,15 +239,19 @@ const TasksPage: React.FC = () => {
 
   const handleDelete = () => {
     if (selectedTask) {
-      deleteTaskMutation.mutate(selectedTask.id)
+      setConfirmationDialog({
+        open: true,
+        title: 'Delete Task',
+        message: `Are you sure you want to delete the task "${selectedTask.name}"?`,
+        onConfirm: () => {
+          deleteTaskMutation.mutate(selectedTask.id)
+          setConfirmationDialog(prev => ({ ...prev, open: false }))
+        }
+      })
     }
   }
 
 
-  const handleShowUsage = () => {
-    setUsageDialogOpen(true)
-    handleMenuClose()
-  }
 
   // Filter tasks
   const filteredTasks = useMemo(() => {
@@ -482,50 +482,6 @@ const TasksPage: React.FC = () => {
         </DialogActions>
       </Dialog>
 
-      {/* Task Usage Dialog */}
-      <Dialog open={usageDialogOpen} onClose={() => setUsageDialogOpen(false)} maxWidth="md" fullWidth>
-        <DialogTitle>
-          Task Usage: {selectedTask?.name}
-        </DialogTitle>
-        <DialogContent>
-          {taskUsage && (
-            <Box sx={{ pt: 1 }}>
-              <Typography variant="h6" gutterBottom>
-                Usage Summary
-              </Typography>
-              <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 2, mb: 3 }}>
-                <Box sx={{ textAlign: 'center', p: 2, bgcolor: 'action.hover', borderRadius: 1 }}>
-                  <Typography variant="h4" color="primary">
-                    {taskUsage?.data?.packageCount || 0}
-                  </Typography>
-                  <Typography variant="body2">Packages</Typography>
-                </Box>
-                <Box sx={{ textAlign: 'center', p: 2, bgcolor: 'action.hover', borderRadius: 1 }}>
-                  <Typography variant="h4" color="primary">
-                    {taskUsage?.data?.assessmentCount || 0}
-                  </Typography>
-                  <Typography variant="body2">Assessments</Typography>
-                </Box>
-                <Box sx={{ textAlign: 'center', p: 2, bgcolor: 'action.hover', borderRadius: 1 }}>
-                  <Typography variant="h4" color="primary">
-                    {taskUsage?.data?.competencyRatingCount || 0}
-                  </Typography>
-                  <Typography variant="body2">Competency Ratings</Typography>
-                </Box>
-                <Box sx={{ textAlign: 'center', p: 2, bgcolor: 'action.hover', borderRadius: 1 }}>
-                  <Typography variant="h4" color="primary">
-                    {taskUsage?.data?.progressRecordCount || 0}
-                  </Typography>
-                  <Typography variant="body2">Progress Records</Typography>
-                </Box>
-              </Box>
-            </Box>
-          )}
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setUsageDialogOpen(false)}>Close</Button>
-        </DialogActions>
-      </Dialog>
 
       {/* Context Menu */}
       <Menu
@@ -539,10 +495,6 @@ const TasksPage: React.FC = () => {
             Edit
           </MenuItem>
         )}
-        <MenuItem onClick={handleShowUsage}>
-          <InfoIcon sx={{ mr: 1 }} fontSize="small" />
-          View Usage
-        </MenuItem>
         {selectedTask && !selectedTask.deletedAt && (
           <MenuItem onClick={handleDelete} sx={{ color: 'error.main' }}>
             <DeleteIcon sx={{ mr: 1 }} fontSize="small" />
@@ -550,6 +502,20 @@ const TasksPage: React.FC = () => {
           </MenuItem>
         )}
       </Menu>
+
+      {/* Confirmation Dialog */}
+      <ConfirmationDialog
+        open={confirmationDialog.open}
+        onClose={() => setConfirmationDialog(prev => ({ ...prev, open: false }))}
+        onConfirm={confirmationDialog.onConfirm}
+        title={confirmationDialog.title}
+        message={confirmationDialog.message}
+        confirmText="Delete"
+        cancelText="Cancel"
+        severity="error"
+        isLoading={deleteTaskMutation.isPending}
+        details="This action cannot be undone. The task will be moved to the recycle bin."
+      />
 
       {/* Notification Snackbar */}
       <Snackbar

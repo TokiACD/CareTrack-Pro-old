@@ -13,10 +13,45 @@ export interface RuleViolation {
   additionalInfo?: Record<string, any>
 }
 
+export interface SchedulingIntelligence {
+  suggestions: SchedulingSuggestion[]
+  alternatives: AlternativeShift[]
+  riskFactors: RiskFactor[]
+  optimizationScore: number
+}
+
+export interface SchedulingSuggestion {
+  type: 'time_adjustment' | 'carer_alternative' | 'shift_split' | 'competency_pairing' | 'workload_balance'
+  priority: 'high' | 'medium' | 'low'
+  message: string
+  actionable: boolean
+  data?: Record<string, any>
+}
+
+export interface AlternativeShift {
+  carerId: string
+  carerName: string
+  date: Date
+  shiftType: ShiftType
+  startTime: string
+  endTime: string
+  confidence: number
+  reason: string
+}
+
+export interface RiskFactor {
+  type: 'burnout' | 'competency_gap' | 'coverage_shortage' | 'compliance'
+  severity: 'low' | 'medium' | 'high' | 'critical'
+  description: string
+  affectedCarers?: string[]
+  recommendation: string
+}
+
 export interface ScheduleValidationResult {
   isValid: boolean
   violations: RuleViolation[]
   warnings: RuleViolation[]
+  intelligence?: SchedulingIntelligence
 }
 
 export interface WeeklySchedule {
@@ -139,7 +174,17 @@ export class SchedulingRulesEngine {
         }
       },
       include: {
-        carer: true,
+        carer: {
+          select: {
+            id: true,
+            email: true,
+            name: true,
+            isActive: true,
+            createdAt: true,
+            updatedAt: true,
+            deletedAt: true
+          }
+        },
         package: true
       }
     })
@@ -649,7 +694,17 @@ export class SchedulingRulesEngine {
     return await prisma.rotaEntry.findMany({
       where: { packageId },
       include: {
-        carer: true,
+        carer: {
+          select: {
+            id: true,
+            email: true,
+            name: true,
+            isActive: true,
+            createdAt: true,
+            updatedAt: true,
+            deletedAt: true
+          }
+        },
         package: true
       }
     }) as RotaEntry[]

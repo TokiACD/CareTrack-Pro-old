@@ -55,6 +55,9 @@ import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { apiService } from '../services/api';
 import { useNotification } from '../contexts/NotificationContext';
 import { API_ENDPOINTS } from '@caretrack/shared';
+import { BreadcrumbNavigation, useBreadcrumbItems } from '../components/common/BreadcrumbNavigation';
+import { StepperNavigation, useStepper, StepData, StepAction } from '../components/common/navigation/StepperNavigation';
+import { STEPPER_CONSTANTS } from '../constants/ui';
 
 interface LocationState {
   shiftType: 'NON_COMPETENT' | 'COMPETENT';
@@ -110,19 +113,44 @@ interface ShiftFormData {
   expiresAt: Date | null;
 }
 
-const steps = ['Shift Details', 'Requirements', 'Create Shift', 'Available Carers'];
+const MAX_STEPS = 4;
+
+const stepperSteps: StepData[] = [
+  {
+    id: 'details',
+    label: 'Shift Details',
+    description: 'Set up basic shift information'
+  },
+  {
+    id: 'requirements',
+    label: 'Requirements',
+    description: 'Define competency requirements'
+  },
+  {
+    id: 'create',
+    label: 'Create Shift',
+    description: 'Review and create the shift'
+  },
+  {
+    id: 'send',
+    label: 'Send to Carers',
+    description: 'Send shift to available carers'
+  }
+];
 
 const ShiftCreationPage: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { showSuccess, showError } = useNotification();
   const queryClient = useQueryClient();
+  const breadcrumbItems = useBreadcrumbItems();
   
   const locationState = location.state as LocationState;
   const isCompetentOnly = locationState?.isCompetentOnly || false;
   const shiftType = locationState?.shiftType || 'NON_COMPETENT';
 
-  const [activeStep, setActiveStep] = useState(0);
+  const stepperState = useStepper(0, MAX_STEPS);
+  const { activeStep } = stepperState;
   const [availabilityPreviewOpen, setAvailabilityPreviewOpen] = useState(false);
   const [selectedCarers, setSelectedCarers] = useState<string[]>([]);
   
@@ -193,7 +221,7 @@ const ShiftCreationPage: React.FC = () => {
     },
     onSuccess: (data) => {
       showSuccess('Shift created successfully');
-      setActiveStep(3);
+      stepperState.handleStep(3);
     },
     onError: (error: any) => {
       showError(error?.response?.data?.error || 'Failed to create shift');
@@ -244,7 +272,7 @@ const ShiftCreationPage: React.FC = () => {
       };
       createShiftMutation.mutate(shiftData);
     } else {
-      setActiveStep(activeStep + 1);
+      stepperState.handleNext();
     }
   };
 
@@ -252,7 +280,7 @@ const ShiftCreationPage: React.FC = () => {
     if (activeStep === 0) {
       navigate('/dashboard');
     } else {
-      setActiveStep(activeStep - 1);
+      stepperState.handleBack();
     }
   };
 
@@ -572,41 +600,17 @@ const ShiftCreationPage: React.FC = () => {
   return (
     <LocalizationProvider dateAdapter={AdapterDateFns}>
       <Container maxWidth="lg" sx={{ py: 4 }}>
+        {/* Breadcrumb Navigation */}
+        <BreadcrumbNavigation 
+          items={[
+            breadcrumbItems.shiftSender(),
+            breadcrumbItems.createShift(shiftType === 'COMPETENT' ? 'Competent' : 'Non-Competent')
+          ]}
+          sx={{ mb: 3 }}
+        />
+
         {/* Header */}
         <Box sx={{ mb: 4 }}>
-          <Breadcrumbs sx={{ mb: 2 }}>
-            <Link
-              component="button"
-              variant="body1"
-              onClick={() => navigate('/dashboard')}
-              sx={{ 
-                display: 'flex', 
-                alignItems: 'center', 
-                gap: 0.5,
-                textDecoration: 'none',
-                color: 'text.secondary',
-                '&:hover': { color: 'primary.main' }
-              }}
-            >
-              <HomeIcon fontSize="small" />
-              Dashboard
-            </Link>
-            <Link
-              component="button"
-              variant="body1"
-              onClick={() => navigate('/dashboard')}
-              sx={{ 
-                textDecoration: 'none',
-                color: 'text.secondary',
-                '&:hover': { color: 'primary.main' }
-              }}
-            >
-              Shift Sender
-            </Link>
-            <Typography color="text.primary">
-              Create {shiftType === 'COMPETENT' ? 'Competent' : 'Non-Competent'} Shift
-            </Typography>
-          </Breadcrumbs>
 
           <Box display="flex" alignItems="center" gap={2}>
             <Button
@@ -620,52 +624,37 @@ const ShiftCreationPage: React.FC = () => {
           </Box>
         </Box>
 
-        {/* Stepper */}
+        {/* Main Content */}
         <Card>
           <CardHeader 
             title="Create Shift"
-            subheader={`Step ${activeStep + 1} of ${steps.length}: ${steps[activeStep]}`}
+            subheader={`Step ${activeStep + 1} of ${MAX_STEPS}: ${stepperSteps[activeStep]?.label}`}
           />
           <CardContent>
             <Stepper activeStep={activeStep} orientation="vertical">
-              {steps.map((label, index) => (
-                <Step key={label}>
-                  <StepLabel 
-                    onClick={() => {
-                      // Allow clicking on previous steps or current step
-                      if (index <= activeStep) {
-                        setActiveStep(index);
-                      }
-                    }}
-                    sx={{ 
-                      cursor: index <= activeStep ? 'pointer' : 'default',
-                      '&:hover': index <= activeStep ? { backgroundColor: 'action.hover' } : {}
-                    }}
-                  >
-                    {label}
-                  </StepLabel>
+              {stepperSteps.map((step, index) => (
+                <Step key={step.id}>
+                  <StepLabel>{step.label}</StepLabel>
                   <StepContent>
-                    {renderStepContent(index)}
-                    
-                    <Box sx={{ mb: 2, mt: 3 }}>
+                    <Box sx={{ mb: 2 }}>
+                      {renderStepContent(index)}
+                    </Box>
+                    <Box sx={{ mb: 2 }}>
                       <Button
                         variant="contained"
                         onClick={handleNext}
+                        sx={{ mt: 1, mr: 1 }}
                         disabled={!isStepValid(index) || createShiftMutation.isPending}
-                        startIcon={index === 2 ? <ScheduleIcon /> : undefined}
                       >
-                        {index === steps.length - 1 
-                          ? 'Send Shift' 
-                          : index === 2 
-                            ? 'Create Shift' 
-                            : 'Continue'}
+                        {index === stepperSteps.length - 1 ? 'Finish' : 'Continue'}
                       </Button>
-                      
-                      {index > 0 && (
-                        <Button onClick={handleBack} sx={{ ml: 1 }}>
-                          Back
-                        </Button>
-                      )}
+                      <Button
+                        disabled={index === 0}
+                        onClick={handleBack}
+                        sx={{ mt: 1, mr: 1 }}
+                      >
+                        Back
+                      </Button>
                     </Box>
                   </StepContent>
                 </Step>
@@ -674,51 +663,6 @@ const ShiftCreationPage: React.FC = () => {
           </CardContent>
         </Card>
 
-        {/* Availability Preview Dialog */}
-        <Dialog
-          open={availabilityPreviewOpen}
-          onClose={() => setAvailabilityPreviewOpen(false)}
-          maxWidth="md"
-          fullWidth
-        >
-          <DialogTitle>Carer Availability Preview</DialogTitle>
-          <DialogContent>
-            <List>
-              {availability?.availableCarers?.map((carer: AvailabilityCarer) => (
-                <ListItem key={carer.id} divider>
-                  <ListItemIcon>
-                    {carer.availability.isAvailable ? (
-                      <CheckCircleIcon color="success" />
-                    ) : (
-                      <WarningIcon color="warning" />
-                    )}
-                  </ListItemIcon>
-                  <ListItemText
-                    primary={carer.name}
-                    secondary={
-                      <Box>
-                        <Typography variant="body2">{carer.email}</Typography>
-                        {!carer.availability.isAvailable && carer.availability.conflicts.map((conflict, idx) => (
-                          <Typography key={idx} variant="caption" color="error" display="block">
-                            {conflict.message}
-                          </Typography>
-                        ))}
-                        {carer.availability.competencyMatch && !carer.availability.competencyMatch.isCompetent && (
-                          <Typography variant="caption" color="warning" display="block">
-                            Missing: {carer.availability.competencyMatch.missingCompetencies.join(', ')}
-                          </Typography>
-                        )}
-                      </Box>
-                    }
-                  />
-                </ListItem>
-              ))}
-            </List>
-          </DialogContent>
-          <DialogActions>
-            <Button onClick={() => setAvailabilityPreviewOpen(false)}>Close</Button>
-          </DialogActions>
-        </Dialog>
       </Container>
     </LocalizationProvider>
   );

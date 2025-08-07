@@ -6,7 +6,6 @@ interface CarerProgressSummary {
   id: string;
   name: string;
   email: string;
-  phone: string;
   isActive: boolean;
   packageCount: number;
   overallProgress: number;
@@ -50,7 +49,7 @@ interface CompetencyRatingDetail {
 }
 
 export class ProgressController {
-  // Get all carers with progress summaries
+  // Get all carers with progress summaries (OPTIMIZED - NO N+1 QUERIES)
   async getCarerProgressSummaries(req: Request, res: Response, next: NextFunction) {
     try {
       const { search } = req.query;
@@ -69,68 +68,69 @@ export class ProgressController {
         ];
       }
 
-      // Simple query - just get carers first
+      // OPTIMIZED: Single query to get all carers with related data
       const carers = await prisma.carer.findMany({
         where: whereClause,
+        include: {
+          packageAssignments: {
+            where: { isActive: true },
+            select: { id: true } // Only count, don't need full data
+          },
+          taskProgress: {
+            select: {
+              completionPercentage: true,
+              taskId: true,
+              lastUpdated: true
+            },
+            orderBy: { lastUpdated: 'desc' }
+          },
+          competencyRatings: {
+            select: { taskId: true } // Only need task IDs for checking
+          }
+        },
         orderBy: { name: 'asc' }
       });
 
-      const progressSummaries: CarerProgressSummary[] = await Promise.all(
-        carers.map(async (carer) => {
-          // Get package count
-          const packageCount = await prisma.carerPackageAssignment.count({
-            where: { carerId: carer.id, isActive: true }
-          });
-          
-          // Get task progress
-          const taskProgress = await prisma.taskProgress.findMany({
-            where: { carerId: carer.id }
-          });
+      // OPTIMIZED: Process all data in memory instead of additional queries
+      const progressSummaries: CarerProgressSummary[] = carers.map((carer) => {
+        const packageCount = carer.packageAssignments.length;
+        const taskProgress = carer.taskProgress;
+        const competencyTaskIds = new Set(carer.competencyRatings.map(c => c.taskId));
 
-          // Calculate overall progress
-          let totalProgress = 0;
-          let taskCount = taskProgress.length;
-          
-          for (const progress of taskProgress) {
-            totalProgress += progress.completionPercentage;
+        // Calculate overall progress
+        let totalProgress = 0;
+        let taskCount = taskProgress.length;
+        
+        for (const progress of taskProgress) {
+          totalProgress += progress.completionPercentage;
+        }
+
+        const overallProgress = taskCount > 0 ? totalProgress / taskCount : 0;
+
+        // Check if needs assessment (>90% completion with no competency)
+        let needsAssessment = false;
+        for (const progress of taskProgress) {
+          if (progress.completionPercentage >= 90 && !competencyTaskIds.has(progress.taskId)) {
+            needsAssessment = true;
+            break;
           }
+        }
 
-          const overallProgress = taskCount > 0 ? totalProgress / taskCount : 0;
+        // Get last activity date (already ordered by lastUpdated desc)
+        const lastActivity = taskProgress.length > 0 ? taskProgress[0].lastUpdated : undefined;
 
-          // Check if needs assessment (>90% completion with no competency)
-          let needsAssessment = false;
-          for (const progress of taskProgress) {
-            if (progress.completionPercentage >= 90) {
-              const hasCompetency = await prisma.competencyRating.findFirst({
-                where: { carerId: carer.id, taskId: progress.taskId }
-              });
-              if (!hasCompetency) {
-                needsAssessment = true;
-                break;
-              }
-            }
-          }
-
-          // Get last activity date
-          const lastProgressUpdate = await prisma.taskProgress.findFirst({
-            where: { carerId: carer.id },
-            orderBy: { lastUpdated: 'desc' },
-            select: { lastUpdated: true }
-          });
-
-          return {
-            id: carer.id,
-            name: carer.name,
-            email: carer.email,
-            phone: carer.phone,
-            isActive: carer.isActive,
-            packageCount,
-            overallProgress: Math.round(overallProgress),
-            needsAssessment,
-            lastActivity: lastProgressUpdate?.lastUpdated
-          };
-        })
-      );
+        return {
+          id: carer.id,
+          name: carer.name,
+          email: carer.email,
+          // phone field removed - not in schema
+          isActive: carer.isActive,
+          packageCount,
+          overallProgress: Math.round(overallProgress),
+          needsAssessment,
+          lastActivity
+        };
+      });
 
       res.json({
         success: true,
@@ -141,68 +141,79 @@ export class ProgressController {
     }
   }
 
-  // Get detailed progress for a specific carer
+  // Get detailed progress for a specific carer (OPTIMIZED - SINGLE COMPLEX QUERY)
   async getCarerDetailedProgress(req: Request, res: Response, next: NextFunction) {
     try {
       const { carerId } = req.params;
 
-      // Simple query - just get the carer first
-      const carer = await prisma.carer.findUnique({
-        where: { id: carerId, deletedAt: null }
+      // OPTIMIZED: Single comprehensive query with all related data
+      const carerData = await prisma.carer.findUnique({
+        where: { id: carerId, deletedAt: null },
+        include: {
+          packageAssignments: {
+            where: { isActive: true },
+            include: {
+              package: {
+                select: { id: true, name: true, postcode: true },
+                include: {
+                  taskAssignments: {
+                    where: { isActive: true },
+                    include: {
+                      task: {
+                        select: { id: true, name: true, targetCount: true }
+                      }
+                    },
+                    orderBy: { assignedAt: 'desc' }
+                  }
+                }
+              }
+            },
+            orderBy: { assignedAt: 'desc' }
+          },
+          taskProgress: true,
+          competencyRatings: {
+            include: {
+              task: {
+                select: { id: true, name: true }
+              }
+            },
+            orderBy: { setAt: 'desc' }
+          }
+        }
       });
 
-      if (!carer) {
+      if (!carerData) {
         return res.status(404).json({
           success: false,
           error: 'Carer not found'
         });
       }
 
-      // Get package assignments
-      const packageAssignments = await prisma.carerPackageAssignment.findMany({
-        where: { carerId: carer.id, isActive: true },
-        include: {
-          package: {
-            select: { id: true, name: true, postcode: true }
-          }
-        },
-        orderBy: { assignedAt: 'desc' }
+      // Extract data from the comprehensive query result
+      const carer = {
+        id: carerData.id,
+        name: carerData.name,
+        email: carerData.email,
+        // phone field removed - not in schema
+        isActive: carerData.isActive
+      };
+
+      const packageAssignments = carerData.packageAssignments;
+      const taskProgressData = carerData.taskProgress;
+      const competencyRatings = carerData.competencyRatings;
+
+      // Get all unique task IDs for assessment lookup
+      const allTaskIds = new Set<string>();
+      packageAssignments.forEach(assignment => {
+        assignment.package.taskAssignments.forEach(taskAssignment => {
+          allTaskIds.add(taskAssignment.taskId);
+        });
       });
 
-      // Get ALL task assignments for this carer's packages (this shows all assigned tasks)
-      const packageTaskAssignments = await prisma.packageTaskAssignment.findMany({
-        where: {
-          packageId: { in: packageAssignments.map(pa => pa.packageId) },
-          isActive: true
-        },
-        include: {
-          task: {
-            select: { id: true, name: true, targetCount: true }
-          }
-        },
-        orderBy: { assignedAt: 'desc' }
-      });
-
-      // Get actual task progress data (this may be empty for some tasks)
-      const taskProgressData = await prisma.taskProgress.findMany({
-        where: { carerId: carer.id }
-      });
-
-      // Get competency ratings
-      const competencyRatings = await prisma.competencyRating.findMany({
-        where: { carerId: carer.id },
-        include: {
-          task: {
-            select: { id: true, name: true }
-          }
-        },
-        orderBy: { setAt: 'desc' }
-      });
-
-      // Get assessment information for tasks
+      // OPTIMIZED: Single query for assessment coverage
       const assessmentTaskCoverage = await prisma.assessmentTaskCoverage.findMany({
         where: {
-          taskId: { in: packageTaskAssignments.map(pta => pta.taskId) }
+          taskId: { in: Array.from(allTaskIds) }
         },
         include: {
           assessment: {
@@ -211,47 +222,42 @@ export class ProgressController {
         }
       });
 
-      // Group task progress by package
-      const packageProgressMap = new Map<string, CarerPackageProgress>();
-      
-      // Initialize packages
-      for (const assignment of packageAssignments) {
-        packageProgressMap.set(assignment.package.id, {
-          packageId: assignment.package.id,
-          packageName: assignment.package.name,
-          packagePostcode: assignment.package.postcode,
-          assignedAt: assignment.assignedAt,
-          tasks: [],
-          averageProgress: 0,
-          competencyRatings: []
-        });
-      }
+      // OPTIMIZED: Create lookup maps for O(1) access instead of O(n) searches
+      const taskProgressMap = new Map<string, any>();
+      const competencyMap = new Map<string, any>();
+      const assessmentMap = new Map<string, any>();
 
-      // Process ALL assigned tasks (not just those with progress)
-      for (const taskAssignment of packageTaskAssignments) {
-        const packageProgress = packageProgressMap.get(taskAssignment.packageId);
-        if (packageProgress) {
-          // Find actual progress data for this task (may not exist)
-          const progressData = taskProgressData.find(tp => 
-            tp.packageId === taskAssignment.packageId && tp.taskId === taskAssignment.taskId
-          );
-          
-          // Find competency rating for this task
-          const competency = competencyRatings.find(c => c.taskId === taskAssignment.taskId);
-          
-          // Find assessment information for this task
-          const taskAssessment = assessmentTaskCoverage.find(atc => atc.taskId === taskAssignment.taskId);
-          const assessment = taskAssessment?.assessment;
+      // Populate lookup maps
+      taskProgressData.forEach(tp => {
+        const key = `${tp.packageId}-${tp.taskId}`;
+        taskProgressMap.set(key, tp);
+      });
+
+      competencyRatings.forEach(c => {
+        competencyMap.set(c.taskId, c);
+      });
+
+      assessmentTaskCoverage.forEach(atc => {
+        assessmentMap.set(atc.taskId, atc.assessment);
+      });
+
+      // Group task progress by package using optimized data structure
+      const packageProgress: CarerPackageProgress[] = packageAssignments.map(assignment => {
+        const tasks: TaskProgressDetail[] = assignment.package.taskAssignments.map(taskAssignment => {
+          const progressKey = `${assignment.packageId}-${taskAssignment.taskId}`;
+          const progressData = taskProgressMap.get(progressKey);
+          const competency = competencyMap.get(taskAssignment.taskId);
+          const assessment = assessmentMap.get(taskAssignment.taskId);
           
           // Use actual progress data or defaults for unstarted tasks
           const completionCount = progressData?.completionCount || 0;
           const completionPercentage = progressData?.completionPercentage || 0;
-          const lastUpdated = progressData?.lastUpdated || taskAssignment.assignedAt;
+          const lastUpdated = progressData?.lastUpdated || assignment.assignedAt;
           
           // Check if can take assessment (when task is complete and part of an active assessment)
           const canTakeAssessment = completionPercentage >= 100 && !competency && Boolean(assessment?.isActive);
 
-          const taskDetail: TaskProgressDetail = {
+          return {
             taskId: taskAssignment.taskId,
             taskName: taskAssignment.task.name,
             targetCount: taskAssignment.task.targetCount,
@@ -264,24 +270,25 @@ export class ProgressController {
             assessmentId: assessment?.id || undefined,
             assessmentName: assessment?.name || undefined
           };
+        });
 
-          packageProgress.tasks.push(taskDetail);
-        }
-      }
-
-      // Calculate average progress for each package
-      const packageProgress: CarerPackageProgress[] = Array.from(packageProgressMap.values()).map(pkg => {
-        const averageProgress = pkg.tasks.length > 0 
-          ? pkg.tasks.reduce((sum, task) => sum + task.completionPercentage, 0) / pkg.tasks.length
+        // Calculate average progress
+        const averageProgress = tasks.length > 0 
+          ? Math.round(tasks.reduce((sum, task) => sum + task.completionPercentage, 0) / tasks.length)
           : 0;
-        
+
         return {
-          ...pkg,
-          averageProgress: Math.round(averageProgress)
+          packageId: assignment.package.id,
+          packageName: assignment.package.name,
+          packagePostcode: assignment.package.postcode,
+          assignedAt: assignment.assignedAt,
+          tasks,
+          averageProgress,
+          competencyRatings: [] // Will be populated below
         };
       });
 
-      // Build competency ratings summary
+      // Build competency ratings summary (already have the data from main query)
       const competencyRatingsSummary: CompetencyRatingDetail[] = competencyRatings.map(competency => ({
         taskId: competency.taskId,
         taskName: competency.task.name,
@@ -293,13 +300,7 @@ export class ProgressController {
       }));
 
       const detailedProgress = {
-        carer: {
-          id: carer.id,
-          name: carer.name,
-          email: carer.email,
-          phone: carer.phone,
-          isActive: carer.isActive
-        },
+        carer,
         packages: packageProgress,
         competencyRatings: competencyRatingsSummary
       };
@@ -309,7 +310,33 @@ export class ProgressController {
         data: detailedProgress
       });
     } catch (error) {
-      next(error);
+      console.error('Error in getCarerDetailedProgress:', {
+        carerId: req.params.carerId,
+        error: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : undefined
+      });
+      
+      // Provide more specific error messages
+      if (error instanceof Error) {
+        if (error.message.includes('Invalid UUID')) {
+          return res.status(400).json({
+            success: false,
+            error: 'Invalid carer ID format'
+          });
+        }
+        if (error.message.includes('connection')) {
+          return res.status(503).json({
+            success: false,
+            error: 'Database connection error. Please try again.'
+          });
+        }
+      }
+      
+      res.status(500).json({
+        success: false,
+        error: 'Internal server error while fetching carer progress',
+        details: process.env.NODE_ENV === 'development' ? error instanceof Error ? error.message : 'Unknown error' : undefined
+      });
     }
   }
 
@@ -663,6 +690,80 @@ export class ProgressController {
       });
 
     } catch (error) {
+      next(error);
+    }
+  }
+
+  // Get carers ready for assessment (100% completion on at least one task in a package)
+  async getCarersReadyForAssessment(req: Request, res: Response, next: NextFunction) {
+    try {
+      // Simplified approach - get carers with 100% task completion and their competency ratings
+      const carersWithProgress = await prisma.carer.findMany({
+        where: {
+          deletedAt: null,
+          isActive: true,
+          taskProgress: {
+            some: {
+              completionPercentage: 100
+            }
+          }
+        },
+        include: {
+          taskProgress: {
+            where: {
+              completionPercentage: 100
+            },
+            include: {
+              task: {
+                select: { id: true, name: true }
+              },
+              package: {
+                select: { id: true, name: true, postcode: true }
+              }
+            }
+          },
+          competencyRatings: {
+            select: { taskId: true }
+          }
+        },
+        orderBy: { name: 'asc' }
+      });
+
+      // Filter to only include carers who have completed tasks without competency ratings
+      const filteredCarers = carersWithProgress.filter(carer => {
+        const ratedTaskIds = new Set(carer.competencyRatings.map(r => r.taskId));
+        return carer.taskProgress.some(progress => 
+          progress.completionPercentage === 100 && !ratedTaskIds.has(progress.taskId)
+        );
+      }).map(carer => {
+        const ratedTaskIds = new Set(carer.competencyRatings.map(r => r.taskId));
+        const readyTasks = carer.taskProgress.filter(progress => 
+          progress.completionPercentage === 100 && !ratedTaskIds.has(progress.taskId)
+        );
+
+        return {
+          id: carer.id,
+          name: carer.name,
+          email: carer.email,
+          isActive: carer.isActive,
+          readyTasks: readyTasks.map(progress => ({
+            taskId: progress.taskId,
+            taskName: progress.task.name,
+            packageId: progress.packageId,
+            packageName: progress.package.name,
+            packagePostcode: progress.package.postcode,
+            completedAt: progress.lastUpdated
+          }))
+        };
+      });
+
+      res.json({
+        success: true,
+        data: filteredCarers,
+        count: filteredCarers.length
+      });
+    } catch (error) {
+      console.error('Error in getCarersReadyForAssessment:', error);
       next(error);
     }
   }

@@ -24,7 +24,7 @@ import { apiService } from '../services/api';
 import { isCarerProgressDetail, isAssessmentHistory } from '../utils/typeGuards';
 import { useNotification } from '../contexts/NotificationContext';
 import { useAuth } from '../contexts/AuthContext';
-import LoadingScreen from '../components/common/LoadingScreen';
+import { LoadingScreen } from '../components/common/LoadingScreen';
 import {
   ProgressPageHeader,
   ProgressSummaryCards,

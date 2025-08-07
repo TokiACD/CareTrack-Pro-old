@@ -24,9 +24,12 @@
       "@/middleware/*": ["src/middleware/*"],
       "@/routes/*": ["src/routes/*"],
       "@/services/*": ["src/services/*"],
-      "@/utils/*": ["src/utils/*"]
+      "@/utils/*": ["src/utils/*"],
+      "@/config/*": ["src/config/*"],
+      "@caretrack/shared": ["../shared/src/index"],
+      "@caretrack/shared/*": ["../shared/src/*"]
     }
   },
-  "include": ["src/**/*"],
+  "include": ["src/**/*", "../shared/src"],
   "exclude": ["node_modules", "dist"]
 }
