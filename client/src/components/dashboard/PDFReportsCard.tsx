@@ -121,8 +121,8 @@ const PDFReportsCard: React.FC = () => {
     }
   }
 
-  const carers = carersData?.data || []
-  const pagination = carersData?.pagination || { page: 1, totalPages: 1, total: 0 }
+  const carers = Array.isArray(carersData?.data) ? carersData.data : []
+  const pagination = (carersData as any)?.pagination || { page: 1, totalPages: 1, total: carers.length }
 
   if (error) {
     return (

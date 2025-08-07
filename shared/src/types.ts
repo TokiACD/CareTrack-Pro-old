@@ -420,53 +420,68 @@ export interface CarerAssessmentAlert {
   missingCompetencies: Task[];
 }
 
-// Form Types
-export interface LoginRequest {
+// Form Types with index signatures for API compatibility
+export interface LoginRequest extends Record<string, unknown> {
   email: string;
   password: string;
 }
 
-export interface InviteAdminRequest {
+export interface InviteAdminRequest extends Record<string, unknown> {
   email: string;
   name: string;
 }
 
-export interface InviteCarerRequest {
+export interface InviteCarerRequest extends Record<string, unknown> {
   email: string;
   firstName: string;
   lastName: string;
   phone?: string;
 }
 
-export interface AcceptInvitationRequest {
+export interface AcceptInvitationRequest extends Record<string, unknown> {
   token: string;
   password: string;
 }
 
-export interface CreateCarerRequest {
+export interface CreateCarerRequest extends Record<string, unknown> {
   email: string;
   name: string;
   phone: string;
 }
 
-export interface CreateCarePackageRequest {
+export interface CreateCarePackageRequest extends Record<string, unknown> {
   name: string;
   postcode: string;
 }
 
-export interface CreateTaskRequest {
+export interface CreateTaskRequest extends Record<string, unknown> {
   name: string;
   targetCount: number;
 }
 
-export interface AssignCarerToPackageRequest {
+export interface AssignCarerToPackageRequest extends Record<string, unknown> {
   carerId: string;
   packageId: string;
 }
 
-export interface AssignTaskToPackageRequest {
+export interface AssignTaskToPackageRequest extends Record<string, unknown> {
   taskId: string;
   packageId: string;
+}
+
+export interface BatchDeleteRotaRequest extends Record<string, unknown> {
+  ids: string[];
+}
+
+export interface BatchDeleteRotaResponse {
+  deletedCount: number;
+  deletedEntries: {
+    id: string;
+    carerName: string;
+    packageName: string;
+    date: Date;
+    shiftType: ShiftType;
+  }[];
 }
 
 // Validation Types
@@ -479,6 +494,11 @@ export interface RuleViolation {
   rule: string;
   message: string;
   severity: 'error' | 'warning';
+  // Optional extended properties for UI handling
+  uniqueKey?: string;
+  timestamp?: number;
+  carerName?: string;
+  isPersistent?: boolean;
 }
 
 // Scheduling Rule Types
@@ -496,4 +516,183 @@ export interface WeeklyScheduleSummary {
   dayShifts: number;
   nightShifts: number;
   violations: RuleViolation[];
+}
+
+// Additional types for Rota system
+export interface RotaPageData {
+  weekStart: Date;
+  weekEnd: Date;
+  entries: RotaEntry[];
+  weeklySchedules: WeeklyScheduleSummary[];
+  packageCarers: CarerWithPackageCompetency[];
+  otherCarers: CarerWithPackageCompetency[];
+}
+
+export interface CarerWithPackageCompetency extends Carer {
+  packageCompetency?: {
+    competentTaskCount: number;
+    totalTaskCount: number;
+    isPackageCompetent: boolean;
+    hasNoTasks: boolean;
+    packageTasks?: Task[];
+  };
+}
+
+// Validation and rule violation types
+export interface ScheduleValidationResult {
+  isValid: boolean;
+  violations: RuleViolation[];
+  warnings: RuleViolation[];
+}
+
+export interface DragValidationResult {
+  success: boolean;
+  destinationId: string;
+  carerId: string;
+  shiftType: ShiftType;
+  date: string;
+  data: ScheduleValidationResult;
+}
+
+// Error handling types
+export interface ApiError {
+  message: string;
+  code?: string;
+  details?: Record<string, unknown>;
+}
+
+export interface ApiErrorResponse {
+  success: false;
+  error: string;
+  violations?: RuleViolation[];
+  warnings?: RuleViolation[];
+}
+
+// Batch operations
+export interface BatchDeleteResult {
+  deletedCount: number;
+  errors: Array<{
+    id: string;
+    error: string;
+  }>;
+}
+
+// Assessment draft data types
+export interface AssessmentValidationData {
+  packageId: string;
+  carerId: string;
+  date: string;
+  shiftType: ShiftType;
+  startTime: string;
+  endTime: string;
+}
+
+// Extended API response types
+export interface SuccessApiResponse<T = unknown> extends ApiResponse<T> {
+  success: true;
+  data: T;
+  violations?: RuleViolation[];
+  warnings?: RuleViolation[];
+}
+
+export interface FailedApiResponse extends ApiResponse<never> {
+  success: false;
+  error: string;
+  violations?: RuleViolation[];
+  warnings?: RuleViolation[];
+}
+
+// Union type for all API responses
+export type StandardApiResponse<T = unknown> = SuccessApiResponse<T> | FailedApiResponse;
+
+// Additional form interfaces with index signatures
+export interface AssessmentFormData extends Record<string, unknown> {
+  carerId: string;
+  assessorUniqueId: string;
+  overallRating: CompetencyLevel;
+  knowledgeResponses: Array<{
+    questionId: string;
+    carerAnswer: string;
+  }>;
+  practicalResponses: Array<{
+    skillId: string;
+    rating: PracticalRating;
+  }>;
+  emergencyResponses: Array<{
+    questionId: string;
+    carerAnswer: string;
+  }>;
+}
+
+export interface TaskFormData extends Record<string, unknown> {
+  name: string;
+  targetCount: number;
+}
+
+export interface PackageFormData extends Record<string, unknown> {
+  name: string;
+  postcode: string;
+}
+
+export interface ForgotPasswordFormData extends Record<string, unknown> {
+  email: string;
+}
+
+export interface EmailChangeRequest extends Record<string, unknown> {
+  id: string;
+  userId: string;
+  userType: string;
+  oldEmail: string;
+  newEmail: string;
+  token: string;
+  status: string;
+  requestedAt: Date;
+  expiresAt: Date;
+  verifiedAt?: Date;
+  cancelledAt?: Date;
+}
+
+export interface InviteAdminData extends Record<string, unknown> {
+  email: string;
+  name: string;
+}
+
+// Audit Log Types for Activity Feed
+export interface AuditLogWithMessage extends AuditLog {
+  message: string;
+}
+
+export interface ActivityFeedResponse {
+  logs: AuditLogWithMessage[];
+  total: number;
+  page: number;
+  totalPages: number;
+}
+
+export interface AuditStatistics {
+  activity: {
+    today: number;
+    thisWeek: number;
+    thisMonth: number;
+    total: number;
+  };
+  topUsers: Array<{
+    adminId: string;
+    adminName: string;
+    count: number;
+  }>;
+  topActions: Array<{
+    action: string;
+    count: number;
+  }>;
+}
+
+export interface AuditLogFilter {
+  action?: string;
+  entityType?: string;
+  entityId?: string;
+  performedByAdminId?: string;
+  dateFrom?: Date;
+  dateTo?: Date;
+  search?: string;
 }

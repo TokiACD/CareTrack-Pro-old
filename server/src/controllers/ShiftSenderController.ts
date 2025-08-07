@@ -500,7 +500,7 @@ export class ShiftSenderController {
 
       // Get full carer details - handle empty array case
       const carerIds = availableCarers.map(c => c.carerId).filter(Boolean)
-      let carers = []
+      let carers: any[] = []
       
       if (carerIds.length > 0) {
         carers = await prisma.carer.findMany({

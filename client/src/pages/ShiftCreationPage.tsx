@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   Box,
   Container,
@@ -264,10 +264,10 @@ const ShiftCreationPage: React.FC = () => {
         // For competent shifts, send to all competent carers
         carersToSend = getAvailableCarers()
           .filter(carer => carer.availability.competencyMatch.isCompetent)
-          .map(carer => carer.id);
+          .map((carer: any) => carer.id);
       } else {
         // For non-competent shifts, send to all available carers
-        carersToSend = getAvailableCarers().map(carer => carer.id);
+        carersToSend = getAvailableCarers().map((carer: any) => carer.id);
       }
       
       if (carersToSend.length > 0) {
@@ -507,7 +507,7 @@ const ShiftCreationPage: React.FC = () => {
 
                 {formData.isCompetentOnly && (
                   <Alert severity="success" sx={{ mt: 2 }}>
-                    This shift will be sent to {getAvailableCarers().filter(c => c.availability.competencyMatch.isCompetent).length} competent carers.
+                    This shift will be sent to {getAvailableCarers().filter((c: any) => c.availability.competencyMatch.isCompetent).length} competent carers.
                   </Alert>
                 )}
                 
@@ -545,7 +545,7 @@ const ShiftCreationPage: React.FC = () => {
                   <Typography><strong>Date:</strong> {formData.date?.toLocaleDateString()}</Typography>
                   <Typography><strong>Time:</strong> {formatTime(formData.startTime!)} - {formatTime(formData.endTime!)}</Typography>
                   <Typography><strong>Type:</strong> {formData.isCompetentOnly ? 'Competent Only' : 'Non-Competent'}</Typography>
-                  <Typography><strong>Carers to Receive Shift:</strong> {formData.isCompetentOnly ? getAvailableCarers().filter(c => c.availability.competencyMatch.isCompetent).length : getAvailableCarers().length}</Typography>
+                  <Typography><strong>Carers to Receive Shift:</strong> {formData.isCompetentOnly ? getAvailableCarers().filter((c: any) => c.availability.competencyMatch.isCompetent).length : getAvailableCarers().length}</Typography>
                 </Paper>
 
                 <Button
@@ -555,7 +555,7 @@ const ShiftCreationPage: React.FC = () => {
                   disabled={sendShiftMutation.isPending}
                   startIcon={sendShiftMutation.isPending ? <CircularProgress size={20} /> : <SendIcon />}
                 >
-                  {sendShiftMutation.isPending ? 'Sending...' : `Send to ${formData.isCompetentOnly ? getAvailableCarers().filter(c => c.availability.competencyMatch.isCompetent).length : getAvailableCarers().length} Carers`}
+                  {sendShiftMutation.isPending ? 'Sending...' : `Send to ${formData.isCompetentOnly ? getAvailableCarers().filter((c: any) => c.availability.competencyMatch.isCompetent).length : getAvailableCarers().length} Carers`}
                 </Button>
               </Box>
             ) : (

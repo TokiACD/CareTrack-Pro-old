@@ -44,7 +44,7 @@ export class AvailabilityService {
     // Check availability for each carer
     const availabilityChecks = await Promise.all(
       packageCarers.map(carer => this.checkCarerAvailability(
-        carer,
+        { ...carer, deletedAt: carer.deletedAt || undefined },
         shiftDate,
         startTime,
         endTime,
@@ -89,7 +89,7 @@ export class AvailabilityService {
       // Check availability for each carer
       const availabilityChecks = await Promise.all(
         allCarers.map(carer => this.checkCarerAvailability(
-          carer,
+          { ...carer, deletedAt: carer.deletedAt || undefined },
           shiftDate,
           startTime,
           endTime,
@@ -141,7 +141,7 @@ export class AvailabilityService {
       // Check availability for each carer
       const availabilityChecks = await Promise.all(
         allCarers.map(carer => this.checkCarerAvailability(
-          carer,
+          { ...carer, deletedAt: carer.deletedAt || undefined },
           shiftDate,
           startTime,
           endTime,
