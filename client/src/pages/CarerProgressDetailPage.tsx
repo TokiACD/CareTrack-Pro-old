@@ -349,7 +349,7 @@ const CarerProgressDetailPage: React.FC = () => {
 
   if (error || !progressData) {
     return (
-      <Box sx={{ flexGrow: 1, bgcolor: 'background.default', minHeight: '100vh' }}>
+      <Box sx={{ padding: 0, bgcolor: 'background.default' }}>
         <ProgressPageHeader
           carerName={error ? 'Error' : 'Not Found'}
           onNavigateBack={() => navigate('/progress')}

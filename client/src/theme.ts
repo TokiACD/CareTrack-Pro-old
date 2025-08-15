@@ -161,22 +161,27 @@ const theme = createTheme({
       styleOverrides: {
         html: {
           height: '100%',
-          overflowX: 'hidden', // Prevent horizontal scroll
+          margin: 0,
+          padding: 0,
+          overflow: 'hidden', // CRITICAL: Prevent body scroll
         },
         body: {
           backgroundColor: '#f8fafc',
           fontFamily: '"Inter", "Roboto", "Helvetica Neue", "Arial", sans-serif',
           height: '100%',
           margin: 0,
-          // Prevent over-scroll on mobile devices
+          padding: 0,
+          overflow: 'hidden', // CRITICAL: Prevent body scroll
           overscrollBehavior: 'none',
-          // Ensure smooth scrolling
-          scrollBehavior: 'smooth',
+          touchAction: 'pan-x pan-y',
+          WebkitOverflowScrolling: 'touch',
         },
         '#root': {
-          height: '100%',
-          display: 'flex',
-          flexDirection: 'column',
+          height: '100vh',
+          overflow: 'hidden', // CRITICAL: Prevent root scroll
+        },
+        '*': {
+          boxSizing: 'border-box',
         },
       },
     },

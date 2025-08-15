@@ -43,19 +43,24 @@ const App = memo(() => {
   return (
     <PageErrorBoundary>
       <Box sx={{ 
-        flex: 1,
+        height: '100vh',
         display: 'flex', 
         flexDirection: 'column',
-        // Prevent horizontal scrolling
-        overflowX: 'hidden'
+        overflow: 'hidden' // Prevent layout scroll
       }}>
-        <Box sx={{ 
-          flex: 1,
-          // Smooth scrolling for better UX
-          scrollBehavior: 'smooth',
-          // Ensure proper touch scrolling on mobile
-          WebkitOverflowScrolling: 'touch'
-        }}>
+        {/* Single scrollable content area - ONLY scroll area in entire app */}
+        <Box 
+          component="main"
+          sx={{ 
+            flex: 1,
+            overflow: 'auto', // ONLY scroll area
+            backgroundColor: 'background.default',
+            // Smooth scrolling for better UX
+            scrollBehavior: 'smooth',
+            // Ensure proper touch scrolling on mobile
+            WebkitOverflowScrolling: 'touch'
+          }}
+        >
           <Routes>
         {/* Public routes */}
         <Route 
@@ -318,13 +323,13 @@ const App = memo(() => {
         />
       </Routes>
         </Box>
+        {/* Footer - always visible at bottom */}
         <Footer 
           position="static" 
           variant="primary" 
           size="normal" 
           sx={{ 
-            flexShrink: 0,
-            mt: 'auto'
+            flexShrink: 0 // Prevent compression
           }} 
         />
       </Box>

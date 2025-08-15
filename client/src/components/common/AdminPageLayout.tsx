@@ -102,9 +102,9 @@ export const AdminPageLayout: React.FC<AdminPageLayoutProps> = ({
 
   return (
     <Box sx={{ 
-      flexGrow: 1, 
+      // Let content flow naturally - no height restrictions
+      padding: 0,
       bgcolor: theme.palette.background.default, 
-      minHeight: '100vh',
       background: 'linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%)',
     }}>
       {/* Professional Header - Blue Bar */}
