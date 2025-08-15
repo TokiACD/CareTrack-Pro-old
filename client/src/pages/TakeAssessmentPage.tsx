@@ -30,6 +30,7 @@ import { useAssessmentDraft } from '../hooks/useAssessmentDraft'
 import { apiService } from '../services/api'
 import { API_ENDPOINTS, CompetencyLevel, PracticalRating } from '@caretrack/shared'
 import { useAuth } from '../contexts/AuthContext'
+import { AdminPageLayout } from '../components/common/AdminPageLayout'
 import {
   AssessmentHeader,
   AssessmentProgressBar,
@@ -361,18 +362,21 @@ const TakeAssessmentPage: React.FC = () => {
   }
 
   return (
-    <Box sx={{ flexGrow: 1, bgcolor: 'background.default', minHeight: '100vh' }}>
-      <AssessmentHeader
-        assessmentName={assessment.name}
-        carerName={carer.name}
-        onNavigateBack={handleNavigateBack}
-        onNavigateHome={handleNavigateHome}
-        onNavigateAssessments={handleNavigateAssessments}
-        userName={user?.name}
-        fromProgress={fromProgress}
-        onNavigateProgress={fromProgress ? handleNavigateProgress : undefined}
-        onNavigateCarerDetail={fromProgress ? handleNavigateCarerDetail : undefined}
-      />
+    <AdminPageLayout 
+      pageTitle={`Assessment: ${assessment.name} - ${carer.name}`}
+      backPath={fromProgress ? '/progress' : '/assessments'}
+      backText={fromProgress ? 'Back to Progress' : 'Back to Assessments'}
+      additionalBreadcrumbs={[
+        {
+          label: fromProgress ? 'Progress Tracking' : 'Assessments',
+          onClick: () => navigate(fromProgress ? '/progress' : '/assessments')
+        },
+        ...(fromProgress ? [{
+          label: carer.name,
+          onClick: handleNavigateCarerDetail
+        }] : [])
+      ]}
+    >
 
       <Container maxWidth="lg" sx={{ pb: 4 }}>
         <AssessmentProgressBar
@@ -522,7 +526,7 @@ const TakeAssessmentPage: React.FC = () => {
           {notification.message}
         </Alert>
       </Snackbar>
-    </Box>
+    </AdminPageLayout>
   )
 }
 

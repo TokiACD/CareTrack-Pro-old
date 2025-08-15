@@ -60,6 +60,7 @@ import { apiService } from '../services/api'
 import { API_ENDPOINTS, CompetencyLevel, Assessment as SharedAssessment } from '@caretrack/shared'
 import { useAuth } from '../contexts/AuthContext'
 import { useSmartMutation } from '../hooks/useSmartMutation'
+import { AdminPageLayout } from '../components/common/AdminPageLayout'
 import { BreadcrumbNavigation, useBreadcrumbItems } from '../components/common/BreadcrumbNavigation'
 
 // Extended assessment interface with UI-specific assessment response relations
@@ -231,41 +232,15 @@ const AssessmentsPage: React.FC = () => {
   }
 
   return (
-    <Box sx={{ flexGrow: 1, bgcolor: 'background.default', minHeight: '100vh' }}>
-      {/* Header */}
-      <AppBar position="static" elevation={0} sx={{ bgcolor: 'primary.main' }}>
-        <Toolbar>
-          <IconButton
-            edge="start"
-            color="inherit"
-            onClick={() => navigate('/dashboard')}
-            sx={{ mr: 2 }}
-          >
-            <ArrowBackIcon />
-          </IconButton>
-          <QuizIcon sx={{ mr: 2 }} />
-          <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
-            Assessment Management
-          </Typography>
-          <Typography variant="body2" sx={{ opacity: 0.9 }}>
-            Welcome, {user?.name}
-          </Typography>
-        </Toolbar>
-      </AppBar>
-
-      {/* Breadcrumb Navigation */}
-      <Container maxWidth="lg" sx={{ mt: 2, mb: 2 }}>
-        <BreadcrumbNavigation 
-          items={selectedAssessment ? [
-            breadcrumbItems.assessments(),
-            { label: selectedAssessment.name, active: true }
-          ] : [
-            breadcrumbItems.assessments()
-          ]}
-        />
-      </Container>
-
-      {/* Main Content */}
+    <AdminPageLayout 
+      pageTitle={selectedAssessment ? selectedAssessment.name : "Assessment Management"}
+      additionalBreadcrumbs={selectedAssessment ? [
+        {
+          label: 'Assessment Management',
+          onClick: () => setSelectedAssessment(null)
+        }
+      ] : []}
+    >
       <Container maxWidth="lg" sx={{ pb: 4 }}>
         {!selectedAssessment ? (
           // Assessment List View
@@ -663,7 +638,7 @@ const AssessmentsPage: React.FC = () => {
           {notification.message}
         </Alert>
       </Snackbar>
-    </Box>
+    </AdminPageLayout>
   )
 }
 

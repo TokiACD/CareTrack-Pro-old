@@ -25,6 +25,7 @@ import { isCarerProgressDetail, isAssessmentHistory } from '../utils/typeGuards'
 import { useNotification } from '../contexts/NotificationContext';
 import { useAuth } from '../contexts/AuthContext';
 import { LoadingScreen } from '../components/common/LoadingScreen';
+import { AdminPageLayout } from '../components/common/AdminPageLayout';
 import {
   ProgressPageHeader,
   ProgressSummaryCards,
@@ -366,14 +367,17 @@ const CarerProgressDetailPage: React.FC = () => {
   }
 
   return (
-    <Box sx={{ flexGrow: 1, bgcolor: 'background.default', minHeight: '100vh' }}>
-      <ProgressPageHeader
-        carerName={progressData.carer.name}
-        onNavigateBack={() => navigate('/progress')}
-        onNavigateHome={() => navigate('/dashboard')}
-        onNavigateDashboard={() => navigate('/progress')}
-        userName={user?.name}
-      />
+    <AdminPageLayout 
+      pageTitle={`${progressData.carer.name} - Progress Detail`}
+      backPath="/progress"
+      backText="Back to Progress"
+      additionalBreadcrumbs={[
+        {
+          label: 'Progress Tracking',
+          onClick: () => navigate('/progress')
+        }
+      ]}
+    >
 
       <Container maxWidth="lg" sx={{ pb: 4 }}>
         <ProgressSummaryCards progressData={progressData} />
@@ -532,7 +536,7 @@ const CarerProgressDetailPage: React.FC = () => {
         </DialogActions>
       </Dialog>
       </Container>
-    </Box>
+    </AdminPageLayout>
   );
 };
 

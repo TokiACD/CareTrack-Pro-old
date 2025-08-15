@@ -56,6 +56,7 @@ import { apiService } from '../services/api';
 import { useNotification } from '../contexts/NotificationContext';
 import { API_ENDPOINTS } from '@caretrack/shared';
 import { BreadcrumbNavigation, useBreadcrumbItems } from '../components/common/BreadcrumbNavigation';
+import { AdminPageLayout } from '../components/common/AdminPageLayout';
 import { StepperNavigation, useStepper, StepData, StepAction } from '../components/common/navigation/StepperNavigation';
 import { STEPPER_CONSTANTS } from '../constants/ui';
 
@@ -598,16 +599,19 @@ const ShiftCreationPage: React.FC = () => {
   };
 
   return (
-    <LocalizationProvider dateAdapter={AdapterDateFns}>
-      <Container maxWidth="lg" sx={{ py: 4 }}>
-        {/* Breadcrumb Navigation */}
-        <BreadcrumbNavigation 
-          items={[
-            breadcrumbItems.shiftSender(),
-            breadcrumbItems.createShift(shiftType === 'COMPETENT' ? 'Competent' : 'Non-Competent')
-          ]}
-          sx={{ mb: 3 }}
-        />
+    <AdminPageLayout 
+      pageTitle={`Create ${shiftType === 'COMPETENT' ? 'Competent' : 'Non-Competent'} Shift`}
+      backPath="/shift-sender"
+      backText="Back to Shift Distribution"
+      additionalBreadcrumbs={[
+        {
+          label: 'Shift Distribution',
+          onClick: () => navigate('/shift-sender')
+        }
+      ]}
+    >
+      <LocalizationProvider dateAdapter={AdapterDateFns}>
+        <Container maxWidth="lg" sx={{ py: 4 }}>
 
         {/* Header */}
         <Box sx={{ mb: 4 }}>
@@ -663,8 +667,9 @@ const ShiftCreationPage: React.FC = () => {
           </CardContent>
         </Card>
 
-      </Container>
-    </LocalizationProvider>
+        </Container>
+      </LocalizationProvider>
+    </AdminPageLayout>
   );
 };
 

@@ -191,12 +191,16 @@ export const DashboardPage = memo(() => {
   const handleCardClick = useCallback((cardId: string) => {
     // Navigate to dedicated pages for certain cards
     const navigationMap: Record<string, string> = {
+      'users': '/users',
+      'care-packages': '/care-packages',
       'tasks': '/tasks',
       'assignments': '/assignments',
       'assessments': '/assessments',
-      'recycle-bin': '/recycle-bin',
       'progress': '/progress',
+      'pdf-reports': '/pdf-reports',
+      'shift-sender': '/shift-sender',
       'rota': '/rota',
+      'recycle-bin': '/recycle-bin',
       'audit-login': '/audit-logs'
     }
     

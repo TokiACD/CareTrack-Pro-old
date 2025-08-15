@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   Box,
   Container,
@@ -18,7 +18,7 @@ import { ViolationsSidebar } from '../components/rota/ViolationsSidebar';
 import { ComponentErrorBoundary, QueryErrorBoundary } from '../components/common/ErrorBoundary';
 import { SmartLoading } from '../components/common';
 import { RotaHeader, WeekNavigation, ViolationsControls, EnhancedRotaControls } from '../components/rota/ui';
-import { BreadcrumbNavigation, useBreadcrumbItems } from '../components/common/BreadcrumbNavigation';
+import { AdminPageLayout } from '../components/common/AdminPageLayout';
 import {
   useRotaData,
   useRotaMutations,
@@ -31,7 +31,6 @@ type ViewMode = 'table' | 'card' | 'compact';
 
 const RotaPage: React.FC = () => {
   const navigate = useNavigate();
-  const breadcrumbItems = useBreadcrumbItems();
   const [viewMode, setViewMode] = useState<ViewMode>('table');
   const [showPerformanceMetrics, setShowPerformanceMetrics] = useState(false);
   
@@ -153,12 +152,7 @@ const RotaPage: React.FC = () => {
 
 
   return (
-    <Box sx={{ 
-      height: '100%', 
-      display: 'flex', 
-      flexDirection: 'column',
-      overflow: 'auto'
-    }}>
+    <AdminPageLayout pageTitle="Rota Scheduling">
       <Container maxWidth="xl" sx={{ 
         py: { xs: 1, sm: 2 },
         px: { xs: 1, sm: 2 },
@@ -167,11 +161,6 @@ const RotaPage: React.FC = () => {
         flexDirection: 'column',
         overflow: 'auto'
       }}>
-        {/* Breadcrumb Navigation */}
-        <BreadcrumbNavigation 
-          items={[breadcrumbItems.rota()]}
-          sx={{ mb: { xs: 2, sm: 3 } }}
-        />
 
         {/* Care Package Cards Section */}
         <Box sx={{ mb: { xs: 2, sm: 3 } }}>
@@ -361,7 +350,7 @@ const RotaPage: React.FC = () => {
           onToggleShow={() => setShowAllViolations(!showAllViolations)}
         />
       </Container>
-    </Box>
+    </AdminPageLayout>
   );
 };
 

@@ -159,9 +159,24 @@ const theme = createTheme({
   components: {
     MuiCssBaseline: {
       styleOverrides: {
+        html: {
+          height: '100%',
+          overflowX: 'hidden', // Prevent horizontal scroll
+        },
         body: {
           backgroundColor: '#f8fafc',
           fontFamily: '"Inter", "Roboto", "Helvetica Neue", "Arial", sans-serif',
+          height: '100%',
+          margin: 0,
+          // Prevent over-scroll on mobile devices
+          overscrollBehavior: 'none',
+          // Ensure smooth scrolling
+          scrollBehavior: 'smooth',
+        },
+        '#root': {
+          height: '100%',
+          display: 'flex',
+          flexDirection: 'column',
         },
       },
     },

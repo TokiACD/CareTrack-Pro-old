@@ -9,7 +9,7 @@ import { PageErrorBoundary } from './components/common/ErrorBoundary'
 import { ProtectedRoute } from './components/auth/ProtectedRoute'
 
 // Lazy load components for better performance
-const LoginPage = React.lazy(() => import('./pages/LoginPage').then(module => ({ default: module.LoginPage })))
+const LoginPage = React.lazy(() => import('./pages/LoginPage').then(module => ({ default: module.HealthcareLogin })))
 const DashboardPage = React.lazy(() => import('./pages/DashboardPage').then(module => ({ default: module.DashboardPage })))
 const ForgotPasswordPage = React.lazy(() => import('./pages/ForgotPasswordPage').then(module => ({ default: module.ForgotPasswordPage })))
 const ResetPasswordPage = React.lazy(() => import('./pages/ResetPasswordPage').then(module => ({ default: module.ResetPasswordPage })))
@@ -28,6 +28,10 @@ const ShiftCreationPage = React.lazy(() => import('./pages/ShiftCreationPage'))
 const ShiftManagementPage = React.lazy(() => import('./pages/ShiftManagementPage'))
 const RotaPage = React.lazy(() => import('./pages/RotaPage'))
 const AuditLogPage = React.lazy(() => import('./pages/AuditLogPage'))
+const UsersPage = React.lazy(() => import('./pages/UsersPage'))
+const CarePackagesPage = React.lazy(() => import('./pages/CarePackagesPage'))
+const PDFReportsPage = React.lazy(() => import('./pages/PDFReportsPage'))
+const ShiftSenderPage = React.lazy(() => import('./pages/ShiftSenderPage'))
 
 const App = memo(() => {
   const { user, loading } = useAuth()
@@ -39,16 +43,14 @@ const App = memo(() => {
   return (
     <PageErrorBoundary>
       <Box sx={{ 
-        minHeight: '100vh', 
+        flex: 1,
         display: 'flex', 
         flexDirection: 'column',
-        // Prevent scrolling below footer
-        height: '100vh',
-        overflow: 'hidden'
+        // Prevent horizontal scrolling
+        overflowX: 'hidden'
       }}>
         <Box sx={{ 
           flex: 1,
-          overflow: 'auto',
           // Smooth scrolling for better UX
           scrollBehavior: 'smooth',
           // Ensure proper touch scrolling on mobile
@@ -118,6 +120,46 @@ const App = memo(() => {
             <ProtectedRoute>
               <Suspense fallback={<LoadingScreen />}>
                 <DashboardPage />
+              </Suspense>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/users"
+          element={
+            <ProtectedRoute>
+              <Suspense fallback={<LoadingScreen />}>
+                <UsersPage />
+              </Suspense>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/care-packages"
+          element={
+            <ProtectedRoute>
+              <Suspense fallback={<LoadingScreen />}>
+                <CarePackagesPage />
+              </Suspense>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/pdf-reports"
+          element={
+            <ProtectedRoute>
+              <Suspense fallback={<LoadingScreen />}>
+                <PDFReportsPage />
+              </Suspense>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/shift-sender"
+          element={
+            <ProtectedRoute>
+              <Suspense fallback={<LoadingScreen />}>
+                <ShiftSenderPage />
               </Suspense>
             </ProtectedRoute>
           }
@@ -282,7 +324,6 @@ const App = memo(() => {
           size="normal" 
           sx={{ 
             flexShrink: 0,
-            // Ensure footer stays at bottom without extra space
             mt: 'auto'
           }} 
         />

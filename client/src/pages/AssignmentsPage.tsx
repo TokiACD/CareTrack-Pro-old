@@ -58,6 +58,7 @@ import { API_ENDPOINTS, CarePackage, Carer, Task, CarerPackageAssignment, Packag
 import { isCarePackage, isArray } from '../utils/typeGuards'
 import { useAuth } from '../contexts/AuthContext'
 import { useSmartMutation } from '../hooks/useSmartMutation'
+import { AdminPageLayout } from '../components/common/AdminPageLayout'
 import ConfirmationDialog from '../components/common/ConfirmationDialog'
 import { useConfirmation } from '../hooks/useConfirmation'
 
@@ -574,54 +575,15 @@ const AssignmentsPage: React.FC = () => {
   }
 
   return (
-    <Box sx={{ flexGrow: 1, bgcolor: 'background.default', minHeight: '100vh' }}>
-      {/* Header */}
-      <AppBar position="static" elevation={0} sx={{ bgcolor: 'primary.main' }}>
-        <Toolbar>
-          <IconButton
-            edge="start"
-            color="inherit"
-            onClick={() => navigate('/dashboard')}
-            sx={{ mr: 2 }}
-          >
-            <ArrowBackIcon />
-          </IconButton>
-          <GroupIcon sx={{ mr: 2 }} />
-          <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
-            Assignment Management
-          </Typography>
-          <Typography variant="body2" sx={{ opacity: 0.9 }}>
-            Welcome, {user?.name}
-          </Typography>
-        </Toolbar>
-      </AppBar>
-
-      {/* Breadcrumbs */}
-      <Container maxWidth="lg" sx={{ mt: 2, mb: 2 }}>
-        <Breadcrumbs aria-label="breadcrumb">
-          <Link
-            underline="hover"
-            sx={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}
-            color="inherit"
-            onClick={() => navigate('/dashboard')}
-          >
-            <HomeIcon sx={{ mr: 0.5 }} fontSize="inherit" />
-            Dashboard
-          </Link>
-          <Typography
-            sx={{ display: 'flex', alignItems: 'center' }}
-            color="text.primary"
-          >
-            <GroupIcon sx={{ mr: 0.5 }} fontSize="inherit" />
-            Assignments
-          </Typography>
-          {selectedPackage && (
-            <Typography color="text.primary">{selectedPackage.name}</Typography>
-          )}
-        </Breadcrumbs>
-      </Container>
-
-      {/* Main Content */}
+    <AdminPageLayout 
+      pageTitle={selectedPackage ? selectedPackage.name : "Staff Assignments"}
+      additionalBreadcrumbs={selectedPackage ? [
+        {
+          label: 'Staff Assignments',
+          onClick: () => setSelectedPackage(null)
+        }
+      ] : []}
+    >
       <Container maxWidth="lg" sx={{ pb: 4 }}>
         {!selectedPackage ? (
           // Package List View
@@ -1095,7 +1057,7 @@ const AssignmentsPage: React.FC = () => {
         isLoading={confirmationState.isLoading}
         warnings={confirmationState.warnings}
       />
-    </Box>
+    </AdminPageLayout>
   )
 }
 

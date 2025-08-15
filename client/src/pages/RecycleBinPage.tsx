@@ -56,6 +56,7 @@ import { apiService } from '../services/api'
 import { API_ENDPOINTS } from '@caretrack/shared'
 import { useAuth } from '../contexts/AuthContext'
 import { useSmartMutation } from '../hooks/useSmartMutation'
+import { AdminPageLayout } from '../components/common/AdminPageLayout'
 import CarerDeletionDialog from '../components/common/CarerDeletionDialog'
 
 // Define entity type options for general tab (excluding carers)
@@ -329,51 +330,7 @@ const RecycleBinPage: React.FC = () => {
   }
 
   return (
-    <Box sx={{ flexGrow: 1, bgcolor: 'background.default', minHeight: '100vh' }}>
-      {/* Header */}
-      <AppBar position="static" elevation={0} sx={{ bgcolor: 'warning.main' }}>
-        <Toolbar>
-          <IconButton
-            edge="start"
-            color="inherit"
-            onClick={() => navigate('/dashboard')}
-            sx={{ mr: 2 }}
-          >
-            <ArrowBackIcon />
-          </IconButton>
-          <DeleteIcon sx={{ mr: 2 }} />
-          <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
-            Recycle Bin
-          </Typography>
-          <Typography variant="body2" sx={{ opacity: 0.9 }}>
-            Welcome, {user?.name}
-          </Typography>
-        </Toolbar>
-      </AppBar>
-
-      {/* Breadcrumbs */}
-      <Container maxWidth="lg" sx={{ mt: 2, mb: 2 }}>
-        <Breadcrumbs aria-label="breadcrumb">
-          <Link
-            underline="hover"
-            sx={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}
-            color="inherit"
-            onClick={() => navigate('/dashboard')}
-          >
-            <HomeIcon sx={{ mr: 0.5 }} fontSize="inherit" />
-            Dashboard
-          </Link>
-          <Typography
-            sx={{ display: 'flex', alignItems: 'center' }}
-            color="text.primary"
-          >
-            <DeleteIcon sx={{ mr: 0.5 }} fontSize="inherit" />
-            Recycle Bin
-          </Typography>
-        </Breadcrumbs>
-      </Container>
-
-      {/* Main Content */}
+    <AdminPageLayout pageTitle="Archive Management">
       <Container maxWidth="lg" sx={{ pb: 4 }}>
         <Card elevation={2}>
           <CardHeader
@@ -717,7 +674,7 @@ const RecycleBinPage: React.FC = () => {
           isPermanentDelete={true}
         />
       )}
-    </Box>
+    </AdminPageLayout>
   )
 }
 

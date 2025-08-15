@@ -45,7 +45,7 @@ import {
 import { format } from 'date-fns'
 import { useDebounce } from '../hooks/useDebounce'
 import { apiService } from '../services/api'
-import { BreadcrumbNavigation, useBreadcrumbItems } from '../components/common/BreadcrumbNavigation'
+import { AdminPageLayout } from '../components/common/AdminPageLayout'
 
 interface AuditLog {
   id: string
@@ -92,7 +92,6 @@ interface AuditStatistics {
 }
 
 const AuditLogPage: React.FC = () => {
-  const breadcrumbItems = useBreadcrumbItems()
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([])
   const [statistics, setStatistics] = useState<AuditStatistics | null>(null)
   const [loading, setLoading] = useState(false)
@@ -250,12 +249,8 @@ const AuditLogPage: React.FC = () => {
   }
 
   return (
-    <Container maxWidth="xl" sx={{ py: 4 }}>
-      {/* Breadcrumb Navigation */}
-      <BreadcrumbNavigation 
-        items={[breadcrumbItems.auditLogs()]}
-        sx={{ mb: 3 }}
-      />
+    <AdminPageLayout pageTitle="System Audit">
+      <Container maxWidth="xl" sx={{ py: 4 }}>
 
       {/* Header */}
       <Box sx={{ mb: 4, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -633,7 +628,8 @@ const AuditLogPage: React.FC = () => {
           <Button onClick={() => setDetailsOpen(false)}>Close</Button>
         </DialogActions>
       </Dialog>
-    </Container>
+      </Container>
+    </AdminPageLayout>
   )
 }
 

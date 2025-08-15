@@ -29,8 +29,6 @@ import {
   Container,
   AppBar,
   Toolbar,
-  Breadcrumbs,
-  Link,
 } from '@mui/material'
 import {
   Search as SearchIcon,
@@ -48,6 +46,7 @@ import { useNavigate } from 'react-router-dom'
 import { apiService } from '../services/api'
 import { API_ENDPOINTS, Task } from '@caretrack/shared'
 import { useAuth } from '../contexts/AuthContext'
+import { AdminPageLayout } from '../components/common/AdminPageLayout'
 import { useSmartMutation } from '../hooks/useSmartMutation'
 import ConfirmationDialog from '../components/common/ConfirmationDialog'
 
@@ -272,51 +271,7 @@ const TasksPage: React.FC = () => {
   }
 
   return (
-    <Box sx={{ flexGrow: 1, bgcolor: 'background.default', minHeight: '100vh' }}>
-      {/* Header */}
-      <AppBar position="static" elevation={0} sx={{ bgcolor: 'primary.main' }}>
-        <Toolbar>
-          <IconButton
-            edge="start"
-            color="inherit"
-            onClick={() => navigate('/dashboard')}
-            sx={{ mr: 2 }}
-          >
-            <ArrowBackIcon />
-          </IconButton>
-          <AssignmentIcon sx={{ mr: 2 }} />
-          <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
-            Task Management
-          </Typography>
-          <Typography variant="body2" sx={{ opacity: 0.9 }}>
-            Welcome, {user?.name}
-          </Typography>
-        </Toolbar>
-      </AppBar>
-
-      {/* Breadcrumbs */}
-      <Container maxWidth="lg" sx={{ mt: 2, mb: 2 }}>
-        <Breadcrumbs aria-label="breadcrumb">
-          <Link
-            underline="hover"
-            sx={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}
-            color="inherit"
-            onClick={() => navigate('/dashboard')}
-          >
-            <HomeIcon sx={{ mr: 0.5 }} fontSize="inherit" />
-            Dashboard
-          </Link>
-          <Typography
-            sx={{ display: 'flex', alignItems: 'center' }}
-            color="text.primary"
-          >
-            <AssignmentIcon sx={{ mr: 0.5 }} fontSize="inherit" />
-            Tasks
-          </Typography>
-        </Breadcrumbs>
-      </Container>
-
-      {/* Main Content */}
+    <AdminPageLayout pageTitle="Task Management">
       <Container maxWidth="lg" sx={{ pb: 4 }}>
         <Card elevation={2}>
           <CardHeader
@@ -531,7 +486,7 @@ const TasksPage: React.FC = () => {
           {notification.message}
         </Alert>
       </Snackbar>
-    </Box>
+    </AdminPageLayout>
   )
 }
 

@@ -58,6 +58,7 @@ import { apiService } from '../services/api';
 import { useNotification } from '../contexts/NotificationContext';
 import { API_ENDPOINTS } from '@caretrack/shared';
 import { BreadcrumbNavigation, useBreadcrumbItems } from '../components/common/BreadcrumbNavigation';
+import { AdminPageLayout } from '../components/common/AdminPageLayout';
 
 interface ShiftApplication {
   id: string;
@@ -306,15 +307,18 @@ const ShiftManagementPage: React.FC = () => {
   const tabCounts = getTabCounts();
 
   return (
-    <Container maxWidth="xl" sx={{ py: 4 }}>
-      {/* Breadcrumb Navigation */}
-      <BreadcrumbNavigation 
-        items={[
-          breadcrumbItems.shiftSender(),
-          breadcrumbItems.manageShifts()
-        ]}
-        sx={{ mb: 3 }}
-      />
+    <AdminPageLayout 
+      pageTitle="Shift Management"
+      backPath="/dashboard"
+      backText="Back to Dashboard"
+      additionalBreadcrumbs={[
+        {
+          label: 'Shift Distribution',
+          onClick: () => navigate('/shift-sender')
+        }
+      ]}
+    >
+      <Container maxWidth="xl" sx={{ py: 4 }}>
 
       {/* Header */}
       <Box sx={{ mb: 4 }}>
@@ -715,7 +719,8 @@ const ShiftManagementPage: React.FC = () => {
           </Button>
         </DialogActions>
       </Dialog>
-    </Container>
+      </Container>
+    </AdminPageLayout>
   );
 };
 

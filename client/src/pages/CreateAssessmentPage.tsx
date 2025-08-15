@@ -65,6 +65,7 @@ import { useAuth } from '../contexts/AuthContext'
 import { StepperNavigation, useStepper, StepData } from '../components/common/navigation/StepperNavigation'
 import { useNotification } from '../components/common/feedback/NotificationManager'
 import { STEPPER_CONSTANTS } from '../constants/ui'
+import { AdminPageLayout } from '../components/common/AdminPageLayout'
 
 interface KnowledgeQuestion {
   question: string
@@ -403,54 +404,17 @@ const CreateAssessmentPage: React.FC = () => {
   )
 
   return (
-    <Box sx={{ flexGrow: 1, bgcolor: 'background.default', minHeight: '100vh' }}>
-      {/* Header */}
-      <AppBar position="static" elevation={0} sx={{ bgcolor: 'primary.main' }}>
-        <Toolbar>
-          <IconButton
-            edge="start"
-            color="inherit"
-            onClick={() => navigate('/assessments')}
-            sx={{ mr: 2 }}
-          >
-            <ArrowBackIcon />
-          </IconButton>
-          <QuizIcon sx={{ mr: 2 }} />
-          <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
-            Create Assessment
-          </Typography>
-          <Typography variant="body2" sx={{ opacity: 0.9 }}>
-            Welcome, {user?.name}
-          </Typography>
-        </Toolbar>
-      </AppBar>
-
-      {/* Breadcrumbs */}
-      <Container maxWidth="lg" sx={{ mt: 2, mb: 2 }}>
-        <Breadcrumbs aria-label="breadcrumb">
-          <Link
-            underline="hover"
-            sx={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}
-            color="inherit"
-            onClick={() => navigate('/dashboard')}
-          >
-            <HomeIcon sx={{ mr: 0.5 }} fontSize="inherit" />
-            Dashboard
-          </Link>
-          <Link
-            underline="hover"
-            sx={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}
-            color="inherit"
-            onClick={() => navigate('/assessments')}
-          >
-            <QuizIcon sx={{ mr: 0.5 }} fontSize="inherit" />
-            Assessments
-          </Link>
-          <Typography color="text.primary">Create</Typography>
-        </Breadcrumbs>
-      </Container>
-
-      {/* Main Content */}
+    <AdminPageLayout 
+      pageTitle="Create Assessment"
+      backPath="/assessments"
+      backText="Back to Assessments"
+      additionalBreadcrumbs={[
+        {
+          label: 'Assessments',
+          onClick: () => navigate('/assessments')
+        }
+      ]}
+    >
       <Container maxWidth="lg" sx={{ pb: 4 }}>
         <Card elevation={2}>
           <CardHeader
@@ -942,7 +906,6 @@ const CreateAssessmentPage: React.FC = () => {
             </Stepper>
           </CardContent>
         </Card>
-      </Container>
 
       {/* Task Coverage Warning Dialog */}
       <Dialog open={warningDialogOpen} onClose={() => setWarningDialogOpen(false)}>
@@ -1002,7 +965,8 @@ const CreateAssessmentPage: React.FC = () => {
           {notification.message}
         </Alert>
       </Snackbar>
-    </Box>
+      </Container>
+    </AdminPageLayout>
   )
 }
 
