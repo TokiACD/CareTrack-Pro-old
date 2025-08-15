@@ -698,3 +698,93 @@ export interface AuditLogFilter {
   dateTo?: Date;
   search?: string;
 }
+
+// Carer Dashboard Types
+export interface CarerDashboardSummary {
+  progressPercentage: number;
+  totalCompetencies: number;
+  completedCompetencies: number;
+  pendingConfirmations: number;
+  thisWeekShifts: number;
+  totalShiftApplications: number;
+  todaysTasks: number;
+  nextShift: {
+    date: Date;
+    package: string;
+    location: string;
+  } | null;
+}
+
+export interface CarerNotification {
+  type: 'competency_confirmation' | 'shift_update';
+  priority: 'high' | 'medium' | 'low';
+  title: string;
+  message: string;
+  data: any;
+  createdAt: Date;
+}
+
+export interface CarerActivityItem {
+  type: 'competency_update' | 'shift_application';
+  date: Date;
+  data: any;
+}
+
+// Carer Progress Types
+export interface CarerProgressOverview {
+  overview: {
+    totalCompetencies: number;
+    completedCompetencies: number;
+    confirmedCompetencies: number;
+    averageProgress: number;
+  };
+  categories: CarerProgressCategory[];
+}
+
+export interface CarerProgressCategory {
+  category: string;
+  competencies: CarerCompetencyProgress[];
+  averageRating: number;
+  completedCount: number;
+  totalCount: number;
+}
+
+export interface CarerCompetencyProgress {
+  id: string;
+  name: string;
+  rating: number;
+  isCompleted: boolean;
+  isConfirmed: boolean;
+  lastUpdated: Date;
+  assessmentTitle?: string;
+}
+
+export interface CarerPendingConfirmation {
+  id: string;
+  competencyName: string;
+  assessmentTitle?: string;
+  category?: string;
+  completedAt: Date;
+  rating: number;
+}
+
+export interface CarerAchievement {
+  id: string;
+  name: string;
+  description: string;
+  icon: string;
+  earned: boolean;
+  progress: number;
+  target: number;
+}
+
+export interface CarerAchievementsResponse {
+  summary: {
+    totalAchievements: number;
+    earnedAchievements: number;
+    confirmedCompetencies: number;
+    totalCompetencies: number;
+    completedShifts: number;
+  };
+  achievements: CarerAchievement[];
+}

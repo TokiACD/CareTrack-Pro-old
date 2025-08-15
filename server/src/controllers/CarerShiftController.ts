@@ -11,7 +11,8 @@ export class CarerShiftController {
    */
   async applyForShift(req: Request, res: Response, next: NextFunction) {
     try {
-      const { shiftId, carerId, notes } = req.body
+      const { shiftId, notes } = req.body
+      const carerId = req.user!.id // Get carer ID from authenticated user
 
       // Validate shift exists and is accepting applications
       const shift = await prisma.shift.findUnique({
@@ -89,7 +90,7 @@ export class CarerShiftController {
    */
   async getAvailableShifts(req: Request, res: Response, next: NextFunction) {
     try {
-      const { carerId } = req.params
+      const carerId = req.user!.id // Get carer ID from authenticated user
 
       // Get shifts that are waiting for responses and haven't expired
       const shifts = await prisma.shift.findMany({
@@ -133,7 +134,7 @@ export class CarerShiftController {
    */
   async getCarerApplications(req: Request, res: Response, next: NextFunction) {
     try {
-      const { carerId } = req.params
+      const carerId = req.user!.id // Get carer ID from authenticated user
 
       const applications = await prisma.shiftApplication.findMany({
         where: { carerId },

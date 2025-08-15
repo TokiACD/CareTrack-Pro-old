@@ -70,6 +70,10 @@ Healthcare management system with React frontend, Express backend, and PostgreSQ
 **IN PROGRESS 🔄**
 - Following IMPLEMENTATION_ROADMAP.md systematically
 - Committing after each milestone completion
+- Marking completed items in IMPLEMENTATION_ROADMAP.md file
+
+**WORKFLOW**
+- Complete milestone → Update IMPLEMENTATION_ROADMAP.md with ✅ → Commit & Push → Continue next phase
 
 **REFERENCE DOCUMENT**
 - See `IMPLEMENTATION_ROADMAP.md` for complete feature requirements

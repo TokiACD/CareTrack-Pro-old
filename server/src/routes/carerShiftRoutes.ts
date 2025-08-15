@@ -1,6 +1,7 @@
 import { Router } from 'express'
 import { body, param } from 'express-validator'
 import { validateRequest } from '../middleware/validateRequest'
+import { requireCarerAuth } from '../middleware/auth'
 import { carerShiftController } from '../controllers/CarerShiftController'
 
 const router = Router()
@@ -10,15 +11,12 @@ const router = Router()
  * Apply for a shift (simulates carer mobile app)
  */
 router.post('/apply',
+  requireCarerAuth,
   [
     body('shiftId')
       .isString()
       .notEmpty()
       .withMessage('Shift ID is required'),
-    body('carerId')
-      .isString()
-      .notEmpty()
-      .withMessage('Carer ID is required'),
     body('notes')
       .optional()
       .isString()
@@ -33,13 +31,8 @@ router.post('/apply',
  * GET /api/carer-shifts/:carerId/available
  * Get available shifts for a carer
  */
-router.get('/:carerId/available',
-  [
-    param('carerId')
-      .isString()
-      .notEmpty()
-      .withMessage('Carer ID is required')
-  ],
+router.get('/available',
+  requireCarerAuth,
   validateRequest,
   carerShiftController.getAvailableShifts.bind(carerShiftController)
 )
@@ -48,13 +41,8 @@ router.get('/:carerId/available',
  * GET /api/carer-shifts/:carerId/applications
  * Get carer's shift applications
  */
-router.get('/:carerId/applications',
-  [
-    param('carerId')
-      .isString()
-      .notEmpty()
-      .withMessage('Carer ID is required')
-  ],
+router.get('/applications',
+  requireCarerAuth,
   validateRequest,
   carerShiftController.getCarerApplications.bind(carerShiftController)
 )

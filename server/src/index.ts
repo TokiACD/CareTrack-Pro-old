@@ -38,6 +38,8 @@ import { progressRoutes } from './routes/progressRoutes'
 import { shiftRoutes } from './routes/shiftRoutes'
 import { shiftSenderRoutes } from './routes/shiftSenderRoutes'
 import { carerShiftRoutes } from './routes/carerShiftRoutes'
+import { carerDashboardRoutes } from './routes/carerDashboardRoutes'
+import { carerProgressRoutes } from './routes/carerProgressRoutes'
 import { rotaRoutes } from './routes/rotaRoutes'
 import { recycleBinRoutes } from './routes/recycleBinRoutes'
 import { auditRoutes } from './routes/auditRoutes'
@@ -357,6 +359,8 @@ app.use('/api/progress', progressRoutes)
 app.use('/api/shifts', shiftRoutes)
 app.use('/api/shift-sender', shiftSenderRoutes)
 app.use('/api/carer-shifts', carerShiftRoutes)
+app.use('/api/carer-dashboard', carerDashboardRoutes)
+app.use('/api/carer-progress', carerProgressRoutes)
 app.use('/api/rota', rotaRoutes)
 app.use('/api/recycle-bin', recycleBinRoutes)
 app.use('/api/audit', auditRoutes)
