@@ -40,7 +40,7 @@ export const CarerDashboardPage: React.FC = () => {
       description: 'Log your daily care activities and track completion',
       icon: '📋',
       color: '#0891b2', // Cyan-600
-      onClick: () => navigate('/carer/daily-tasks'),
+      onClick: () => navigate('/carer-dashboard/daily-tasks'),
       badge: '3 pending',
     },
     {
@@ -49,7 +49,7 @@ export const CarerDashboardPage: React.FC = () => {
       description: 'View your competency levels and achievements',
       icon: '📈',
       color: '#059669', // Emerald-600
-      onClick: () => navigate('/carer/progress'),
+      onClick: () => navigate('/carer-dashboard/progress'),
       badge: '85% complete',
     },
     {
@@ -58,7 +58,7 @@ export const CarerDashboardPage: React.FC = () => {
       description: 'Browse and apply for upcoming care shifts',
       icon: '🕐',
       color: '#7c3aed', // Violet-600
-      onClick: () => navigate('/carer/shifts'),
+      onClick: () => navigate('/carer-dashboard/shifts'),
       badge: '5 new',
     },
     {

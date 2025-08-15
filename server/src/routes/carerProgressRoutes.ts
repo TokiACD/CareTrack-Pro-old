@@ -46,6 +46,30 @@ router.post('/confirm/:competencyRatingId',
 )
 
 /**
+ * POST /api/carer-progress/log-task
+ * Log a task practice session
+ */
+router.post('/log-task',
+  requireCarerAuth,
+  [
+    body('competencyRatingId')
+      .isString()
+      .notEmpty()
+      .withMessage('Competency rating ID is required'),
+    body('count')
+      .isInt({ min: 1, max: 50 })
+      .withMessage('Count must be between 1 and 50'),
+    body('notes')
+      .optional()
+      .isString()
+      .isLength({ max: 500 })
+      .withMessage('Notes must be less than 500 characters')
+  ],
+  validateRequest,
+  carerProgressController.logTaskPractice.bind(carerProgressController)
+)
+
+/**
  * GET /api/carer-progress/achievements
  * Get carer's achievement progress and badges
  */

@@ -209,6 +209,85 @@ export class CarerProgressController {
   }
 
   /**
+   * Log task practice session
+   */
+  async logTaskPractice(req: Request, res: Response, next: NextFunction) {
+    try {
+      const carerId = req.user!.id
+      const { competencyRatingId, count, notes } = req.body
+
+      // Verify the competency rating belongs to the authenticated carer
+      const competencyRating = await prisma.competencyRating.findFirst({
+        where: {
+          id: competencyRatingId,
+          carerId,
+          deletedAt: null
+        },
+        include: {
+          competency: true
+        }
+      })
+
+      if (!competencyRating) {
+        return res.status(404).json({
+          success: false,
+          error: 'Competency rating not found'
+        })
+      }
+
+      // Calculate new rating based on practice count
+      // Each practice session increases rating by a base amount + diminishing returns
+      const baseIncrement = 5 // Base points per practice
+      const currentRating = competencyRating.rating
+      const diminishingFactor = Math.max(0.1, 1 - (currentRating / 100)) // Slower progress as you get closer to 100%
+      const increment = Math.round(baseIncrement * count * diminishingFactor)
+      const newRating = Math.min(100, currentRating + increment)
+
+      // Update the competency rating
+      const updatedRating = await prisma.competencyRating.update({
+        where: { id: competencyRatingId },
+        data: { 
+          rating: newRating,
+          updatedAt: new Date()
+        },
+        include: {
+          competency: true
+        }
+      })
+
+      // Log the practice session
+      await auditService.log({
+        action: 'TASK_PRACTICE_LOGGED',
+        entityType: 'CompetencyRating',
+        entityId: competencyRatingId,
+        performedByAdminName: req.user!.name,
+        ipAddress: req.ip,
+        userAgent: req.get('User-Agent'),
+        details: {
+          competencyName: competencyRating.competency.name,
+          practiceCount: count,
+          oldRating: currentRating,
+          newRating: newRating,
+          notes: notes || undefined
+        }
+      })
+
+      res.json({
+        success: true,
+        data: {
+          updatedRating,
+          increment,
+          celebrationTriggered: newRating === 100 && currentRating < 100
+        },
+        message: `Practice logged! Progress increased by ${increment} points.`
+      })
+
+    } catch (error) {
+      next(error)
+    }
+  }
+
+  /**
    * Get carer's achievement progress
    */
   async getAchievements(req: Request, res: Response, next: NextFunction) {
