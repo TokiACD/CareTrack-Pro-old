@@ -39,19 +39,19 @@ class ApiService {
     }
   }
 
-  private async ensureCSRFToken(): Promise<void> {
-    if (this.csrfToken) return
-    
+  private async ensureCSRFToken(): Promise<string | null> {
     try {
       const response = await fetch('/api/csrf-token')
       const data = await response.json()
       if (data.success && data.token) {
         this.csrfToken = data.token
-        logger.debug('CSRF token fetched on demand', { tokenLength: data.token.length }, 'api')
+        logger.debug('CSRF token fetched', { tokenLength: data.token.length }, 'api')
+        return data.token
       }
     } catch (error) {
       logger.warn('Failed to fetch CSRF token:', error, 'api')
     }
+    return null
   }
 
   private setupInterceptors() {
@@ -66,10 +66,10 @@ class ApiService {
         // Add CSRF token for non-GET requests
         if (config.method !== 'get') {
           if (!this.csrfToken) {
-            // If no CSRF token, try to get it synchronously
-            return this.ensureCSRFToken().then(() => {
-              if (this.csrfToken) {
-                config.headers['x-csrf-token'] = this.csrfToken
+            // If no CSRF token, get it asynchronously
+            return this.ensureCSRFToken().then((token) => {
+              if (token) {
+                config.headers['x-csrf-token'] = token
               }
               return config
             })
@@ -139,20 +139,22 @@ class ApiService {
         )
         
         // Handle CSRF token errors with automatic refresh
-        if (error.response?.status === 403 && error.response?.data?.code === 'CSRF_TOKEN_INVALID') {
-          logger.warn('CSRF token invalid, refreshing token', {}, 'api')
+        if (error.response?.status === 403 && 
+            (error.response?.data?.code === 'CSRF_TOKEN_INVALID' || 
+             error.response?.data?.code === 'CSRF_TOKEN_MISSING')) {
+          logger.warn('CSRF token invalid/missing, refreshing token', {}, 'api')
           
           // Clear the invalid token
           this.csrfToken = null
           
           // Fetch a new token
           try {
-            await this.ensureCSRFToken()
+            const newToken = await this.ensureCSRFToken()
             
             // Retry the original request with the new token
-            if (error.config && this.csrfToken) {
+            if (error.config && newToken) {
               logger.debug('Retrying request with new CSRF token', {}, 'api')
-              error.config.headers['x-csrf-token'] = this.csrfToken
+              error.config.headers['x-csrf-token'] = newToken
               return this.api.request(error.config)
             }
           } catch (tokenError) {

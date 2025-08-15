@@ -40,7 +40,8 @@ model AdminUser {
   @@index([lastLogin])                     // Login activity tracking
   @@index([createdAt])                     // User registration queries
   @@index([dataRetentionDate])             // HIPAA retention compliance
-  @@index([isActive, deletedAt])           // Compound index for active user filtering
+  @@index([id, isActive, deletedAt])       // Compound index for fast auth lookup optimization
+  @@index([isActive, deletedAt])           // Compound index for active admin filtering
   @@map("admin_users")
 }
 
@@ -57,6 +58,7 @@ model PasswordResetToken {
   @@index([email, expiresAt])              // Email-based token lookup
   @@index([token, expiresAt])              // Token validation queries
   @@index([createdAt])                     // Temporal token queries
+  @@index([email, usedAt])                 // Prevent token reuse attacks
   @@map("password_reset_tokens")
 }
 

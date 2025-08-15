@@ -96,7 +96,7 @@ export const CSRF_CONFIG = {
   ENABLED: true,
   SECRET_LENGTH: 32,
   TOKEN_LENGTH: 32,
-  COOKIE_NAME: '__Host-csrf-token',
+  COOKIE_NAME: process.env.NODE_ENV === 'production' ? '__Host-csrf-token' : 'csrf-token',
   HEADER_NAME: 'x-csrf-token',
   SECURE: process.env.NODE_ENV === 'production',
   SAME_SITE: 'strict' as const,

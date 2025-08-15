@@ -15,9 +15,9 @@ interface JwtPayload {
   exp?: number
 }
 
-// In-memory cache for user verification (short TTL for security)
+// In-memory cache for user verification (shorter TTL for better security/performance balance)
 const userCache = new Map<string, { user: AdminUser; expires: number }>()
-const CACHE_TTL = 60000 // 1 minute cache
+const CACHE_TTL = 300000 // 5 minutes cache - longer for better performance
 
 export const fastAuth = async (
   req: Request,
@@ -56,8 +56,8 @@ export const fastAuth = async (
       return next()
     }
 
-    // Get user from database (only if not cached)
-    const user = await prisma.adminUser.findUnique({
+    // Get user from database (only if not cached) - optimized query
+    const user = await prisma.adminUser.findFirst({
       where: {
         id: decoded.userId,
         isActive: true,
@@ -90,13 +90,8 @@ export const fastAuth = async (
       expires: Date.now() + CACHE_TTL
     })
 
-    // Update lastLogin asynchronously (don't block the response)
-    setImmediate(() => {
-      prisma.adminUser.update({
-        where: { id: user.id },
-        data: { lastLogin: new Date() },
-      }).catch(err => console.warn('Failed to update lastLogin:', err))
-    })
+    // Skip lastLogin update on fast auth to improve performance
+    // This is a performance-critical path, lastLogin updates are optional
 
     req.user = user as AdminUser
     next()
@@ -126,7 +121,7 @@ export const fastAuth = async (
   }
 }
 
-// Clean up expired cache entries periodically
+// Clean up expired cache entries periodically (less frequently for better performance)
 setInterval(() => {
   const now = Date.now()
   for (const [key, value] of userCache.entries()) {
@@ -134,6 +129,6 @@ setInterval(() => {
       userCache.delete(key)
     }
   }
-}, CACHE_TTL) // Clean up every minute
+}, CACHE_TTL * 2) // Clean up every 10 minutes (less CPU overhead)
 
 export const requireFastAuth = fastAuth

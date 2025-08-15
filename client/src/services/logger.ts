@@ -84,59 +84,118 @@ class Logger {
   }
 
   private formatMessage(entry: LogEntry): string {
-    const timestamp = entry.timestamp.toISOString()
-    const context = entry.context ? `[${entry.context}]` : ''
-    return `[${timestamp}] ${entry.level.toUpperCase()} ${context} ${entry.message}`
+    try {
+      const timestamp = entry.timestamp.toISOString()
+      const context = entry.context ? `[${entry.context}]` : ''
+      return `[${timestamp}] ${entry.level.toUpperCase()} ${context} ${entry.message}`
+    } catch (error) {
+      return `[${new Date().toISOString()}] ERROR [logger] ${entry.message}`
+    }
+  }
+
+  private sanitizeData(data: any): any {
+    if (data === null || data === undefined) {
+      return data
+    }
+    
+    try {
+      // Handle primitive types
+      if (typeof data !== 'object') {
+        return data
+      }
+      
+      // Handle Error objects specially
+      if (data instanceof Error) {
+        return {
+          name: data.name,
+          message: data.message,
+          stack: data.stack
+        }
+      }
+      
+      // Try to JSON.stringify to catch circular references
+      JSON.stringify(data)
+      return data
+    } catch (error) {
+      // If we have circular references or other issues, return a safe representation
+      try {
+        return Object.prototype.toString.call(data)
+      } catch {
+        return '[Object - could not serialize]'
+      }
+    }
   }
 
   private log(level: LogLevel, message: string, data?: any, context?: string) {
-    const entry: LogEntry = {
-      level,
-      message,
-      data,
-      timestamp: new Date(),
-      context,
-      userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : undefined,
-      url: typeof window !== 'undefined' ? window.location.href : undefined
-    }
-
-    // Add stack trace for errors
-    if (level === 'error') {
-      entry.stack = new Error().stack
-    }
-
-    // Store log entry
-    this.logs.push(entry)
-    if (this.logs.length > this.maxLogs) {
-      this.logs.shift()
-    }
-
-    // Only output to console if appropriate
-    if (this.shouldLog(level)) {
-      const formattedMessage = this.formatMessage(entry)
+    try {
+      // Safely handle data that might have circular references or be undefined
+      const safeData = this.sanitizeData(data)
       
-      switch (level) {
-        case 'debug':
-          console.debug(formattedMessage, data || '')
-          break
-        case 'info':
-          console.info(formattedMessage, data || '')
-          break
-        case 'warn':
-          console.warn(formattedMessage, data || '')
-          break
-        case 'error':
-          console.error(formattedMessage, data || '')
-          if (entry.stack && this.isDevelopment) {
-            console.error(entry.stack)
-          }
-          break
+      const entry: LogEntry = {
+        level,
+        message: String(message || 'Unknown error'),
+        data: safeData,
+        timestamp: new Date(),
+        context,
+        userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : undefined,
+        url: typeof window !== 'undefined' ? window.location.href : undefined
       }
-    }
 
-    // In production, send errors to monitoring service
-    if (!this.isDevelopment && level === 'error') {
-      this.sendToMonitoring(entry)
+      // Add stack trace for errors
+      if (level === 'error') {
+        try {
+          entry.stack = new Error().stack
+        } catch (stackError) {
+          // If getting stack trace fails, continue without it
+          entry.stack = 'Stack trace unavailable'
+        }
+      }
+
+      // Store log entry
+      this.logs.push(entry)
+      if (this.logs.length > this.maxLogs) {
+        this.logs.shift()
+      }
+
+      // Only output to console if appropriate
+      if (this.shouldLog(level)) {
+        const formattedMessage = this.formatMessage(entry)
+        
+        try {
+          switch (level) {
+            case 'debug':
+              console.debug(formattedMessage, safeData || '')
+              break
+            case 'info':
+              console.info(formattedMessage, safeData || '')
+              break
+            case 'warn':
+              console.warn(formattedMessage, safeData || '')
+              break
+            case 'error':
+              console.error(formattedMessage, safeData || '')
+              if (entry.stack && this.isDevelopment) {
+                console.error(entry.stack)
+              }
+              break
+          }
+        } catch (consoleError) {
+          // If console logging fails, fall back to basic console.log
+          console.log(`[LOGGER ERROR] Failed to log ${level}: ${message}`)
+        }
+      }
+
+      // In production, send errors to monitoring service
+      if (!this.isDevelopment && level === 'error') {
+        try {
+          this.sendToMonitoring(entry)
+        } catch (monitoringError) {
+          // Silently fail monitoring to prevent cascading errors
+        }
+      }
+    } catch (logError) {
+      // If the entire logging process fails, output a simple console error
+      console.error('[LOGGER FAILURE] Failed to log message:', message, 'Error:', logError)
     }
   }
 
@@ -144,13 +203,31 @@ class Logger {
     try {
       // Store critical errors locally for debugging
       const existingErrors = JSON.parse(localStorage.getItem('app-errors') || '[]')
-      existingErrors.push(entry)
+      
+      // Ensure existingErrors is an array
+      const errorsArray = Array.isArray(existingErrors) ? existingErrors : []
+      
+      // Create a safe version of the entry for storage
+      const safeEntry = {
+        level: entry.level,
+        message: entry.message,
+        timestamp: entry.timestamp?.toISOString() || new Date().toISOString(),
+        context: entry.context,
+        data: this.sanitizeData(entry.data)
+      }
+      
+      errorsArray.push(safeEntry)
       
       // Keep only last 50 errors
-      const recentErrors = existingErrors.slice(-50)
+      const recentErrors = errorsArray.slice(-50)
       localStorage.setItem('app-errors', JSON.stringify(recentErrors))
     } catch (err) {
-      console.error('Failed to store error log:', err)
+      // If localStorage fails, don't throw - just log to console as fallback
+      try {
+        console.error('Failed to store error log:', err)
+      } catch {
+        // If even console.error fails, silently continue
+      }
     }
   }
 

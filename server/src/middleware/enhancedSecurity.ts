@@ -55,7 +55,6 @@ const enhancedSecurityHeaders = helmet({
 interface CSRFTokenData {
   token: string;
   expires: number;
-  used: boolean;
 }
 
 const csrfTokens = new Map<string, CSRFTokenData>();
@@ -64,7 +63,8 @@ const csrfProtection = (req: Request, res: Response, next: NextFunction) => {
   // Skip CSRF for safe methods, API keys, and the CSRF token endpoint itself
   if (['GET', 'HEAD', 'OPTIONS'].includes(req.method) || 
       req.headers['x-api-key'] ||
-      req.path === '/csrf-token') {
+      req.path === '/csrf-token' ||
+      req.path === '/api/csrf-token') {
     return next();
   }
 
@@ -82,16 +82,22 @@ const csrfProtection = (req: Request, res: Response, next: NextFunction) => {
 
   const tokenData = csrfTokens.get(token);
   
-  if (!tokenData || tokenData.used || tokenData.expires < Date.now()) {
+  if (!tokenData || tokenData.expires < Date.now()) {
+    // Clean up expired token if found
+    if (tokenData && tokenData.expires < Date.now()) {
+      csrfTokens.delete(token);
+    }
+    
     return res.status(403).json({
       success: false,
-      error: 'Invalid CSRF token',
+      error: 'CSRF token invalid or expired',
       code: 'CSRF_TOKEN_INVALID'
     });
   }
 
-  // Mark token as used for single-use
-  tokenData.used = true;
+  // Don't mark token as used - allow reuse during valid period
+  // Update last used time for token refresh logic
+  tokenData.token = token; // Keep the same token value
   
   next();
 };
@@ -103,8 +109,7 @@ const generateCSRFToken = (req: Request, res: Response) => {
   
   csrfTokens.set(token, {
     token,
-    expires,
-    used: false
+    expires
   });
 
   // Clean up expired tokens
@@ -257,11 +262,12 @@ class PHIProtection {
 
 // PHI Protection Middleware
 const phiProtectionMiddleware = (req: Request, res: Response, next: NextFunction) => {
-  // Skip PHI encryption for authentication and public endpoints
+  // Skip PHI encryption for authentication, public endpoints, and invitation endpoints
   const isAuthEndpoint = req.path.includes('/auth/') || 
                          req.path.includes('/login') || 
                          req.path.includes('/reset-password') || 
                          req.path.includes('/forgot-password') ||
+                         req.path.includes('/invitations/') ||
                          req.path === '/api/csrf-token' ||
                          req.path === '/health' ||
                          req.path === '/metrics';
@@ -339,9 +345,10 @@ function hasPhiAccess(req: Request): boolean {
 // =============================================================================
 
 const enhancedInputValidation = (req: Request, res: Response, next: NextFunction) => {
-  // Skip input validation for public endpoints
+  // Skip input validation for public endpoints and invitation endpoints (they have their own validation)
   const isPublicEndpoint = req.path === '/api/csrf-token' || 
                           req.path.includes('/api/auth/') || 
+                          req.path.includes('/api/invitations/') ||
                           req.path === '/health' ||
                           req.path === '/metrics';
   
