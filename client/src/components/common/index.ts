@@ -5,3 +5,4 @@ export { Footer } from './Footer';
 export * from './LoadingSkeletons';
 export { StandardPageHeader } from './StandardPageHeader';
 export { AdminPageLayout } from './AdminPageLayout';
+export { CarerPageLayout } from './CarerPageLayout';

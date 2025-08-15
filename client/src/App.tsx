@@ -7,6 +7,8 @@ import { LoadingScreen } from './components/common/LoadingScreen'
 import { Footer } from './components/common/Footer'
 import { PageErrorBoundary } from './components/common/ErrorBoundary'
 import { ProtectedRoute } from './components/auth/ProtectedRoute'
+import { AdminProtectedRoute } from './components/auth/AdminProtectedRoute'
+import { CarerProtectedRoute } from './components/auth/CarerProtectedRoute'
 
 // Lazy load components for better performance
 const LoginPage = React.lazy(() => import('./pages/LoginPage').then(module => ({ default: module.HealthcareLogin })))
@@ -35,9 +37,10 @@ const UsersPage = React.lazy(() => import('./pages/UsersPage'))
 const CarePackagesPage = React.lazy(() => import('./pages/CarePackagesPage'))
 const PDFReportsPage = React.lazy(() => import('./pages/PDFReportsPage'))
 const ShiftSenderPage = React.lazy(() => import('./pages/ShiftSenderPage'))
+const CarerDashboardPage = React.lazy(() => import('./pages/CarerDashboardPage'))
 
 const App = memo(() => {
-  const { user, loading } = useAuth()
+  const { user, userType, loading } = useAuth()
 
   if (loading) {
     return <LoadingScreen />
@@ -69,7 +72,9 @@ const App = memo(() => {
         <Route 
           path="/login" 
           element={
-            user ? <Navigate to="/dashboard" replace /> : (
+            user ? (
+              <Navigate to={userType === 'admin' ? "/dashboard" : "/carer-dashboard"} replace />
+            ) : (
               <Suspense fallback={<LoadingScreen />}>
                 <LoginPage />
               </Suspense>
@@ -103,7 +108,9 @@ const App = memo(() => {
         <Route 
           path="/forgot-password" 
           element={
-            user ? <Navigate to="/dashboard" replace /> : (
+            user ? (
+              <Navigate to={userType === 'admin' ? "/dashboard" : "/carer-dashboard"} replace />
+            ) : (
               <Suspense fallback={<LoadingScreen />}>
                 <ForgotPasswordPage />
               </Suspense>
@@ -113,7 +120,9 @@ const App = memo(() => {
         <Route 
           path="/reset-password" 
           element={
-            user ? <Navigate to="/dashboard" replace /> : (
+            user ? (
+              <Navigate to={userType === 'admin' ? "/dashboard" : "/carer-dashboard"} replace />
+            ) : (
               <Suspense fallback={<LoadingScreen />}>
                 <ResetPasswordPage />
               </Suspense>
@@ -122,24 +131,39 @@ const App = memo(() => {
         />
         
         {/* Protected routes */}
+        {/* Admin Dashboard */}
         <Route
           path="/dashboard"
           element={
-            <ProtectedRoute>
+            <AdminProtectedRoute>
               <Suspense fallback={<LoadingScreen />}>
                 <DashboardPage />
               </Suspense>
-            </ProtectedRoute>
+            </AdminProtectedRoute>
           }
         />
+        
+        {/* Carer Dashboard */}
+        <Route
+          path="/carer-dashboard"
+          element={
+            <CarerProtectedRoute>
+              <Suspense fallback={<LoadingScreen />}>
+                <CarerDashboardPage />
+              </Suspense>
+            </CarerProtectedRoute>
+          }
+        />
+        
+        {/* Admin-only routes */}
         <Route
           path="/users"
           element={
-            <ProtectedRoute>
+            <AdminProtectedRoute>
               <Suspense fallback={<LoadingScreen />}>
                 <UsersPage />
               </Suspense>
-            </ProtectedRoute>
+            </AdminProtectedRoute>
           }
         />
         <Route
@@ -343,10 +367,19 @@ const App = memo(() => {
           }
         />
         
-        {/* Redirect root to login if not authenticated */}
+        {/* Redirect root to appropriate dashboard if authenticated */}
         <Route 
           path="/" 
-          element={<Navigate to={user ? "/dashboard" : "/login"} replace />} 
+          element={
+            <Navigate 
+              to={
+                user 
+                  ? (userType === 'admin' ? "/dashboard" : "/carer-dashboard")
+                  : "/login"
+              } 
+              replace 
+            />
+          } 
         />
         
         {/* Catch all - redirect to login */}
