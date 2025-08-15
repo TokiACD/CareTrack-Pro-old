@@ -76,7 +76,7 @@ export const AvailableShifts: React.FC = () => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const { user } = useAuth();
-  const { showNotification } = useNotification();
+  const { showSuccess, showError } = useNotification();
   const queryClient = useQueryClient();
 
   const [selectedShift, setSelectedShift] = useState<Shift | null>(null);
@@ -102,14 +102,14 @@ export const AvailableShifts: React.FC = () => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['carer-shifts'] });
-      showNotification('Application submitted successfully!', 'success');
+      showSuccess('Application submitted successfully!');
       setApplicationDialogOpen(false);
       setSelectedShift(null);
       setApplicationNotes('');
     },
     onError: (error: any) => {
       const message = error.response?.data?.error || 'Failed to submit application';
-      showNotification(message, 'error');
+      showError(message);
     }
   });
 

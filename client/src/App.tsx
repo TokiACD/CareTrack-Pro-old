@@ -41,6 +41,9 @@ const CarerDashboardPage = React.lazy(() => import('./pages/CarerDashboardPage')
 const DailyTaskAssessmentPage = React.lazy(() => import('./pages/DailyTaskAssessmentPage'))
 const PersonalProgressPage = React.lazy(() => import('./pages/PersonalProgressPage'))
 const AvailableShiftsPage = React.lazy(() => import('./pages/AvailableShiftsPage'))
+const PersonalRotaPage = React.lazy(() => import('./pages/PersonalRotaPage'))
+const CompetencyConfirmationsPage = React.lazy(() => import('./pages/CompetencyConfirmationsPage'))
+const AchievementsPage = React.lazy(() => import('./pages/AchievementsPage'))
 
 const App = memo(() => {
   const { user, userType, loading } = useAuth()
@@ -189,6 +192,42 @@ const App = memo(() => {
             <CarerProtectedRoute>
               <Suspense fallback={<LoadingScreen />}>
                 <AvailableShiftsPage />
+              </Suspense>
+            </CarerProtectedRoute>
+          }
+        />
+        
+        {/* Carer Personal Schedule */}
+        <Route
+          path="/carer/schedule"
+          element={
+            <CarerProtectedRoute>
+              <Suspense fallback={<LoadingScreen />}>
+                <PersonalRotaPage />
+              </Suspense>
+            </CarerProtectedRoute>
+          }
+        />
+        
+        {/* Carer Competency Confirmations */}
+        <Route
+          path="/carer/confirmations"
+          element={
+            <CarerProtectedRoute>
+              <Suspense fallback={<LoadingScreen />}>
+                <CompetencyConfirmationsPage />
+              </Suspense>
+            </CarerProtectedRoute>
+          }
+        />
+        
+        {/* Carer Achievements */}
+        <Route
+          path="/carer/achievements"
+          element={
+            <CarerProtectedRoute>
+              <Suspense fallback={<LoadingScreen />}>
+                <AchievementsPage />
               </Suspense>
             </CarerProtectedRoute>
           }
