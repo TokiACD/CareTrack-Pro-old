@@ -30,11 +30,36 @@ router.post('/logout', requireAuth, authController.logout)
 // Verify token - use fast auth for performance-critical endpoint
 router.get('/verify', requireFastAuth, authController.verifyToken)
 
-// Forgot password
-router.post('/forgot-password', authController.forgotPassword)
+// Forgot password with validation
+router.post(
+  '/forgot-password',
+  [
+    body('email')
+      .isEmail()
+      .normalizeEmail()
+      .isLength({ max: 254 }) // RFC 5321 limit
+      .withMessage('Please provide a valid email address'),
+  ],
+  validateRequest,
+  authController.forgotPassword
+)
 
-// Reset password
-router.post('/reset-password', authController.resetPassword)
+// Reset password with validation
+router.post(
+  '/reset-password',
+  [
+    body('token')
+      .isLength({ min: 32, max: 128 })
+      .matches(/^[a-f0-9]+$/i)
+      .withMessage('Invalid reset token format'),
+    body('password')
+      .isLength({ min: 8, max: 128 })
+      .matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]/)
+      .withMessage('Password must contain at least 8 characters with uppercase, lowercase, number and special character'),
+  ],
+  validateRequest,
+  authController.resetPassword
+)
 
 
 // Invite admin (requires authentication)

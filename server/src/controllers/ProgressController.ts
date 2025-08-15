@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { prisma } from '../index';
 import { auditService } from '../services/auditService';
+import { assessmentTriggerService } from '../services/AssessmentTriggerService';
 
 interface CarerProgressSummary {
   id: string;
@@ -410,6 +411,59 @@ export class ProgressController {
       // SMART ASSIGNMENT FEATURES: Sync progress globally across all packages where carer is assigned to this task
       await this.syncGlobalProgress(carerId, taskId, completionCount, task.targetCount);
 
+      // CHECK FOR ASSESSMENT TRIGGERS: Automatically detect when carers are ready for assessment
+      let assessmentTrigger = null;
+      if (completionPercentage >= 90) {
+        try {
+          assessmentTrigger = await assessmentTriggerService.checkAssessmentTriggers(
+            carerId, 
+            taskId, 
+            completionPercentage
+          );
+          
+          if (assessmentTrigger) {
+            // Generate notifications for admins
+            const notifications = await assessmentTriggerService.generateAssessmentNotifications(assessmentTrigger);
+            
+            // Send email notifications to admins
+            try {
+              await assessmentTriggerService.sendAssessmentNotificationEmails(assessmentTrigger);
+            } catch (emailError) {
+              console.error('Failed to send assessment notification emails:', emailError);
+              // Don't fail the main operation if email fails
+            }
+            
+            // Log assessment readiness
+            if (notifications.length > 0) {
+              await auditService.log({
+                action: 'ASSESSMENT_READY_DETECTED',
+                entityType: 'AssessmentTrigger',
+                entityId: `${carerId}-${taskId}`,
+                newValues: {
+                  carerId,
+                  taskId,
+                  completionPercentage,
+                  availableAssessments: assessmentTrigger.availableAssessments.length,
+                  fullyReadyAssessments: assessmentTrigger.availableAssessments.filter(a => a.isFullyReady).length,
+                  notifications: notifications.map(n => ({
+                    severity: n.severity,
+                    assessmentName: n.assessmentName,
+                    message: n.message
+                  }))
+                },
+                performedByAdminId: req.user?.id || 'system',
+                performedByAdminName: req.user?.name || 'System',
+                ipAddress: req.ip,
+                userAgent: req.get('User-Agent')
+              });
+            }
+          }
+        } catch (triggerError) {
+          console.error('Assessment trigger check failed:', triggerError);
+          // Don't fail the main operation if assessment trigger fails
+        }
+      }
+
       // Log the update
       await auditService.log({
         action: 'UPDATE_TASK_PROGRESS',
@@ -422,10 +476,36 @@ export class ProgressController {
         userAgent: req.get('User-Agent')
       });
 
+      // Prepare response with assessment trigger information
+      const responseData: any = {
+        progress,
+        assessmentTrigger: assessmentTrigger ? {
+          carerId: assessmentTrigger.carerId,
+          carerName: assessmentTrigger.carerName,
+          availableAssessments: assessmentTrigger.availableAssessments.map(a => ({
+            assessmentId: a.assessmentId,
+            assessmentName: a.assessmentName,
+            isFullyReady: a.isFullyReady,
+            readyTasks: a.readyTasks,
+            totalTasks: a.totalTasks
+          }))
+        } : null
+      };
+
+      let message = 'Task progress updated successfully';
+      if (assessmentTrigger?.availableAssessments?.length > 0) {
+        const fullyReady = assessmentTrigger.availableAssessments.filter(a => a.isFullyReady);
+        if (fullyReady.length > 0) {
+          message += ` - ${fullyReady.length} assessment(s) now available!`;
+        } else {
+          message += ` - Progress toward ${assessmentTrigger.availableAssessments.length} assessment(s) detected.`;
+        }
+      }
+
       res.json({
         success: true,
-        data: progress,
-        message: 'Task progress updated successfully'
+        data: responseData,
+        message
       });
     } catch (error) {
       next(error);

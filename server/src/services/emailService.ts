@@ -45,6 +45,43 @@ interface EmailChangeVerificationData {
   isAdminChange?: boolean
 }
 
+interface AssessmentReadyNotificationData {
+  to: string
+  adminName: string
+  carerName: string
+  assessmentName: string
+  completedTasks: string[]
+  packageName: string
+  dashboardUrl: string
+  severity: 'high' | 'medium' | 'low'
+}
+
+interface AssessmentOverdueNotificationData {
+  to: string
+  adminName: string
+  carerName: string
+  assessmentName: string
+  daysSinceReady: number
+  completedTasks: string[]
+  packageName: string
+  dashboardUrl: string
+}
+
+interface BulkAssessmentSummaryData {
+  to: string
+  adminName: string
+  readyCarers: number
+  overdueAssessments: number
+  totalAssessments: number
+  topCarers: Array<{
+    name: string
+    readyAssessments: number
+    packageName: string
+  }>
+  dashboardUrl: string
+  period: 'daily' | 'weekly'
+}
+
 class EmailService {
   private transporter: nodemailer.Transporter | null = null
   private useSendGrid: boolean | null = null
@@ -245,6 +282,95 @@ class EmailService {
       }
     } catch (error) {
       console.error(`❌ Failed to send email change verification to ${to}:`, error instanceof Error ? error.message : error)
+      throw error
+    }
+  }
+
+  async sendAssessmentReadyNotification(data: AssessmentReadyNotificationData): Promise<void> {
+    this.ensureInitialized()
+    const { to, adminName, carerName, assessmentName, severity } = data
+
+    const priorityIcon = severity === 'high' ? '🚨' : severity === 'medium' ? '⚠️' : '📋'
+    const priorityText = severity === 'high' ? 'HIGH PRIORITY' : severity === 'medium' ? 'MEDIUM PRIORITY' : 'LOW PRIORITY'
+
+    const mailData = {
+      from: process.env.SMTP_FROM || 'CareTrack Pro <noreply@caretrack.com>',
+      to,
+      subject: `${priorityIcon} CareTrack Pro - Assessment Ready: ${carerName}`,
+      html: this.getAssessmentReadyHTML(data),
+      text: this.getAssessmentReadyText(data),
+    }
+
+    try {
+      if (this.useSendGrid) {
+        await sgMail.send(mailData)
+        console.log(`✅ Assessment ready notification sent via SendGrid to: ${to}`)
+      } else {
+        const result = await this.transporter!.sendMail(mailData)
+        if (result.accepted && result.accepted.length > 0) {
+          console.log(`✅ Assessment ready notification sent to: ${result.accepted.join(', ')}`)
+        }
+      }
+    } catch (error) {
+      console.error(`❌ Failed to send assessment ready notification to ${to}:`, error instanceof Error ? error.message : error)
+      throw error
+    }
+  }
+
+  async sendAssessmentOverdueNotification(data: AssessmentOverdueNotificationData): Promise<void> {
+    this.ensureInitialized()
+    const { to, adminName, carerName, assessmentName, daysSinceReady } = data
+
+    const mailData = {
+      from: process.env.SMTP_FROM || 'CareTrack Pro <noreply@caretrack.com>',
+      to,
+      subject: `⏰ CareTrack Pro - Overdue Assessment: ${carerName} (${daysSinceReady} days)`,
+      html: this.getAssessmentOverdueHTML(data),
+      text: this.getAssessmentOverdueText(data),
+    }
+
+    try {
+      if (this.useSendGrid) {
+        await sgMail.send(mailData)
+        console.log(`✅ Assessment overdue notification sent via SendGrid to: ${to}`)
+      } else {
+        const result = await this.transporter!.sendMail(mailData)
+        if (result.accepted && result.accepted.length > 0) {
+          console.log(`✅ Assessment overdue notification sent to: ${result.accepted.join(', ')}`)
+        }
+      }
+    } catch (error) {
+      console.error(`❌ Failed to send assessment overdue notification to ${to}:`, error instanceof Error ? error.message : error)
+      throw error
+    }
+  }
+
+  async sendBulkAssessmentSummary(data: BulkAssessmentSummaryData): Promise<void> {
+    this.ensureInitialized()
+    const { to, adminName, readyCarers, period } = data
+
+    const periodText = period === 'daily' ? 'Daily' : 'Weekly'
+
+    const mailData = {
+      from: process.env.SMTP_FROM || 'CareTrack Pro <noreply@caretrack.com>',
+      to,
+      subject: `📊 CareTrack Pro - ${periodText} Assessment Summary (${readyCarers} carers ready)`,
+      html: this.getBulkAssessmentSummaryHTML(data),
+      text: this.getBulkAssessmentSummaryText(data),
+    }
+
+    try {
+      if (this.useSendGrid) {
+        await sgMail.send(mailData)
+        console.log(`✅ Bulk assessment summary sent via SendGrid to: ${to}`)
+      } else {
+        const result = await this.transporter!.sendMail(mailData)
+        if (result.accepted && result.accepted.length > 0) {
+          console.log(`✅ Bulk assessment summary sent to: ${result.accepted.join(', ')}`)
+        }
+      }
+    } catch (error) {
+      console.error(`❌ Failed to send bulk assessment summary to ${to}:`, error instanceof Error ? error.message : error)
       throw error
     }
   }
@@ -823,6 +949,348 @@ class EmailService {
       • Login Changes: You'll use the new email to log in
       
       If you have any questions or concerns, please contact your system administrator.
+      
+      © ${new Date().getFullYear()} CareTrack Pro. All rights reserved.
+    `
+  }
+
+  private getAssessmentReadyHTML(data: AssessmentReadyNotificationData): string {
+    const { adminName, carerName, assessmentName, completedTasks, packageName, dashboardUrl, severity } = data
+
+    const priorityIcon = severity === 'high' ? '🚨' : severity === 'medium' ? '⚠️' : '📋'
+    const priorityText = severity === 'high' ? 'HIGH PRIORITY' : severity === 'medium' ? 'MEDIUM PRIORITY' : 'LOW PRIORITY'
+    const priorityColor = severity === 'high' ? '#d32f2f' : severity === 'medium' ? '#f57c00' : '#1976d2'
+
+    return `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>CareTrack Pro - Assessment Ready</title>
+        ${this.getEmailStyles()}
+      </head>
+      <body>
+        <div class="header">
+          <h1>🏥 CareTrack Pro</h1>
+          <p>Care Management System</p>
+        </div>
+        
+        <div class="content">
+          <div class="priority-banner" style="background: ${priorityColor}; color: white; padding: 15px; border-radius: 8px; text-align: center; margin-bottom: 25px;">
+            <h2 style="margin: 0; font-size: 18px;">${priorityIcon} ${priorityText}</h2>
+          </div>
+
+          <h2>Assessment Ready: ${carerName}</h2>
+          
+          <p>Hello ${adminName},</p>
+          
+          <p><strong>${carerName}</strong> has completed all required tasks and is now ready for the <strong>${assessmentName}</strong> assessment.</p>
+          
+          <div class="invitation-box">
+            <h3>📋 Assessment Details</h3>
+            <p><strong>Carer:</strong> ${carerName}</p>
+            <p><strong>Assessment:</strong> ${assessmentName}</p>
+            <p><strong>Package:</strong> ${packageName}</p>
+            <p><strong>Completed Tasks:</strong></p>
+            <ul style="margin: 10px 0;">
+              ${completedTasks.map(task => `<li>${task}</li>`).join('')}
+            </ul>
+            <a href="${dashboardUrl}" class="button">View in Dashboard</a>
+          </div>
+          
+          <h3>🎯 Next Steps:</h3>
+          <ul>
+            <li><strong>Schedule Assessment:</strong> Arrange a suitable time with the carer</li>
+            <li><strong>Prepare Materials:</strong> Review assessment questions and practical skills</li>
+            <li><strong>Complete Assessment:</strong> Use the dashboard to record results</li>
+            <li><strong>Update Competencies:</strong> System will automatically update ratings</li>
+          </ul>
+          
+          <div class="warning">
+            <h4>${priorityIcon} Priority Level: ${priorityText}</h4>
+            <p>${severity === 'high' 
+              ? 'All required tasks are 100% complete. This assessment should be scheduled immediately.'
+              : severity === 'medium'
+                ? 'Most tasks are complete. This assessment can be scheduled when convenient.'
+                : 'Some progress made toward assessment readiness. Consider scheduling when fully ready.'
+            }</p>
+          </div>
+          
+          <p>You can manage this assessment and view full progress details in your dashboard.</p>
+        </div>
+        
+        <div class="footer">
+          <p>This email was sent by CareTrack Pro Care Management System</p>
+          <p>© ${new Date().getFullYear()} CareTrack Pro. All rights reserved.</p>
+        </div>
+      </body>
+      </html>
+    `
+  }
+
+  private getAssessmentOverdueHTML(data: AssessmentOverdueNotificationData): string {
+    const { adminName, carerName, assessmentName, daysSinceReady, completedTasks, packageName, dashboardUrl } = data
+
+    return `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>CareTrack Pro - Overdue Assessment</title>
+        ${this.getEmailStyles()}
+      </head>
+      <body>
+        <div class="header">
+          <h1>🏥 CareTrack Pro</h1>
+          <p>Care Management System</p>
+        </div>
+        
+        <div class="content">
+          <div class="priority-banner" style="background: #d32f2f; color: white; padding: 15px; border-radius: 8px; text-align: center; margin-bottom: 25px;">
+            <h2 style="margin: 0; font-size: 18px;">⏰ ASSESSMENT OVERDUE</h2>
+          </div>
+
+          <h2>Overdue Assessment: ${carerName}</h2>
+          
+          <p>Hello ${adminName},</p>
+          
+          <p><strong>${carerName}</strong> has been ready for the <strong>${assessmentName}</strong> assessment for <strong>${daysSinceReady} days</strong> and still needs to be assessed.</p>
+          
+          <div class="warning">
+            <h4>⚠️ Action Required</h4>
+            <p>This assessment is now overdue. Please schedule and complete it as soon as possible to maintain compliance and accurate competency records.</p>
+          </div>
+          
+          <div class="invitation-box">
+            <h3>📋 Assessment Details</h3>
+            <p><strong>Carer:</strong> ${carerName}</p>
+            <p><strong>Assessment:</strong> ${assessmentName}</p>
+            <p><strong>Package:</strong> ${packageName}</p>
+            <p><strong>Days Overdue:</strong> ${daysSinceReady} days</p>
+            <p><strong>Completed Tasks:</strong></p>
+            <ul style="margin: 10px 0;">
+              ${completedTasks.map(task => `<li>${task}</li>`).join('')}
+            </ul>
+            <a href="${dashboardUrl}" class="button">Schedule Assessment Now</a>
+          </div>
+          
+          <h3>🚨 Why This Matters:</h3>
+          <ul>
+            <li><strong>Compliance:</strong> Timely assessments ensure regulatory compliance</li>
+            <li><strong>Safety:</strong> Verified competencies protect service users</li>
+            <li><strong>Career Development:</strong> Assessments validate carer skills and progress</li>
+            <li><strong>Record Keeping:</strong> Complete assessments maintain audit trails</li>
+          </ul>
+          
+          <p><strong>Please prioritize completing this assessment.</strong> Use the dashboard link above to schedule and record the assessment results.</p>
+        </div>
+        
+        <div class="footer">
+          <p>This email was sent by CareTrack Pro Care Management System</p>
+          <p>© ${new Date().getFullYear()} CareTrack Pro. All rights reserved.</p>
+        </div>
+      </body>
+      </html>
+    `
+  }
+
+  private getBulkAssessmentSummaryHTML(data: BulkAssessmentSummaryData): string {
+    const { adminName, readyCarers, overdueAssessments, totalAssessments, topCarers, dashboardUrl, period } = data
+
+    const periodText = period === 'daily' ? 'Daily' : 'Weekly'
+
+    return `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>CareTrack Pro - ${periodText} Assessment Summary</title>
+        ${this.getEmailStyles()}
+      </head>
+      <body>
+        <div class="header">
+          <h1>🏥 CareTrack Pro</h1>
+          <p>Care Management System</p>
+        </div>
+        
+        <div class="content">
+          <h2>📊 ${periodText} Assessment Summary</h2>
+          
+          <p>Hello ${adminName},</p>
+          
+          <p>Here's your ${period} assessment overview for CareTrack Pro:</p>
+          
+          <div class="stats-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin: 25px 0;">
+            <div class="stat-card" style="background: #e3f2fd; padding: 20px; border-radius: 8px; text-align: center;">
+              <h3 style="margin: 0; color: #1976d2; font-size: 32px;">${readyCarers}</h3>
+              <p style="margin: 5px 0 0 0; color: #1976d2;">Carers Ready</p>
+            </div>
+            <div class="stat-card" style="background: ${overdueAssessments > 0 ? '#ffebee' : '#e8f5e8'}; padding: 20px; border-radius: 8px; text-align: center;">
+              <h3 style="margin: 0; color: ${overdueAssessments > 0 ? '#d32f2f' : '#388e3c'}; font-size: 32px;">${overdueAssessments}</h3>
+              <p style="margin: 5px 0 0 0; color: ${overdueAssessments > 0 ? '#d32f2f' : '#388e3c'};">Overdue</p>
+            </div>
+            <div class="stat-card" style="background: #f3e5f5; padding: 20px; border-radius: 8px; text-align: center;">
+              <h3 style="margin: 0; color: #7b1fa2; font-size: 32px;">${totalAssessments}</h3>
+              <p style="margin: 5px 0 0 0; color: #7b1fa2;">Total Available</p>
+            </div>
+          </div>
+
+          ${topCarers.length > 0 ? `
+          <div class="invitation-box">
+            <h3>🌟 Top Priority Carers</h3>
+            <div style="margin: 15px 0;">
+              ${topCarers.map(carer => `
+                <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid #e0e0e0;">
+                  <div>
+                    <strong>${carer.name}</strong>
+                    <br>
+                    <small style="color: #666;">${carer.packageName}</small>
+                  </div>
+                  <div style="text-align: right;">
+                    <span style="background: #1976d2; color: white; padding: 4px 8px; border-radius: 4px; font-size: 12px;">
+                      ${carer.readyAssessments} ready
+                    </span>
+                  </div>
+                </div>
+              `).join('')}
+            </div>
+            <a href="${dashboardUrl}" class="button">View Full Dashboard</a>
+          </div>
+          ` : ''}
+
+          ${overdueAssessments > 0 ? `
+          <div class="warning">
+            <h4>⚠️ Attention Required</h4>
+            <p>You have <strong>${overdueAssessments} overdue assessments</strong> that need immediate attention. Timely assessments are crucial for compliance and safety.</p>
+          </div>
+          ` : ''}
+          
+          <h3>🎯 ${period === 'daily' ? 'Today\'s' : 'This Week\'s'} Action Items:</h3>
+          <ul>
+            <li><strong>Priority 1:</strong> Complete any overdue assessments (${overdueAssessments})</li>
+            <li><strong>Priority 2:</strong> Schedule assessments for ready carers (${readyCarers})</li>
+            <li><strong>Priority 3:</strong> Review progress for carers approaching readiness</li>
+            <li><strong>Follow-up:</strong> Update competency ratings based on assessment results</li>
+          </ul>
+          
+          <p>Access your full dashboard for detailed carer progress, assessment tools, and comprehensive reporting.</p>
+        </div>
+        
+        <div class="footer">
+          <p>This email was sent by CareTrack Pro Care Management System</p>
+          <p>© ${new Date().getFullYear()} CareTrack Pro. All rights reserved.</p>
+        </div>
+      </body>
+      </html>
+    `
+  }
+
+  private getAssessmentReadyText(data: AssessmentReadyNotificationData): string {
+    const { adminName, carerName, assessmentName, completedTasks, packageName, dashboardUrl, severity } = data
+    const priorityText = severity === 'high' ? 'HIGH PRIORITY' : severity === 'medium' ? 'MEDIUM PRIORITY' : 'LOW PRIORITY'
+    
+    return `
+      CareTrack Pro - Assessment Ready: ${carerName}
+      ${priorityText}
+      
+      Hello ${adminName},
+      
+      ${carerName} has completed all required tasks and is now ready for the ${assessmentName} assessment.
+      
+      Assessment Details:
+      • Carer: ${carerName}
+      • Assessment: ${assessmentName}
+      • Package: ${packageName}
+      • Completed Tasks: ${completedTasks.join(', ')}
+      
+      Next Steps:
+      • Schedule Assessment: Arrange a suitable time with the carer
+      • Prepare Materials: Review assessment questions and practical skills
+      • Complete Assessment: Use the dashboard to record results
+      • Update Competencies: System will automatically update ratings
+      
+      Priority Level: ${priorityText}
+      ${severity === 'high' 
+        ? 'All required tasks are 100% complete. This assessment should be scheduled immediately.'
+        : severity === 'medium'
+          ? 'Most tasks are complete. This assessment can be scheduled when convenient.'
+          : 'Some progress made toward assessment readiness. Consider scheduling when fully ready.'
+      }
+      
+      View in Dashboard: ${dashboardUrl}
+      
+      © ${new Date().getFullYear()} CareTrack Pro. All rights reserved.
+    `
+  }
+
+  private getAssessmentOverdueText(data: AssessmentOverdueNotificationData): string {
+    const { adminName, carerName, assessmentName, daysSinceReady, completedTasks, packageName, dashboardUrl } = data
+    
+    return `
+      CareTrack Pro - Overdue Assessment: ${carerName} (${daysSinceReady} days)
+      
+      Hello ${adminName},
+      
+      ${carerName} has been ready for the ${assessmentName} assessment for ${daysSinceReady} days and still needs to be assessed.
+      
+      ACTION REQUIRED: This assessment is now overdue. Please schedule and complete it as soon as possible to maintain compliance and accurate competency records.
+      
+      Assessment Details:
+      • Carer: ${carerName}
+      • Assessment: ${assessmentName}
+      • Package: ${packageName}
+      • Days Overdue: ${daysSinceReady} days
+      • Completed Tasks: ${completedTasks.join(', ')}
+      
+      Why This Matters:
+      • Compliance: Timely assessments ensure regulatory compliance
+      • Safety: Verified competencies protect service users
+      • Career Development: Assessments validate carer skills and progress
+      • Record Keeping: Complete assessments maintain audit trails
+      
+      Please prioritize completing this assessment.
+      
+      Schedule Assessment Now: ${dashboardUrl}
+      
+      © ${new Date().getFullYear()} CareTrack Pro. All rights reserved.
+    `
+  }
+
+  private getBulkAssessmentSummaryText(data: BulkAssessmentSummaryData): string {
+    const { adminName, readyCarers, overdueAssessments, totalAssessments, topCarers, dashboardUrl, period } = data
+    const periodText = period === 'daily' ? 'Daily' : 'Weekly'
+    
+    return `
+      CareTrack Pro - ${periodText} Assessment Summary
+      
+      Hello ${adminName},
+      
+      Here's your ${period} assessment overview for CareTrack Pro:
+      
+      Summary Statistics:
+      • Carers Ready: ${readyCarers}
+      • Overdue Assessments: ${overdueAssessments}
+      • Total Available: ${totalAssessments}
+      
+      ${topCarers.length > 0 ? `
+      Top Priority Carers:
+      ${topCarers.map(carer => `• ${carer.name} (${carer.packageName}) - ${carer.readyAssessments} ready`).join('\n')}
+      ` : ''}
+      
+      ${overdueAssessments > 0 ? `
+      ATTENTION REQUIRED: You have ${overdueAssessments} overdue assessments that need immediate attention. Timely assessments are crucial for compliance and safety.
+      ` : ''}
+      
+      ${period === 'daily' ? 'Today\'s' : 'This Week\'s'} Action Items:
+      • Priority 1: Complete any overdue assessments (${overdueAssessments})
+      • Priority 2: Schedule assessments for ready carers (${readyCarers})
+      • Priority 3: Review progress for carers approaching readiness
+      • Follow-up: Update competency ratings based on assessment results
+      
+      View Full Dashboard: ${dashboardUrl}
       
       © ${new Date().getFullYear()} CareTrack Pro. All rights reserved.
     `

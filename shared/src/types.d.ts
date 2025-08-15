@@ -13,10 +13,12 @@ export interface Carer {
     id: string;
     email: string;
     name: string;
+    passwordHash?: string;
     isActive: boolean;
     createdAt: Date;
     updatedAt: Date;
     deletedAt?: Date;
+    lastLogin?: Date;
     isFullyAssessed?: boolean;
     packages?: CarerPackageAssignment[];
     competencies?: CompetencyRating[];
@@ -188,6 +190,10 @@ export interface CompetencyRating {
     setByAdminName?: string;
     setAt: Date;
     notes?: string;
+    confirmedAt?: Date;
+    confirmedByCarerId?: string;
+    confirmationMethod?: string;
+    notificationSentAt?: Date;
     carer?: Carer;
     task?: Task;
     assessmentResponse?: AssessmentResponse;
@@ -571,5 +577,84 @@ export interface AuditLogFilter {
     dateFrom?: Date;
     dateTo?: Date;
     search?: string;
+}
+export interface CarerDashboardSummary {
+    progressPercentage: number;
+    totalCompetencies: number;
+    completedCompetencies: number;
+    pendingConfirmations: number;
+    thisWeekShifts: number;
+    totalShiftApplications: number;
+    todaysTasks: number;
+    nextShift: {
+        date: Date;
+        package: string;
+        location: string;
+    } | null;
+}
+export interface CarerNotification {
+    type: 'competency_confirmation' | 'shift_update';
+    priority: 'high' | 'medium' | 'low';
+    title: string;
+    message: string;
+    data: any;
+    createdAt: Date;
+}
+export interface CarerActivityItem {
+    type: 'competency_update' | 'shift_application';
+    date: Date;
+    data: any;
+}
+export interface CarerProgressOverview {
+    overview: {
+        totalCompetencies: number;
+        completedCompetencies: number;
+        confirmedCompetencies: number;
+        averageProgress: number;
+    };
+    categories: CarerProgressCategory[];
+}
+export interface CarerProgressCategory {
+    category: string;
+    competencies: CarerCompetencyProgress[];
+    averageRating: number;
+    completedCount: number;
+    totalCount: number;
+}
+export interface CarerCompetencyProgress {
+    id: string;
+    name: string;
+    rating: number;
+    isCompleted: boolean;
+    isConfirmed: boolean;
+    lastUpdated: Date;
+    assessmentTitle?: string;
+}
+export interface CarerPendingConfirmation {
+    id: string;
+    competencyName: string;
+    assessmentTitle?: string;
+    category?: string;
+    completedAt: Date;
+    rating: number;
+}
+export interface CarerAchievement {
+    id: string;
+    name: string;
+    description: string;
+    icon: string;
+    earned: boolean;
+    progress: number;
+    target: number;
+}
+export interface CarerAchievementsResponse {
+    summary: {
+        totalAchievements: number;
+        earnedAchievements: number;
+        confirmedCompetencies: number;
+        totalCompetencies: number;
+        completedShifts: number;
+    };
+    achievements: CarerAchievement[];
 }
 //# sourceMappingURL=types.d.ts.map

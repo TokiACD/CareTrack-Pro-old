@@ -20,6 +20,10 @@ model AdminUser {
   deletedAt           DateTime?            @map("deleted_at")
   invitedBy           String?              @map("invited_by")
   lastLogin           DateTime?            @map("last_login")
+  // Account lockout fields
+  failedLoginAttempts Int                  @default(0) @map("failed_login_attempts")
+  lockoutUntil        DateTime?            @map("lockout_until")
+  lastFailedLogin     DateTime?            @map("last_failed_login")
   // Healthcare compliance fields
   dataRetentionDate   DateTime?            @map("data_retention_date")
   encryptedPII        String?              @map("encrypted_pii") @db.Text
@@ -110,6 +114,10 @@ model Carer {
   complianceFlags     Json?                    @map("compliance_flags")
   lastActiveDate      DateTime?                @map("last_active_date")
   lastLogin           DateTime?                @map("last_login")
+  // Account lockout fields
+  failedLoginAttempts Int                      @default(0) @map("failed_login_attempts")
+  lockoutUntil        DateTime?                @map("lockout_until")
+  lastFailedLogin     DateTime?                @map("last_failed_login")
   emergencyContactInfo Json?                   @map("emergency_contact_info")
   assessmentResponses AssessmentResponse[]
   draftResponses      DraftAssessmentResponse[]

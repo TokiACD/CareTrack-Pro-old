@@ -52,17 +52,82 @@ export class AuthController {
       throw createError(401, 'Invalid email or password')
     }
 
+    // Check account lockout
+    const now = new Date()
+    if (user.lockoutUntil && user.lockoutUntil > now) {
+      const lockoutMinutes = Math.ceil((user.lockoutUntil.getTime() - now.getTime()) / (1000 * 60))
+      throw createError(423, `Account temporarily locked. Try again in ${lockoutMinutes} minute(s).`)
+    }
+
     // Verify password
     const isValidPassword = await bcrypt.compare(password, user.passwordHash)
     
     if (!isValidPassword) {
+      // Handle failed login attempt
+      const failedAttempts = (user.failedLoginAttempts || 0) + 1
+      const MAX_ATTEMPTS = 5
+      const LOCKOUT_DURATION = 15 * 60 * 1000 // 15 minutes in milliseconds
+      
+      let lockoutUntil = null
+      if (failedAttempts >= MAX_ATTEMPTS) {
+        lockoutUntil = new Date(Date.now() + LOCKOUT_DURATION)
+      }
+
+      // Update failed attempts in database
+      if (userType === 'admin') {
+        await prisma.adminUser.update({
+          where: { id: user.id },
+          data: {
+            failedLoginAttempts: failedAttempts,
+            lastFailedLogin: now,
+            lockoutUntil: lockoutUntil
+          }
+        })
+      } else {
+        await prisma.carer.update({
+          where: { id: user.id },
+          data: {
+            failedLoginAttempts: failedAttempts,
+            lastFailedLogin: now,
+            lockoutUntil: lockoutUntil
+          }
+        })
+      }
+
+      if (lockoutUntil) {
+        throw createError(423, 'Account locked due to too many failed attempts. Try again in 15 minutes.')
+      }
+      
       throw createError(401, 'Invalid email or password')
+    }
+
+    // Reset failed attempts on successful login
+    if (user.failedLoginAttempts && user.failedLoginAttempts > 0) {
+      if (userType === 'admin') {
+        await prisma.adminUser.update({
+          where: { id: user.id },
+          data: {
+            failedLoginAttempts: 0,
+            lockoutUntil: null,
+            lastFailedLogin: null
+          }
+        })
+      } else {
+        await prisma.carer.update({
+          where: { id: user.id },
+          data: {
+            failedLoginAttempts: 0,
+            lockoutUntil: null,
+            lastFailedLogin: null
+          }
+        })
+      }
     }
 
     // Generate JWT token
     const jwtSecret = process.env.JWT_SECRET
-    if (!jwtSecret) {
-      throw createError(500, 'Server configuration error')
+    if (!jwtSecret || jwtSecret.length < 32) {
+      throw createError(500, 'Server configuration error: JWT secret must be at least 32 characters')
     }
 
     const payload = { 
@@ -223,6 +288,18 @@ export class AuthController {
       throw createError(400, 'Email is required')
     }
 
+    // Log the password reset request for security monitoring
+    await auditService.log({
+      action: 'PASSWORD_RESET_REQUEST',
+      entityType: 'Security',
+      entityId: 'password-reset',
+      newValues: { email: email.toLowerCase(), ipAddress: req.ip },
+      performedByAdminId: 'anonymous',
+      performedByAdminName: 'Anonymous User',
+      ipAddress: req.ip,
+      userAgent: req.get('User-Agent'),
+    })
+
     // Find user (case-insensitive)
     const user = await prisma.adminUser.findFirst({
       where: { 
@@ -304,6 +381,22 @@ export class AuthController {
       throw createError(400, 'Password must be at least 8 characters long')
     }
 
+    // Log the password reset attempt for security monitoring
+    await auditService.log({
+      action: 'PASSWORD_RESET_ATTEMPT',
+      entityType: 'Security',
+      entityId: 'password-reset',
+      newValues: { 
+        tokenProvided: !!token, 
+        ipAddress: req.ip, 
+        userAgent: req.get('User-Agent')?.substring(0, 200) // Truncate long user agents
+      },
+      performedByAdminId: 'anonymous',
+      performedByAdminName: 'Anonymous User',
+      ipAddress: req.ip,
+      userAgent: req.get('User-Agent'),
+    })
+
     // Find valid reset token
     const resetTokenRecord = await prisma.passwordResetToken.findFirst({
       where: {
@@ -313,12 +406,34 @@ export class AuthController {
     })
 
     if (!resetTokenRecord) {
+      // Log failed reset attempt
+      await auditService.log({
+        action: 'PASSWORD_RESET_FAILED',
+        entityType: 'Security',
+        entityId: 'password-reset',
+        newValues: { reason: 'token_not_found', ipAddress: req.ip },
+        performedByAdminId: 'anonymous',
+        performedByAdminName: 'Anonymous User',
+        ipAddress: req.ip,
+        userAgent: req.get('User-Agent'),
+      })
       throw createError(400, 'Invalid or expired reset token')
     }
 
     // Verify token using constant-time comparison
     const isValidToken = verifyPasswordResetToken(token, resetTokenRecord.token)
     if (!isValidToken) {
+      // Log failed reset attempt
+      await auditService.log({
+        action: 'PASSWORD_RESET_FAILED',
+        entityType: 'Security',
+        entityId: 'password-reset',
+        newValues: { reason: 'invalid_token', email: resetTokenRecord.email, ipAddress: req.ip },
+        performedByAdminId: 'anonymous',
+        performedByAdminName: 'Anonymous User',
+        ipAddress: req.ip,
+        userAgent: req.get('User-Agent'),
+      })
       throw createError(400, 'Invalid or expired reset token')
     }
 

@@ -37,8 +37,8 @@ export const fastAuth = async (
     }
 
     const jwtSecret = process.env.JWT_SECRET
-    if (!jwtSecret) {
-      console.error('JWT_SECRET not configured')
+    if (!jwtSecret || jwtSecret.length < 32) {
+      console.error('JWT_SECRET not configured or too short (minimum 32 characters required)')
       res.status(500).json({
         success: false,
         error: 'Server configuration error',

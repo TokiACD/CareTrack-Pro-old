@@ -9,6 +9,10 @@ export interface AdminUser {
   deletedAt?: Date;
   invitedBy?: string;
   lastLogin?: Date;
+  // Account lockout fields
+  failedLoginAttempts?: number;
+  lockoutUntil?: Date;
+  lastFailedLogin?: Date;
 }
 
 export interface Carer {
@@ -21,6 +25,10 @@ export interface Carer {
   updatedAt: Date;
   deletedAt?: Date;
   lastLogin?: Date;
+  // Account lockout fields
+  failedLoginAttempts?: number;
+  lockoutUntil?: Date;
+  lastFailedLogin?: Date;
   // Computed fields
   isFullyAssessed?: boolean;
   packages?: CarerPackageAssignment[];

@@ -48,6 +48,7 @@ import { dashboardRoutes } from './routes/dashboardRoutes'
 import { emailChangeRoutes } from './routes/emailChangeRoutes'
 import { confirmedShiftsRoutes } from './routes/confirmedShiftsRoutes'
 import { emailQueueRoutes } from './routes/emailQueueRoutes'
+import { assessmentTriggerRoutes } from './routes/assessmentTriggerRoutes'
 import { schedulerService } from './services/schedulerService'
 
 // Initialize Prisma Client with enhanced security and performance
@@ -221,8 +222,12 @@ app.use('/api', (req, res, next) => {
 
 // Apply rate limiting with performance optimizations
 app.use('/api/auth', (req, res, next) => {
-  // Only apply strict rate limiting to login attempts
-  if (req.path.includes('/login') && req.method === 'POST') {
+  // Apply strict rate limiting to sensitive auth endpoints
+  if (req.method === 'POST' && (
+    req.path.includes('/login') ||
+    req.path.includes('/forgot-password') ||
+    req.path.includes('/reset-password')
+  )) {
     return authRateLimit(req, res, next)
   }
   next()
@@ -369,6 +374,7 @@ app.use('/api/dashboard', dashboardRoutes)
 app.use('/api/email-change', emailChangeRoutes)
 app.use('/api/confirmed-shifts', confirmedShiftsRoutes)
 app.use('/api/email-queue', emailQueueRoutes)
+app.use('/api/assessment-triggers', assessmentTriggerRoutes)
 
 // Serve frontend static files in production with enhanced security
 if (NODE_ENV === 'production') {

@@ -55,6 +55,9 @@ const enhancedSecurityHeaders = helmet({
 interface CSRFTokenData {
   token: string;
   expires: number;
+  sessionId?: string;
+  userId?: string;
+  used: boolean;
 }
 
 const csrfTokens = new Map<string, CSRFTokenData>();
@@ -93,31 +96,48 @@ const csrfProtection = (req: Request, res: Response, next: NextFunction) => {
 
   const tokenData = csrfTokens.get(token);
   
-  if (!tokenData || tokenData.expires < Date.now()) {
-    console.log('❌ [CSRF-DEBUG] CSRF token invalid or expired', {
+  if (!tokenData || tokenData.expires < Date.now() || tokenData.used) {
+    console.log('❌ [CSRF-DEBUG] CSRF token invalid, expired, or already used', {
       tokenFound: !!tokenData,
       expired: tokenData ? tokenData.expires < Date.now() : false,
+      used: tokenData ? tokenData.used : false,
       expiresAt: tokenData ? new Date(tokenData.expires).toISOString() : 'N/A',
       now: new Date().toISOString()
     });
     
-    // Clean up expired token if found
-    if (tokenData && tokenData.expires < Date.now()) {
+    // Clean up expired or used token if found
+    if (tokenData && (tokenData.expires < Date.now() || tokenData.used)) {
       csrfTokens.delete(token);
     }
     
     return res.status(403).json({
       success: false,
-      error: 'CSRF token invalid or expired',
+      error: 'CSRF token invalid, expired, or already used',
       code: 'CSRF_TOKEN_INVALID'
+    });
+  }
+
+  // Check session binding if available
+  const sessionId = req.session?.id || req.sessionID;
+  const userId = req.user?.id;
+  
+  if (tokenData.sessionId && sessionId && tokenData.sessionId !== sessionId) {
+    console.log('❌ [CSRF-DEBUG] CSRF token session mismatch', {
+      tokenSessionId: tokenData.sessionId,
+      requestSessionId: sessionId
+    });
+    
+    return res.status(403).json({
+      success: false,
+      error: 'CSRF token session mismatch',
+      code: 'CSRF_SESSION_MISMATCH'
     });
   }
 
   console.log('✅ [CSRF-DEBUG] CSRF token validation passed');
   
-  // Don't mark token as used - allow reuse during valid period
-  // Update last used time for token refresh logic
-  tokenData.token = token; // Keep the same token value
+  // Mark token as used (one-time use)
+  tokenData.used = true;
   
   next();
 };
@@ -127,9 +147,16 @@ const generateCSRFToken = (req: Request, res: Response) => {
   const token = randomBytes(CSRF_CONFIG.TOKEN_LENGTH).toString('hex');
   const expires = Date.now() + CSRF_CONFIG.MAX_AGE * 1000;
   
+  // Get session and user information for binding
+  const sessionId = req.session?.id || req.sessionID;
+  const userId = req.user?.id;
+  
   csrfTokens.set(token, {
     token,
-    expires
+    expires,
+    sessionId: sessionId || undefined,
+    userId: userId || undefined,
+    used: false
   });
 
   // Clean up expired tokens
