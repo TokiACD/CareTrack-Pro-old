@@ -47,10 +47,21 @@ interface EmailChangeVerificationData {
 
 class EmailService {
   private transporter: nodemailer.Transporter | null = null
-  private useSendGrid: boolean
+  private useSendGrid: boolean | null = null
+  private initialized = false
 
   constructor() {
+    // Don't initialize here - do it lazily when needed
+  }
+
+  private ensureInitialized() {
+    if (this.initialized) return
+
     this.useSendGrid = process.env.EMAIL_SERVICE === 'sendgrid'
+    
+    if (process.env.NODE_ENV === 'development') {
+      console.log(`🔧 EmailService initialized - Service: ${this.useSendGrid ? 'SendGrid' : 'SMTP'}`)
+    }
     
     if (this.useSendGrid) {
       // Configure SendGrid
@@ -60,7 +71,7 @@ class EmailService {
       }
       sgMail.setApiKey(apiKey)
     } else {
-      // Configure SMTP (Gmail fallback)
+      // Configure SMTP (Mailtrap/Gmail fallback)
       this.transporter = nodemailer.createTransport({
         host: process.env.SMTP_HOST,
         port: parseInt(process.env.SMTP_PORT || '587'),
@@ -69,12 +80,33 @@ class EmailService {
           user: process.env.SMTP_USER,
           pass: process.env.SMTP_PASS,
         },
+        // Enhanced timeout and connection settings for Mailtrap
+        connectionTimeout: 15000, // 15 seconds
+        greetingTimeout: 10000, // 10 seconds  
+        socketTimeout: 15000, // 15 seconds
+        // Debugging enabled for development
+        debug: process.env.NODE_ENV === 'development',
+        logger: process.env.NODE_ENV === 'development',
+        // Additional Mailtrap-specific settings
+        requireTLS: false, // Mailtrap supports both TLS and non-TLS
+        tls: {
+          rejectUnauthorized: false // Accept Mailtrap's certificate
+        },
+        // Force IPv4 for better Mailtrap compatibility
+        family: 4
       })
     }
+    
+    this.initialized = true
   }
 
   async sendAdminInvitation(data: AdminInvitationData): Promise<void> {
+    this.ensureInitialized()
     const { to, adminName, invitedByName, acceptUrl, expiresAt } = data
+
+    if (process.env.NODE_ENV === 'development') {
+      console.log(`📧 Sending admin invitation to: ${to}`)
+    }
 
     const mailData = {
       from: process.env.SMTP_FROM || 'CareTrack Pro <noreply@caretrack.com>',
@@ -84,14 +116,29 @@ class EmailService {
       text: this.getAdminInvitationText(data),
     }
 
-    if (this.useSendGrid) {
-      await sgMail.send(mailData)
-    } else {
-      await this.transporter!.sendMail(mailData)
+    try {
+      if (this.useSendGrid) {
+        await sgMail.send(mailData)
+        console.log(`✅ Admin invitation sent via SendGrid to: ${to}`)
+      } else {
+        const result = await this.transporter!.sendMail(mailData)
+        
+        // Log delivery confirmation
+        if (result.accepted && result.accepted.length > 0) {
+          console.log(`✅ Admin invitation sent to: ${result.accepted.join(', ')} (ID: ${result.messageId})`)
+        }
+        if (result.rejected && result.rejected.length > 0) {
+          console.error(`❌ Admin invitation rejected for: ${result.rejected.join(', ')}`)
+        }
+      }
+    } catch (error) {
+      console.error(`❌ Failed to send admin invitation to ${to}:`, error instanceof Error ? error.message : error)
+      throw error
     }
   }
 
   async sendCarerInvitation(data: CarerInvitationData): Promise<void> {
+    this.ensureInitialized()
     const { to, carerName, invitedByName, acceptUrl, expiresAt } = data
 
     const mailData = {
@@ -102,14 +149,24 @@ class EmailService {
       text: this.getCarerInvitationText(data),
     }
 
-    if (this.useSendGrid) {
-      await sgMail.send(mailData)
-    } else {
-      await this.transporter!.sendMail(mailData)
+    try {
+      if (this.useSendGrid) {
+        await sgMail.send(mailData)
+        console.log(`✅ Carer invitation sent via SendGrid to: ${to}`)
+      } else {
+        const result = await this.transporter!.sendMail(mailData)
+        if (result.accepted && result.accepted.length > 0) {
+          console.log(`✅ Carer invitation sent to: ${result.accepted.join(', ')}`)
+        }
+      }
+    } catch (error) {
+      console.error(`❌ Failed to send carer invitation to ${to}:`, error instanceof Error ? error.message : error)
+      throw error
     }
   }
 
   async sendPasswordResetEmail(data: PasswordResetData): Promise<void> {
+    this.ensureInitialized()
     const { to, name, resetUrl } = data
 
     const mailData = {
@@ -120,14 +177,24 @@ class EmailService {
       text: this.getPasswordResetText(data),
     }
 
-    if (this.useSendGrid) {
-      await sgMail.send(mailData)
-    } else {
-      await this.transporter!.sendMail(mailData)
+    try {
+      if (this.useSendGrid) {
+        await sgMail.send(mailData)
+        console.log(`✅ Password reset email sent via SendGrid to: ${to}`)
+      } else {
+        const result = await this.transporter!.sendMail(mailData)
+        if (result.accepted && result.accepted.length > 0) {
+          console.log(`✅ Password reset email sent to: ${result.accepted.join(', ')}`)
+        }
+      }
+    } catch (error) {
+      console.error(`❌ Failed to send password reset email to ${to}:`, error instanceof Error ? error.message : error)
+      throw error
     }
   }
 
   async sendEmailChangeNotification(data: EmailChangeNotificationData): Promise<void> {
+    this.ensureInitialized()
     const { to, name, newEmail, cancelUrl } = data
 
     const mailData = {
@@ -138,14 +205,24 @@ class EmailService {
       text: this.getEmailChangeNotificationText(data),
     }
 
-    if (this.useSendGrid) {
-      await sgMail.send(mailData)
-    } else {
-      await this.transporter!.sendMail(mailData)
+    try {
+      if (this.useSendGrid) {
+        await sgMail.send(mailData)
+        console.log(`✅ Email change notification sent via SendGrid to: ${to}`)
+      } else {
+        const result = await this.transporter!.sendMail(mailData)
+        if (result.accepted && result.accepted.length > 0) {
+          console.log(`✅ Email change notification sent to: ${result.accepted.join(', ')}`)
+        }
+      }
+    } catch (error) {
+      console.error(`❌ Failed to send email change notification to ${to}:`, error instanceof Error ? error.message : error)
+      throw error
     }
   }
 
   async sendEmailChangeVerification(data: EmailChangeVerificationData): Promise<void> {
+    this.ensureInitialized()
     const { to, name, oldEmail, verifyUrl, expiresAt } = data
 
     const mailData = {
@@ -156,10 +233,19 @@ class EmailService {
       text: this.getEmailChangeVerificationText(data),
     }
 
-    if (this.useSendGrid) {
-      await sgMail.send(mailData)
-    } else {
-      await this.transporter!.sendMail(mailData)
+    try {
+      if (this.useSendGrid) {
+        await sgMail.send(mailData)
+        console.log(`✅ Email change verification sent via SendGrid to: ${to}`)
+      } else {
+        const result = await this.transporter!.sendMail(mailData)
+        if (result.accepted && result.accepted.length > 0) {
+          console.log(`✅ Email change verification sent to: ${result.accepted.join(', ')}`)
+        }
+      }
+    } catch (error) {
+      console.error(`❌ Failed to send email change verification to ${to}:`, error instanceof Error ? error.message : error)
+      throw error
     }
   }
 
@@ -743,6 +829,7 @@ class EmailService {
   }
 
   async testConnection(): Promise<boolean> {
+    this.ensureInitialized()
     try {
       if (this.useSendGrid) {
         // Test SendGrid API key validity

@@ -87,12 +87,17 @@ const ProgressCard: React.FC<ProgressCardProps> = ({ filterReadyForAssessment = 
   } = useQuery({
     queryKey: ['progress', 'carers', searchTerm],
     queryFn: async () => {
-      const params = searchTerm ? { search: searchTerm } : undefined;
-      const response = await apiService.get<CarerProgressSummary[]>(`${API_ENDPOINTS.PROGRESS.LIST}`, params);
-      
-      // Extract data from the response structure
-      const result = (response as any)?.data || response;
-      return result;
+      try {
+        const params = searchTerm ? { search: searchTerm } : undefined;
+        const response = await apiService.get<CarerProgressSummary[]>(`${API_ENDPOINTS.PROGRESS.LIST}`, params);
+        
+        // Extract data from the response structure properly
+        const result = response?.data?.data || response?.data || [];
+        return Array.isArray(result) ? result : [];
+      } catch (error) {
+        console.warn('Failed to fetch carers progress:', error);
+        return []; // Always return an array to prevent undefined errors
+      }
     },
     enabled: !filterReadyForAssessment
   });
@@ -105,8 +110,15 @@ const ProgressCard: React.FC<ProgressCardProps> = ({ filterReadyForAssessment = 
   } = useQuery({
     queryKey: ['progress', 'carers-ready-for-assessment', searchTerm],
     queryFn: async () => {
-      const response = await apiService.get('/api/progress/ready-for-assessment');
-      return response.data;
+      try {
+        const response = await apiService.get('/api/progress/ready-for-assessment');
+        // Handle the response structure properly
+        const result = response?.data?.data || response?.data || [];
+        return Array.isArray(result) ? result : [];
+      } catch (error) {
+        console.warn('Failed to fetch carers ready for assessment:', error);
+        return []; // Always return an array to prevent undefined errors
+      }
     },
     enabled: filterReadyForAssessment
   });

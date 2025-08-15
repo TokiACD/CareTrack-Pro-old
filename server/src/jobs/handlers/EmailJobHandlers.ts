@@ -28,7 +28,13 @@ export class EmailJobHandlers {
         throw new Error('Missing required admin invitation data')
       }
       
-      await emailService.sendAdminInvitation(data)
+      // Fix date serialization issue - convert string back to Date object
+      const emailData = {
+        ...data,
+        expiresAt: data.expiresAt ? new Date(data.expiresAt) : new Date()
+      }
+      
+      await emailService.sendAdminInvitation(emailData)
       
       console.log(`✅ Admin invitation sent successfully to: ${data.to}`)
       
@@ -65,7 +71,13 @@ export class EmailJobHandlers {
         throw new Error('Missing required carer invitation data')
       }
       
-      await emailService.sendCarerInvitation(data)
+      // Fix date serialization issue - convert string back to Date object
+      const emailData = {
+        ...data,
+        expiresAt: data.expiresAt ? new Date(data.expiresAt) : new Date()
+      }
+      
+      await emailService.sendCarerInvitation(emailData)
       
       console.log(`✅ Carer invitation sent successfully to: ${data.to}`)
       
@@ -176,7 +188,13 @@ export class EmailJobHandlers {
         throw new Error('Missing required email change verification data')
       }
       
-      await emailService.sendEmailChangeVerification(data)
+      // Fix date serialization issue - convert string back to Date object
+      const emailData = {
+        ...data,
+        expiresAt: data.expiresAt ? new Date(data.expiresAt) : new Date()
+      }
+      
+      await emailService.sendEmailChangeVerification(emailData)
       
       console.log(`✅ Email change verification sent successfully to: ${data.to}`)
       

@@ -153,8 +153,15 @@ export const DashboardPage = memo(() => {
   const { data: carersReadyData, isLoading: carersReadyLoading } = useQuery({
     queryKey: ['carers-ready-for-assessment'],
     queryFn: async () => {
-      const response = await apiService.get('/api/progress/ready-for-assessment')
-      return response.data
+      try {
+        const response = await apiService.get('/api/progress/ready-for-assessment')
+        // Handle the response structure properly
+        const result = response?.data?.data || response?.data || []
+        return Array.isArray(result) ? result : []
+      } catch (error) {
+        console.warn('Failed to fetch carers ready for assessment:', error)
+        return [] // Always return an array to prevent undefined errors
+      }
     },
     staleTime: 5 * 60 * 1000, // 5 minutes
     gcTime: 10 * 60 * 1000, // 10 minutes

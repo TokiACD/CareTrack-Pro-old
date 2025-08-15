@@ -72,7 +72,18 @@ const csrfProtection = (req: Request, res: Response, next: NextFunction) => {
                 req.body._csrf || 
                 req.query._csrf;
 
+  console.log('🔒 [CSRF-DEBUG] CSRF Protection Check', {
+    method: req.method,
+    path: req.path,
+    tokenPresent: !!token,
+    tokenSource: token ? (req.headers[CSRF_CONFIG.HEADER_NAME] ? 'header' : req.body._csrf ? 'body' : 'query') : 'none',
+    tokenLength: token ? token.length : 0,
+    activeTokens: csrfTokens.size,
+    timestamp: new Date().toISOString()
+  });
+
   if (!token) {
+    console.log('❌ [CSRF-DEBUG] CSRF token missing');
     return res.status(403).json({
       success: false,
       error: 'CSRF token missing',
@@ -83,6 +94,13 @@ const csrfProtection = (req: Request, res: Response, next: NextFunction) => {
   const tokenData = csrfTokens.get(token);
   
   if (!tokenData || tokenData.expires < Date.now()) {
+    console.log('❌ [CSRF-DEBUG] CSRF token invalid or expired', {
+      tokenFound: !!tokenData,
+      expired: tokenData ? tokenData.expires < Date.now() : false,
+      expiresAt: tokenData ? new Date(tokenData.expires).toISOString() : 'N/A',
+      now: new Date().toISOString()
+    });
+    
     // Clean up expired token if found
     if (tokenData && tokenData.expires < Date.now()) {
       csrfTokens.delete(token);
@@ -95,6 +113,8 @@ const csrfProtection = (req: Request, res: Response, next: NextFunction) => {
     });
   }
 
+  console.log('✅ [CSRF-DEBUG] CSRF token validation passed');
+  
   // Don't mark token as used - allow reuse during valid period
   // Update last used time for token refresh logic
   tokenData.token = token; // Keep the same token value
@@ -113,11 +133,23 @@ const generateCSRFToken = (req: Request, res: Response) => {
   });
 
   // Clean up expired tokens
+  let cleanedCount = 0;
   for (const [key, value] of csrfTokens.entries()) {
     if (value.expires < Date.now()) {
       csrfTokens.delete(key);
+      cleanedCount++;
     }
   }
+
+  console.log('🔑 [CSRF-DEBUG] Generated new CSRF token', {
+    tokenLength: token.length,
+    expiresAt: new Date(expires).toISOString(),
+    activeTokens: csrfTokens.size,
+    cleanedExpiredTokens: cleanedCount,
+    cookieName: CSRF_CONFIG.COOKIE_NAME,
+    secure: CSRF_CONFIG.SECURE,
+    timestamp: new Date().toISOString()
+  });
 
   res.cookie(CSRF_CONFIG.COOKIE_NAME, token, {
     httpOnly: true,

@@ -7,11 +7,14 @@ export const redisConfig = {
   password: process.env.REDIS_PASSWORD || undefined,
   retryDelayOnFailover: 100,
   enableReadyCheck: false,
-  maxRetriesPerRequest: null,
+  maxRetriesPerRequest: 3, // Allow retries but limit them
   lazyConnect: true,
   connectTimeout: 10000,
-  commandTimeout: 5000,
+  commandTimeout: 30000, // Increase to 30 seconds to prevent job processing timeouts
   retryConnectOnFailedover: true,
+  // Add additional stability options
+  keepAlive: 30000,
+  family: 4, // Force IPv4
   db: 0, // Use database 0 for main application
 }
 
@@ -19,6 +22,8 @@ export const redisConfig = {
 export const jobQueueRedisConfig = {
   ...redisConfig,
   db: 1, // Use database 1 for job queues
+  maxRetriesPerRequest: null, // Required by BullMQ for blocking operations
+  commandTimeout: 60000, // 60 seconds for job processing operations
 }
 
 // Session storage Redis configuration  

@@ -233,36 +233,71 @@ app.use('/api', (req, res, next) => {
   return adaptiveRateLimit(req, res, next)
 })
 
-// Enhanced health check endpoint with database and job system connectivity
+// Enhanced health check endpoint with comprehensive system monitoring
 app.get('/health', async (req, res) => {
+  const startTime = Date.now()
+  
   try {
-    // Test database connectivity
+    // Test database connectivity with timing
+    const dbStart = Date.now()
     await prisma.$queryRaw`SELECT 1 as health`
+    const dbTime = Date.now() - dbStart
     
     // Check job system status if initialized
     let jobSystemStatus = 'not-initialized'
+    let jobSystemDetails = {}
     if (JobInitializer.isInitialized()) {
       const systemStatus = await JobInitializer.getSystemStatus()
       jobSystemStatus = systemStatus.healthy ? 'healthy' : 'unhealthy'
+      jobSystemDetails = {
+        redis: systemStatus.redis?.healthy ? 'connected' : 'disconnected',
+        queues: systemStatus.jobProcessor?.queueCount || 0,
+        workers: systemStatus.jobProcessor?.workerCount || 0
+      }
     }
+    
+    // Memory usage
+    const memUsage = process.memoryUsage()
+    
+    // Response timing
+    const responseTime = Date.now() - startTime
     
     res.json({
       success: true,
       message: 'CareTrack Pro API is running',
       timestamp: new Date().toISOString(),
       environment: NODE_ENV,
-      database: 'connected',
-      jobSystem: jobSystemStatus,
+      uptime: Math.floor(process.uptime()),
+      performance: {
+        responseTime: `${responseTime}ms`,
+        databaseTime: `${dbTime}ms`,
+        memory: {
+          used: `${Math.round(memUsage.heapUsed / 1024 / 1024)}MB`,
+          total: `${Math.round(memUsage.heapTotal / 1024 / 1024)}MB`
+        }
+      },
+      services: {
+        database: { status: 'connected', responseTime: `${dbTime}ms` },
+        jobSystem: { status: jobSystemStatus, ...jobSystemDetails },
+        redis: jobSystemDetails.redis || 'unknown'
+      },
       version: process.env.npm_package_version || '1.0.0'
     })
   } catch (error) {
+    const responseTime = Date.now() - startTime
     res.status(503).json({
       success: false,
-      message: 'Service unavailable - database connection failed',
+      message: 'Service unavailable - health check failed',
       timestamp: new Date().toISOString(),
       environment: NODE_ENV,
-      database: 'disconnected',
-      jobSystem: 'error'
+      performance: {
+        responseTime: `${responseTime}ms`
+      },
+      services: {
+        database: { status: 'error', error: error instanceof Error ? error.message : 'Unknown error' },
+        jobSystem: { status: 'error' },
+        redis: 'error'
+      }
     })
   }
 })

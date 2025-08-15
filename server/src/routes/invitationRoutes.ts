@@ -28,9 +28,23 @@ router.post('/admin',
   ],
   audit(AuditAction.CREATE, 'Invitation'),
   async (req: Request, res: Response) => {
+    console.log('🔄 [EMAIL-DEBUG] Admin invitation request received', {
+      timestamp: new Date().toISOString(),
+      userId: req.user?.id,
+      userName: req.user?.name,
+      requestBody: { email: req.body.email, name: req.body.name },
+      headers: {
+        authorization: req.headers.authorization ? 'Present' : 'Missing',
+        'x-csrf-token': req.headers['x-csrf-token'] ? 'Present' : 'Missing'
+      },
+      ip: req.ip,
+      userAgent: req.headers['user-agent']
+    });
+
     try {
       const errors = validationResult(req);
       if (!errors.isEmpty()) {
+        console.log('❌ [EMAIL-DEBUG] Validation failed', { errors: errors.array() });
         return res.status(400).json({
           success: false,
           message: 'Validation failed',
@@ -39,6 +53,7 @@ router.post('/admin',
       }
 
       const { email, name } = req.body;
+      console.log('✅ [EMAIL-DEBUG] Validation passed, proceeding with invitation creation');
 
       // Check if email already exists as admin, carer, or has pending invitation
       const [existingAdmin, existingCarer, existingInvitation] = await Promise.all([
@@ -203,8 +218,16 @@ router.post('/admin',
       // Send invitation email
       const acceptUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/invitation/accept?token=${invitation.token}`;
       
+      console.log('📧 [EMAIL-DEBUG] Attempting to queue admin invitation email', {
+        to: email,
+        adminName: name,
+        invitedByName: invitation.invitedByAdmin.name,
+        acceptUrl,
+        invitationId: invitation.id
+      });
+      
       try {
-        // Queue admin invitation email for background processing
+        // PRIMARY: Try to queue admin invitation email for background processing
         await emailQueueService.queueAdminInvitation({
           to: email,
           adminName: name,
@@ -216,29 +239,54 @@ router.post('/admin',
           priority: 5, // High priority for invitations
           userId: req.user?.id
         });
+        
+        console.log('✅ [EMAIL-DEBUG] Email queued successfully for processing');
       } catch (emailError: any) {
-        console.error('Failed to send admin invitation email:', emailError)
+        console.error('❌ [EMAIL-DEBUG] Failed to queue admin invitation email:', emailError)
         
-        // Clean up the invitation if email fails
-        if (shouldUpdateExisting && existingInvitation) {
-          // Restore the previous invitation state
-          await prisma.invitation.update({
-            where: { id: existingInvitation.id },
-            data: {
-              status: existingInvitation.status,
-              invitedAt: existingInvitation.invitedAt
-            }
+        // FALLBACK: Send email directly if queue fails
+        console.log('🔄 [EMAIL-DEBUG] Attempting direct email fallback');
+        try {
+          await emailService.sendAdminInvitation({
+            to: email,
+            adminName: name,
+            invitedByName: invitation.invitedByAdmin.name,
+            invitationToken: invitation.token,
+            acceptUrl,
+            expiresAt
+          });
+          
+          console.log('✅ [EMAIL-DEBUG] Direct email fallback sent successfully');
+        } catch (directEmailError: any) {
+          console.error('❌ [EMAIL-DEBUG] Direct email fallback also failed:', directEmailError)
+          
+          // Clean up the invitation if direct email fails
+          if (shouldUpdateExisting && existingInvitation) {
+            // Restore the previous invitation state
+            await prisma.invitation.update({
+              where: { id: existingInvitation.id },
+              data: {
+                status: existingInvitation.status,
+                invitedAt: existingInvitation.invitedAt
+              }
+            })
+          } else {
+            await prisma.invitation.delete({ where: { id: invitation.id } })
+          }
+          
+          return res.status(500).json({
+            success: false,
+            message: 'Failed to send invitation email. Please check email configuration.',
+            error: process.env.NODE_ENV === 'development' ? directEmailError.message : undefined
           })
-        } else {
-          await prisma.invitation.delete({ where: { id: invitation.id } })
         }
-        
-        return res.status(500).json({
-          success: false,
-          message: 'Failed to send invitation email. Please check email configuration.',
-          error: process.env.NODE_ENV === 'development' ? emailError.message : undefined
-        })
       }
+
+      console.log('🎉 [EMAIL-DEBUG] Admin invitation process completed successfully', {
+        invitationId: invitation.id,
+        email: invitation.email,
+        status: invitation.status
+      });
 
       res.status(201).json({
         success: true,
@@ -254,6 +302,12 @@ router.post('/admin',
         }
       });
     } catch (error) {
+      console.error('💥 [EMAIL-DEBUG] Admin invitation process failed:', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : undefined,
+        userId: req.user?.id,
+        timestamp: new Date().toISOString()
+      });
       
       // More detailed error for debugging
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';

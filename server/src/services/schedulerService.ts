@@ -1,7 +1,7 @@
 import cron from 'node-cron'
 import { prisma } from '../index'
 import { auditService } from './auditService'
-import { emailService } from './emailService'
+import { emailService } from './EmailService'
 
 class SchedulerService {
   private isInitialized = false

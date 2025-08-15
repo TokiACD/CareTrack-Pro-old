@@ -2,7 +2,7 @@ import { Request, Response, NextFunction } from 'express'
 import { PrismaClient } from '@prisma/client'
 import { ShiftStatus, ShiftApplicationStatus, ShiftType, CompetencyLevel } from '@caretrack/shared'
 import { availabilityService, AvailabilityCheck } from '../services/availabilityService'
-import { emailService } from '../services/emailService'
+import { emailService } from '../services/EmailService'
 
 const prisma = new PrismaClient()
 

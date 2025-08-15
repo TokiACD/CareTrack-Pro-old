@@ -120,7 +120,10 @@ export class JobProcessor {
       limiter: {
         max: config.rateLimit,
         duration: 60000 // Per minute
-      }
+      },
+      // Increase stall interval for SMTP operations which can be slow
+      stalledInterval: 120000, // 2 minutes (default is 30 seconds)
+      maxStalledCount: 1 // Only retry once if stalled
     }
 
     // Create queue

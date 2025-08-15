@@ -1,6 +1,6 @@
 import { PrismaClient } from '@prisma/client'
 import { auditService } from './auditService'
-import { emailService } from './emailService'
+import { emailService } from './EmailService'
 
 const prisma = new PrismaClient()
 

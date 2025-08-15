@@ -4,7 +4,7 @@ import crypto from 'crypto';
 import { prisma } from '../index';
 import { requireAuth } from '../middleware/auth';
 import { audit, AuditAction } from '../middleware/audit';
-import { emailService } from '../services/emailService';
+import { emailService } from '../services/EmailService';
 
 const router = Router();
 
