@@ -99,6 +99,7 @@ model Carer {
   id                  String                   @id @default(cuid())
   email               String                   @unique @db.VarChar(255)
   name                String                   @db.VarChar(255)
+  passwordHash        String?                  @map("password_hash") @db.VarChar(255)
   isActive            Boolean                  @default(true) @map("is_active")
   createdAt           DateTime                 @default(now()) @map("created_at")
   updatedAt           DateTime                 @updatedAt @map("updated_at")
@@ -108,6 +109,7 @@ model Carer {
   encryptedPII        String?                  @map("encrypted_pii") @db.Text
   complianceFlags     Json?                    @map("compliance_flags")
   lastActiveDate      DateTime?                @map("last_active_date")
+  lastLogin           DateTime?                @map("last_login")
   emergencyContactInfo Json?                   @map("emergency_contact_info")
   assessmentResponses AssessmentResponse[]
   draftResponses      DraftAssessmentResponse[]
@@ -123,6 +125,7 @@ model Carer {
   @@index([isActive])                      // Active carer queries
   @@index([email])                         // Email lookup
   @@index([lastActiveDate])                // Activity tracking
+  @@index([lastLogin])                     // Login activity tracking
   @@index([dataRetentionDate])             // HIPAA retention compliance
   @@index([isActive, deletedAt])           // Compound index for active carer filtering
   // @@fulltext([name, email])                // Full-text search on name and email (requires MySQL)
@@ -453,6 +456,11 @@ model CompetencyRating {
   validatedBy          String?             @map("validated_by")
   validationDate       DateTime?           @map("validation_date")
   confidence           Int?                @default(100)
+  // Carer confirmation fields
+  confirmedAt          DateTime?           @map("confirmed_at")
+  confirmedByCarerId   String?             @map("confirmed_by_carer_id")
+  confirmationMethod   String?             @default("PENDING") @map("confirmation_method") @db.VarChar(50)
+  notificationSentAt   DateTime?           @map("notification_sent_at")
   assessmentResponse   AssessmentResponse? @relation(fields: [assessmentResponseId], references: [id], onDelete: SetNull, onUpdate: NoAction)
   carer                Carer               @relation(fields: [carerId], references: [id], onDelete: Cascade)
   setByAdmin           AdminUser?          @relation(fields: [setByAdminId], references: [id], onDelete: SetNull, onUpdate: NoAction)
@@ -467,6 +475,9 @@ model CompetencyRating {
   @@index([expiresAt])                     // Expiration tracking
   @@index([isActive])                      // Active competency filtering
   @@index([validationDate])                // Validation tracking
+  @@index([confirmedAt])                   // Confirmation tracking
+  @@index([confirmationMethod])            // Confirmation status filtering
+  @@index([notificationSentAt])            // Notification tracking
   @@index([carerId, level])                // Carer competency analysis
   @@index([taskId, level])                 // Task competency distribution
   @@map("competency_ratings")

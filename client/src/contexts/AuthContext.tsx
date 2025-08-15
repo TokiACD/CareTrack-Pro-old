@@ -1,9 +1,12 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react'
-import { AdminUser } from '@caretrack/shared'
+import { AdminUser, Carer } from '@caretrack/shared'
 import { authService } from '../services/authService'
 
 interface AuthContextType {
-  user: AdminUser | null
+  user: AdminUser | Carer | null
+  userType: 'admin' | 'carer' | null
+  isAdmin: boolean
+  isCarer: boolean
   loading: boolean
   login: (email: string, password: string) => Promise<void>
   logout: () => void
@@ -17,7 +20,8 @@ interface AuthProviderProps {
 }
 
 export function AuthProvider({ children }: AuthProviderProps) {
-  const [user, setUser] = useState<AdminUser | null>(null)
+  const [user, setUser] = useState<AdminUser | Carer | null>(null)
+  const [userType, setUserType] = useState<'admin' | 'carer' | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -28,8 +32,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
     try {
       const token = localStorage.getItem('authToken')
       if (token) {
-        const userData = await authService.verifyToken()
-        setUser(userData)
+        const response = await authService.verifyToken()
+        setUser(response.user)
+        setUserType(response.userType)
       }
     } catch (error) {
       console.error('Auth initialization failed:', error)
@@ -37,6 +42,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       if (error?.response?.status === 401 || error?.response?.status === 403) {
         localStorage.removeItem('authToken')
         setUser(null)
+        setUserType(null)
       } else {
         // For network errors, keep the token and retry later
         console.warn('Network error during auth initialization, keeping token for retry')
@@ -51,8 +57,14 @@ export function AuthProvider({ children }: AuthProviderProps) {
       const response = await authService.login(email, password)
       localStorage.setItem('authToken', response.token)
       setUser(response.user)
-      // Navigate to dashboard after successful login
-      window.location.href = '/dashboard'
+      setUserType(response.userType)
+      
+      // Navigate based on user type
+      if (response.userType === 'admin') {
+        window.location.href = '/dashboard'
+      } else {
+        window.location.href = '/carer-dashboard'
+      }
     } catch (error) {
       console.error('🔑 AuthContext: Login error:', error)
       throw error
@@ -62,13 +74,15 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const logout = () => {
     localStorage.removeItem('authToken')
     setUser(null)
+    setUserType(null)
     authService.logout()
   }
 
   const refreshUser = async () => {
     try {
-      const userData = await authService.verifyToken()
-      setUser(userData)
+      const response = await authService.verifyToken()
+      setUser(response.user)
+      setUserType(response.userType)
     } catch (error) {
       console.error('User refresh failed:', error)
       logout()
@@ -77,6 +91,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   const value: AuthContextType = {
     user,
+    userType,
+    isAdmin: userType === 'admin',
+    isCarer: userType === 'carer',
     loading,
     login,
     logout,

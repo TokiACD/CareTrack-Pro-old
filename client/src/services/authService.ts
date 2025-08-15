@@ -1,14 +1,20 @@
-import { AdminUser, API_ENDPOINTS } from '@caretrack/shared'
+import { AdminUser, Carer, API_ENDPOINTS } from '@caretrack/shared'
 import { apiService } from './api'
 
 interface LoginResponse {
-  user: AdminUser
+  user: AdminUser | Carer
+  userType: 'admin' | 'carer'
   token: string
 }
 
 interface InviteAdminData {
   email: string
   name: string
+}
+
+interface VerifyTokenResponse {
+  user: AdminUser | Carer
+  userType: 'admin' | 'carer'
 }
 
 class AuthService {
@@ -24,8 +30,8 @@ class AuthService {
     return apiService.post<void>(API_ENDPOINTS.AUTH.LOGOUT)
   }
 
-  async verifyToken(): Promise<AdminUser> {
-    return apiService.get<AdminUser>(API_ENDPOINTS.AUTH.VERIFY_TOKEN)
+  async verifyToken(): Promise<VerifyTokenResponse> {
+    return apiService.get<VerifyTokenResponse>(API_ENDPOINTS.AUTH.VERIFY_TOKEN)
   }
 
   async inviteAdmin(data: InviteAdminData): Promise<void> {

@@ -14,8 +14,8 @@ export class AuthController {
   login = asyncHandler(async (req: Request, res: Response): Promise<void> => {
     const { email, password } = req.body
 
-    // Find user (case-insensitive email lookup)
-    const user = await prisma.adminUser.findFirst({
+    // Try admin user first
+    let user = await prisma.adminUser.findFirst({
       where: { 
         email: {
           equals: email,
@@ -25,7 +25,28 @@ export class AuthController {
         deletedAt: null,
       },
     })
-
+    
+    let userType: 'admin' | 'carer' = 'admin'
+    
+    // If not admin, try carer
+    if (!user) {
+      const carer = await prisma.carer.findFirst({
+        where: { 
+          email: {
+            equals: email,
+            mode: 'insensitive'
+          },
+          isActive: true,
+          deletedAt: null,
+          passwordHash: { not: null }, // Only carers with passwords
+        },
+      })
+      
+      if (carer) {
+        user = carer
+        userType = 'carer'
+      }
+    }
 
     if (!user) {
       throw createError(401, 'Invalid email or password')
@@ -47,6 +68,7 @@ export class AuthController {
     const payload = { 
       userId: user.id, 
       email: user.email,
+      userType,
       iat: Math.floor(Date.now() / 1000)
     }
     const token = jwt.sign(payload, jwtSecret as Secret, {
@@ -55,17 +77,24 @@ export class AuthController {
     })
 
     // Update last login
-    await prisma.adminUser.update({
-      where: { id: user.id },
-      data: { lastLogin: new Date() },
-    })
+    if (userType === 'admin') {
+      await prisma.adminUser.update({
+        where: { id: user.id },
+        data: { lastLogin: new Date() },
+      })
+    } else {
+      await prisma.carer.update({
+        where: { id: user.id },
+        data: { lastLogin: new Date() },
+      })
+    }
 
     // Log the login
     await auditService.log({
       action: 'LOGIN',
-      entityType: 'AdminUser',
+      entityType: userType === 'admin' ? 'AdminUser' : 'Carer',
       entityId: user.id,
-      performedByAdminId: user.id,
+      performedByAdminId: userType === 'admin' ? user.id : undefined,
       performedByAdminName: user.name,
       ipAddress: req.ip,
       userAgent: req.get('User-Agent'),
@@ -77,7 +106,8 @@ export class AuthController {
     res.json({
       success: true,
       data: {
-        user: userData as AdminUser,
+        user: userData,
+        userType,
         token,
       },
       message: 'Login successful',
@@ -86,12 +116,12 @@ export class AuthController {
 
   logout = asyncHandler(async (req: Request, res: Response): Promise<void> => {
     // Log the logout
-    if (req.user) {
+    if (req.user && req.userType) {
       await auditService.log({
         action: 'LOGOUT',
-        entityType: 'AdminUser',
+        entityType: req.userType === 'admin' ? 'AdminUser' : 'Carer',
         entityId: req.user.id,
-        performedByAdminId: req.user.id,
+        performedByAdminId: req.userType === 'admin' ? req.user.id : undefined,
         performedByAdminName: req.user.name,
         ipAddress: req.ip,
         userAgent: req.get('User-Agent'),
@@ -107,13 +137,16 @@ export class AuthController {
 
   verifyToken = asyncHandler(async (req: Request, res: Response): Promise<void> => {
     // User is already attached to request by auth middleware
-    if (!req.user) {
+    if (!req.user || !req.userType) {
       throw createError(401, 'Authentication failed')
     }
 
     res.json({
       success: true,
-      data: req.user,
+      data: {
+        user: req.user,
+        userType: req.userType,
+      },
     })
   })
 

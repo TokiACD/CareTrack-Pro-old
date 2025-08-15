@@ -15,10 +15,12 @@ export interface Carer {
   id: string;
   email: string;
   name: string;
+  passwordHash?: string;
   isActive: boolean;
   createdAt: Date;
   updatedAt: Date;
   deletedAt?: Date;
+  lastLogin?: Date;
   // Computed fields
   isFullyAssessed?: boolean;
   packages?: CarerPackageAssignment[];
@@ -226,6 +228,11 @@ export interface CompetencyRating {
   setByAdminName?: string;
   setAt: Date;
   notes?: string;
+  // Confirmation fields
+  confirmedAt?: Date;
+  confirmedByCarerId?: string;
+  confirmationMethod?: string;
+  notificationSentAt?: Date;
   // Relations
   carer?: Carer;
   task?: Task;

@@ -2,14 +2,15 @@ import { Request, Response, NextFunction } from 'express'
 import jwt from 'jsonwebtoken'
 import crypto from 'crypto'
 import { prisma } from '../index'
-import { AdminUser } from '@caretrack/shared'
+import { AdminUser, Carer } from '@caretrack/shared'
 import { JWT_CONFIG, SESSION_CONFIG } from '../config/security'
 
 // Extend Express Request type to include user
 declare global {
   namespace Express {
     interface Request {
-      user?: AdminUser
+      user?: AdminUser | Carer
+      userType?: 'admin' | 'carer'
     }
   }
 }
@@ -17,6 +18,7 @@ declare global {
 interface JwtPayload {
   userId: string
   email: string
+  userType: 'admin' | 'carer'
   iat?: number
   exp?: number
 }
@@ -56,7 +58,7 @@ export const authenticateToken = async (
     }) as JwtPayload
 
     // Additional token integrity checks
-    if (!decoded.userId || !decoded.email) {
+    if (!decoded.userId || !decoded.email || !decoded.userType) {
       res.status(401).json({
         success: false,
         error: 'Invalid token payload',
@@ -65,25 +67,48 @@ export const authenticateToken = async (
       return
     }
 
-    // Get user from database
-    const user = await prisma.adminUser.findUnique({
-      where: {
-        id: decoded.userId,
-        isActive: true,
-        deletedAt: null,
-      },
-      select: {
-        id: true,
-        email: true,
-        name: true,
-        isActive: true,
-        createdAt: true,
-        updatedAt: true,
-        deletedAt: true,
-        invitedBy: true,
-        lastLogin: true,
-      },
-    })
+    // Get user from database based on user type
+    let user: AdminUser | Carer | null = null
+    
+    if (decoded.userType === 'admin') {
+      user = await prisma.adminUser.findUnique({
+        where: {
+          id: decoded.userId,
+          isActive: true,
+          deletedAt: null,
+        },
+        select: {
+          id: true,
+          email: true,
+          name: true,
+          isActive: true,
+          createdAt: true,
+          updatedAt: true,
+          deletedAt: true,
+          invitedBy: true,
+          lastLogin: true,
+        },
+      })
+    } else {
+      user = await prisma.carer.findUnique({
+        where: {
+          id: decoded.userId,
+          isActive: true,
+          deletedAt: null,
+          passwordHash: { not: null }, // Only carers with passwords can authenticate
+        },
+        select: {
+          id: true,
+          email: true,
+          name: true,
+          isActive: true,
+          createdAt: true,
+          updatedAt: true,
+          deletedAt: true,
+          lastLogin: true,
+        },
+      })
+    }
 
     if (!user) {
       // Log security event for inactive/deleted user attempting access
@@ -112,13 +137,21 @@ export const authenticateToken = async (
     }
 
     // Update last login time asynchronously (don't await - major performance improvement)
-    prisma.adminUser.update({
-      where: { id: user.id },
-      data: { lastLogin: new Date() },
-    }).catch(err => console.warn('Failed to update lastLogin:', err))
+    if (decoded.userType === 'admin') {
+      prisma.adminUser.update({
+        where: { id: user.id },
+        data: { lastLogin: new Date() },
+      }).catch(err => console.warn('Failed to update lastLogin:', err))
+    } else {
+      prisma.carer.update({
+        where: { id: user.id },
+        data: { lastLogin: new Date() },
+      }).catch(err => console.warn('Failed to update lastLogin:', err))
+    }
 
-    // Add user to request
-    req.user = user as AdminUser
+    // Add user and userType to request
+    req.user = user
+    req.userType = decoded.userType
     next()
   } catch (error) {
     // Enhanced error logging without sensitive data exposure
@@ -173,10 +206,54 @@ export const authenticateToken = async (
 export const requireAuth = authenticateToken
 export const authenticate = requireAuth
 
+// User type specific authentication middleware
+export const requireAdminAuth = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  await authenticateToken(req, res, () => {
+    if (req.userType !== 'admin') {
+      res.status(403).json({
+        success: false,
+        error: 'Admin access required',
+        code: 'ADMIN_REQUIRED'
+      })
+      return
+    }
+    next()
+  })
+}
+
+export const requireCarerAuth = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  await authenticateToken(req, res, () => {
+    if (req.userType !== 'carer') {
+      res.status(403).json({
+        success: false,
+        error: 'Carer access required',
+        code: 'CARER_REQUIRED'
+      })
+      return
+    }
+    next()
+  })
+}
+
 // Role-based authorization
 export const requireRole = (roles: string[]) => {
   return (req: Request, res: Response, next: NextFunction) => {
-    // Add role checking logic here if needed
+    if (!req.userType || !roles.includes(req.userType)) {
+      res.status(403).json({
+        success: false,
+        error: 'Insufficient permissions',
+        code: 'INSUFFICIENT_PERMISSIONS'
+      })
+      return
+    }
     next()
   }
 }
