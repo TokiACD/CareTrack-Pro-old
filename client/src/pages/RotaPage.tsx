@@ -10,7 +10,10 @@ import {
   CircularProgress
 } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
+import { useMutation } from '@tanstack/react-query';
 import { DragDropContext } from 'react-beautiful-dnd';
+import { apiService } from '../services/api';
+import { useNotification } from '../contexts/NotificationContext';
 import { WeeklyCalendar } from '../components/rota/WeeklyCalendar';
 import { CarerTabs } from '../components/rota/CarerTabs';
 import { CarePackageCards } from '../components/rota/CarePackageCards';
@@ -33,6 +36,7 @@ const RotaPage: React.FC = () => {
   const navigate = useNavigate();
   const [viewMode, setViewMode] = useState<ViewMode>('table');
   const [showPerformanceMetrics, setShowPerformanceMetrics] = useState(false);
+  const { showSuccess, showError } = useNotification();
   
   // Custom hooks
   const {
@@ -58,6 +62,56 @@ const RotaPage: React.FC = () => {
     selectedPackageId, 
     currentWeekStart
   );
+
+  // Export mutations
+  const exportExcelMutation = useMutation({
+    mutationFn: async () => {
+      if (!selectedPackageId) throw new Error('No package selected');
+      const blob = await apiService.exportRotaToExcel(selectedPackageId, currentWeekStart.toISOString());
+      
+      // Download the file
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `rota_${selectedPackage?.name?.replace(/\s+/g, '_')}_${currentWeekStart.toISOString().split('T')[0]}.xlsx`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    },
+    onSuccess: () => {
+      showSuccess('Excel file downloaded successfully');
+    },
+    onError: (error: any) => {
+      showError(error.response?.data?.error || 'Failed to export to Excel');
+    }
+  });
+
+  const exportEmailMutation = useMutation({
+    mutationFn: async (recipients: string[]) => {
+      if (!selectedPackageId) throw new Error('No package selected');
+      return await apiService.emailWeeklyRota(selectedPackageId, currentWeekStart.toISOString(), recipients);
+    },
+    onSuccess: (data: any) => {
+      showSuccess(`Rota email prepared for ${data.recipientCount} recipient(s)`);
+    },
+    onError: (error: any) => {
+      showError(error.response?.data?.error || 'Failed to send email');
+    }
+  });
+
+  const exportArchiveMutation = useMutation({
+    mutationFn: async (reason?: string) => {
+      if (!selectedPackageId) throw new Error('No package selected');
+      return await apiService.archiveWeeklyRota(selectedPackageId, currentWeekStart.toISOString(), reason);
+    },
+    onSuccess: (data: any) => {
+      showSuccess(`Successfully archived ${data.totalEntries} rota entries`);
+    },
+    onError: (error: any) => {
+      showError(error.response?.data?.error || 'Failed to archive rota');
+    }
+  });
   
   const {
     dragValidationResult,
@@ -244,6 +298,12 @@ const RotaPage: React.FC = () => {
             onTogglePerformanceMetrics={() => setShowPerformanceMetrics(!showPerformanceMetrics)}
             performanceMetrics={performanceMetrics}
             isLoading={isWeeklyLoading}
+            exportOptions={{
+              onExportExcel: () => exportExcelMutation.mutate(),
+              onExportEmail: (recipients) => exportEmailMutation.mutate(recipients),
+              onExportArchive: (reason) => exportArchiveMutation.mutate(reason),
+              isExporting: exportExcelMutation.isPending || exportEmailMutation.isPending || exportArchiveMutation.isPending
+            }}
           />
           
           <Box display="flex" justifyContent="flex-end" mt={2}>

@@ -407,6 +407,9 @@ export class ProgressController {
         }
       });
 
+      // SMART ASSIGNMENT FEATURES: Sync progress globally across all packages where carer is assigned to this task
+      await this.syncGlobalProgress(carerId, taskId, completionCount, task.targetCount);
+
       // Log the update
       await auditService.log({
         action: 'UPDATE_TASK_PROGRESS',
@@ -498,10 +501,10 @@ export class ProgressController {
     }
   }
 
-  // Set manual competency rating
+  // Set manual competency rating with confirmation management
   async setManualCompetency(req: Request, res: Response, next: NextFunction) {
     try {
-      const { carerId, taskId, level, notes } = req.body;
+      const { carerId, taskId, level, notes, skipConfirmation = false } = req.body;
 
       if (!carerId || !taskId || !level) {
         return res.status(400).json({
@@ -519,12 +522,25 @@ export class ProgressController {
         });
       }
 
+      // Get existing rating to check if this is a new rating
+      const existingRating = await prisma.competencyRating.findUnique({
+        where: { carerId_taskId: { carerId, taskId } }
+      });
+
+      const isNewRating = !existingRating;
+      const requiresConfirmation = isNewRating && !skipConfirmation && level !== 'NOT_ASSESSED';
+
       // If setting to NOT_ASSESSED, also reset task progress
       if (level === 'NOT_ASSESSED') {
         await prisma.$transaction(async (tx) => {
           // Delete competency rating
           await tx.competencyRating.deleteMany({
             where: { carerId, taskId }
+          });
+
+          // Delete any pending confirmations
+          await tx.competencyConfirmation.deleteMany({
+            where: { carerId, taskId, confirmedAt: null }
           });
 
           // Reset all task progress for this carer and task across all packages
@@ -542,7 +558,7 @@ export class ProgressController {
           action: 'RESET_COMPETENCY_AND_PROGRESS',
           entityType: 'CompetencyRating',
           entityId: `${carerId}-${taskId}`,
-          oldValues: { level: 'EXISTING' },
+          oldValues: { level: existingRating?.level || 'NONE' },
           newValues: { level: 'NOT_ASSESSED', progressReset: true },
           performedByAdminId: req.user?.id || 'system',
           performedByAdminName: req.user?.name || 'System',
@@ -556,47 +572,85 @@ export class ProgressController {
         });
       }
 
-      // Update or create competency rating
-      const competency = await prisma.competencyRating.upsert({
-        where: {
-          carerId_taskId: { carerId, taskId }
-        },
-        update: {
-          level,
-          source: 'MANUAL',
-          setByAdminId: req.user?.id,
-          setByAdminName: req.user?.name,
-          setAt: new Date(),
-          notes
-        },
-        create: {
-          carerId,
-          taskId,
-          level,
-          source: 'MANUAL',
-          setByAdminId: req.user?.id,
-          setByAdminName: req.user?.name,
-          setAt: new Date(),
-          notes
-        }
-      });
+      let result;
 
-      await auditService.log({
-        action: 'SET_MANUAL_COMPETENCY',
-        entityType: 'CompetencyRating',
-        entityId: competency.id,
-        newValues: { level, source: 'MANUAL', notes },
-        performedByAdminId: req.user?.id || 'system',
-        performedByAdminName: req.user?.name || 'System',
-        ipAddress: req.ip,
-        userAgent: req.get('User-Agent')
-      });
+      if (requiresConfirmation) {
+        // Create confirmation record instead of immediate rating
+        result = await prisma.competencyConfirmation.create({
+          data: {
+            carerId,
+            taskId,
+            newLevel: level,
+            source: 'MANUAL',
+            setByAdminId: req.user?.id,
+            setByAdminName: req.user?.name,
+            notes,
+            expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) // 7 days
+          }
+        });
 
-      res.json({
-        success: true,
-        data: competency,
-        message: 'Manual competency rating set successfully'
-      });
+        await auditService.log({
+          action: 'CREATE_COMPETENCY_CONFIRMATION',
+          entityType: 'CompetencyConfirmation',
+          entityId: result.id,
+          newValues: { level, source: 'MANUAL', notes },
+          performedByAdminId: req.user?.id || 'system',
+          performedByAdminName: req.user?.name || 'System',
+          ipAddress: req.ip,
+          userAgent: req.get('User-Agent')
+        });
+
+        return res.json({
+          success: true,
+          data: result,
+          message: 'Competency rating created and pending carer confirmation',
+          requiresConfirmation: true
+        });
+      } else {
+        // Apply rating immediately (existing ratings or inherited from previous assignments)
+        result = await prisma.competencyRating.upsert({
+          where: {
+            carerId_taskId: { carerId, taskId }
+          },
+          update: {
+            level,
+            source: 'MANUAL',
+            setByAdminId: req.user?.id,
+            setByAdminName: req.user?.name,
+            setAt: new Date(),
+            notes
+          },
+          create: {
+            carerId,
+            taskId,
+            level,
+            source: 'MANUAL',
+            setByAdminId: req.user?.id,
+            setByAdminName: req.user?.name,
+            setAt: new Date(),
+            notes
+          }
+        });
+
+        await auditService.log({
+          action: 'SET_MANUAL_COMPETENCY',
+          entityType: 'CompetencyRating',
+          entityId: result.id,
+          oldValues: { level: existingRating?.level },
+          newValues: { level, source: 'MANUAL', notes },
+          performedByAdminId: req.user?.id || 'system',
+          performedByAdminName: req.user?.name || 'System',
+          ipAddress: req.ip,
+          userAgent: req.get('User-Agent')
+        });
+
+        return res.json({
+          success: true,
+          data: result,
+          message: 'Manual competency rating set successfully',
+          requiresConfirmation: false
+        });
+      }
     } catch (error) {
       next(error);
     }
@@ -764,6 +818,270 @@ export class ProgressController {
       });
     } catch (error) {
       console.error('Error in getCarersReadyForAssessment:', error);
+      next(error);
+    }
+  }
+
+  // SMART ASSIGNMENT FEATURES: Sync progress globally across all packages
+  private syncGlobalProgress = async (carerId: string, taskId: string, newCompletionCount: number, taskTargetCount: number): Promise<void> => {
+    // Find all packages where this carer is assigned to this task
+    const carerAssignments = await prisma.carerPackageAssignment.findMany({
+      where: {
+        carerId,
+        isActive: true,
+        package: {
+          deletedAt: null,
+          taskAssignments: {
+            some: {
+              taskId,
+              isActive: true
+            }
+          }
+        }
+      },
+      include: {
+        package: {
+          select: { id: true, name: true }
+        }
+      }
+    });
+
+    // Update progress for all packages where this carer-task combination exists
+    const newCompletionPercentage = Math.min(100, Math.round((newCompletionCount / taskTargetCount) * 100));
+    
+    for (const assignment of carerAssignments) {
+      await prisma.taskProgress.upsert({
+        where: {
+          carerId_packageId_taskId: {
+            carerId,
+            packageId: assignment.packageId,
+            taskId
+          }
+        },
+        update: {
+          completionCount: newCompletionCount,
+          completionPercentage: newCompletionPercentage,
+          lastUpdated: new Date()
+        },
+        create: {
+          carerId,
+          packageId: assignment.packageId,
+          taskId,
+          completionCount: newCompletionCount,
+          completionPercentage: newCompletionPercentage,
+          lastUpdated: new Date()
+        }
+      });
+    }
+  }
+
+  // CONFIRMATION MANAGEMENT: Get pending competency confirmations
+  async getPendingConfirmations(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { carerId } = req.query;
+
+      const whereClause: any = {
+        confirmedAt: null,
+        expiresAt: {
+          gte: new Date()
+        }
+      };
+
+      if (carerId) {
+        whereClause.carerId = carerId;
+      }
+
+      const pendingConfirmations = await prisma.competencyConfirmation.findMany({
+        where: whereClause,
+        include: {
+          carer: {
+            select: { id: true, name: true, email: true }
+          },
+          task: {
+            select: { id: true, name: true }
+          },
+          setByAdmin: {
+            select: { id: true, name: true }
+          }
+        },
+        orderBy: { createdAt: 'desc' }
+      });
+
+      res.json({
+        success: true,
+        data: pendingConfirmations
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  // CONFIRMATION MANAGEMENT: Confirm competency rating
+  async confirmCompetencyRating(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { confirmationId } = req.params;
+      const { confirmed } = req.body;
+
+      const confirmation = await prisma.competencyConfirmation.findUnique({
+        where: { id: confirmationId },
+        include: {
+          carer: { select: { id: true, name: true } },
+          task: { select: { id: true, name: true } }
+        }
+      });
+
+      if (!confirmation) {
+        return res.status(404).json({
+          success: false,
+          error: 'Confirmation not found'
+        });
+      }
+
+      if (confirmation.confirmedAt) {
+        return res.status(400).json({
+          success: false,
+          error: 'Confirmation already processed'
+        });
+      }
+
+      if (new Date() > confirmation.expiresAt) {
+        return res.status(400).json({
+          success: false,
+          error: 'Confirmation has expired'
+        });
+      }
+
+      const result = await prisma.$transaction(async (tx) => {
+        // Update the confirmation
+        const updatedConfirmation = await tx.competencyConfirmation.update({
+          where: { id: confirmationId },
+          data: {
+            confirmedAt: new Date(),
+            confirmed
+          }
+        });
+
+        if (confirmed) {
+          // Apply the competency rating
+          await tx.competencyRating.upsert({
+            where: {
+              carerId_taskId: {
+                carerId: confirmation.carerId,
+                taskId: confirmation.taskId
+              }
+            },
+            update: {
+              level: confirmation.newLevel,
+              source: confirmation.source,
+              setByAdminId: confirmation.setByAdminId,
+              setByAdminName: confirmation.setByAdminName,
+              setAt: new Date(),
+              notes: confirmation.notes
+            },
+            create: {
+              carerId: confirmation.carerId,
+              taskId: confirmation.taskId,
+              level: confirmation.newLevel,
+              source: confirmation.source,
+              setByAdminId: confirmation.setByAdminId,
+              setByAdminName: confirmation.setByAdminName,
+              setAt: new Date(),
+              notes: confirmation.notes
+            }
+          });
+        }
+
+        return updatedConfirmation;
+      });
+
+      // Log the confirmation
+      await auditService.log({
+        action: confirmed ? 'CONFIRM_COMPETENCY_RATING' : 'REJECT_COMPETENCY_RATING',
+        entityType: 'CompetencyConfirmation',
+        entityId: confirmationId,
+        newValues: { confirmed },
+        performedByAdminId: 'carer',
+        performedByAdminName: confirmation.carer.name,
+        ipAddress: req.ip,
+        userAgent: req.get('User-Agent')
+      });
+
+      res.json({
+        success: true,
+        data: result,
+        message: confirmed 
+          ? `Competency rating confirmed for ${confirmation.task.name}` 
+          : `Competency rating rejected for ${confirmation.task.name}`
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  // ASSESSMENT WORKFLOW: Get available assessments for carer
+  async getAvailableAssessments(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { carerId } = req.params;
+
+      // Get carer's current progress
+      const carerProgress = await prisma.taskProgress.findMany({
+        where: {
+          carerId,
+          completionPercentage: 100
+        },
+        include: {
+          task: {
+            select: { id: true, name: true }
+          }
+        }
+      });
+
+      // Get all assessments and check which ones are available
+      const assessments = await prisma.assessment.findMany({
+        where: {
+          isActive: true,
+          deletedAt: null
+        },
+        include: {
+          tasksCovered: {
+            include: {
+              task: {
+                select: { id: true, name: true }
+              }
+            }
+          },
+          knowledgeQuestions: { orderBy: { order: 'asc' } },
+          practicalSkills: { orderBy: { order: 'asc' } },
+          emergencyQuestions: { orderBy: { order: 'asc' } }
+        }
+      });
+
+      // Get existing competency ratings to filter out already assessed tasks
+      const existingRatings = await prisma.competencyRating.findMany({
+        where: { carerId },
+        select: { taskId: true }
+      });
+      const ratedTaskIds = new Set(existingRatings.map(r => r.taskId));
+
+      // Filter assessments where ALL tasks are 100% complete and not yet rated
+      const availableAssessments = assessments.filter(assessment => {
+        const taskIds = assessment.tasksCovered.map(tc => tc.taskId);
+        const completedTaskIds = new Set(carerProgress.map(cp => cp.taskId));
+        
+        // Check if ALL tasks in this assessment are 100% complete
+        const allTasksComplete = taskIds.every(taskId => completedTaskIds.has(taskId));
+        
+        // Check if ANY task in this assessment is not yet rated
+        const hasUnratedTasks = taskIds.some(taskId => !ratedTaskIds.has(taskId));
+        
+        return allTasksComplete && hasUnratedTasks && taskIds.length > 0;
+      });
+
+      res.json({
+        success: true,
+        data: availableAssessments
+      });
+    } catch (error) {
       next(error);
     }
   }

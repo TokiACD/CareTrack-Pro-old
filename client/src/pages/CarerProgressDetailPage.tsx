@@ -218,6 +218,17 @@ const CarerProgressDetailPage: React.FC = () => {
   const [newCompetencyLevel, setNewCompetencyLevel] = useState<string>('');
   const [competencyNotes, setCompetencyNotes] = useState<string>('');
 
+  // Fetch available assessments for this carer
+  const { data: availableAssessments } = useQuery({
+    queryKey: ['progress', 'available-assessments', carerId],
+    queryFn: async () => {
+      if (!carerId) return [];
+      const response = await apiService.get(`/api/progress/carer/${carerId}/available-assessments`);
+      return response?.data || [];
+    },
+    enabled: !!carerId
+  });
+
   const fetchProgressData = async () => {
     if (!carerId) return;
     

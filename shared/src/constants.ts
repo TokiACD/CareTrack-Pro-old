@@ -115,18 +115,34 @@ export const API_ENDPOINTS = {
     WEEKLY_SCHEDULE: '/api/rota/weekly',
     BULK_CREATE: '/api/rota/bulk',
     VALIDATE: '/api/rota/validate',
-    CONFIRM: '/api/rota/:id/confirm'
+    CONFIRM: '/api/rota/:id/confirm',
+    EXPORT_EXCEL: '/api/rota/export/excel',
+    EXPORT_EMAIL: '/api/rota/export/email',
+    EXPORT_ARCHIVE: '/api/rota/export/archive'
   },
   RECYCLE_BIN: {
     LIST: '/api/recycle-bin',
     SUMMARY: '/api/recycle-bin/summary',
     RESTORE: '/api/recycle-bin/restore',
     PERMANENT_DELETE: '/api/recycle-bin/permanent-delete',
-    CLEANUP: '/api/recycle-bin/cleanup'
+    CLEANUP: '/api/recycle-bin/cleanup',
+    BULK_RESTORE: '/api/recycle-bin/bulk-restore',
+    BULK_DELETE: '/api/recycle-bin/bulk-delete',
+    IMPACT_ANALYSIS: '/api/recycle-bin/impact-analysis'
   },
   AUDIT: {
     LIST: '/api/audit',
     EXPORT: '/api/audit/export'
+  },
+  ENHANCED_AUDIT: {
+    DASHBOARD: '/api/enhanced-audit/dashboard',
+    ACTIVITY_FEED: '/api/enhanced-audit/activity-feed',
+    SECURITY_MONITORING: '/api/enhanced-audit/security-monitoring',
+    ALERTS: '/api/enhanced-audit/alerts',
+    ACKNOWLEDGE_ALERT: '/api/enhanced-audit/alerts/:alertId/acknowledge',
+    COMPLIANCE_REPORT: '/api/enhanced-audit/compliance-report',
+    USER_ACTIVITY: '/api/enhanced-audit/users/:userId/activity',
+    EXPORT: '/api/enhanced-audit/export'
   },
   DASHBOARD: {
     SUMMARY: '/api/dashboard/summary'

@@ -204,4 +204,47 @@ router.patch('/:id/confirm',
   rotaController.confirmRotaEntry.bind(rotaController)
 )
 
+/**
+ * GET /api/rota/export/excel
+ * Export weekly rota to Excel
+ */
+router.get('/export/excel',
+  [
+    query('packageId').isString().notEmpty().withMessage('Package ID is required'),
+    query('weekStart').isISO8601().withMessage('Week start must be in ISO date format')
+  ],
+  validateRequest,
+  rotaController.exportWeeklyRotaToExcel.bind(rotaController)
+)
+
+/**
+ * POST /api/rota/export/email
+ * Email weekly rota to stakeholders
+ */
+router.post('/export/email',
+  [
+    body('packageId').isString().notEmpty().withMessage('Package ID is required'),
+    body('weekStart').isISO8601().withMessage('Week start must be in ISO date format'),
+    body('recipients').isArray({ min: 1 }).withMessage('Recipients array is required and must not be empty'),
+    body('recipients.*').isEmail().withMessage('Each recipient must be a valid email address'),
+    body('includeAttachment').optional().isBoolean().withMessage('includeAttachment must be a boolean')
+  ],
+  validateRequest,
+  rotaController.emailWeeklyRota.bind(rotaController)
+)
+
+/**
+ * POST /api/rota/export/archive
+ * Archive weekly rota
+ */
+router.post('/export/archive',
+  [
+    body('packageId').isString().notEmpty().withMessage('Package ID is required'),
+    body('weekStart').isISO8601().withMessage('Week start must be in ISO date format'),
+    body('archiveReason').optional().isString().withMessage('Archive reason must be a string')
+  ],
+  validateRequest,
+  rotaController.archiveWeeklyRota.bind(rotaController)
+)
+
 export { router as rotaRoutes }

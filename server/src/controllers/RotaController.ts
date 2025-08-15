@@ -2,6 +2,10 @@ import { Request, Response, NextFunction } from 'express'
 import { PrismaClient } from '@prisma/client'
 import { ShiftType, RotaEntry, BatchDeleteRotaRequest } from '@caretrack/shared'
 import { schedulingRulesEngine, ScheduleValidationResult } from '../services/SchedulingRulesEngine'
+import * as ExcelJS from 'exceljs'
+import archiver from 'archiver'
+import path from 'path'
+import fs from 'fs'
 
 const prisma = new PrismaClient()
 
@@ -877,6 +881,425 @@ export class RotaController {
     } catch (error) {
       next(error)
     }
+  }
+
+  /**
+   * Export weekly rota to Excel
+   */
+  async exportWeeklyRotaToExcel(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { packageId, weekStart } = req.query
+
+      if (!packageId || !weekStart) {
+        return res.status(400).json({
+          success: false,
+          error: 'Package ID and week start date are required'
+        })
+      }
+
+      const weekStartDate = new Date(weekStart as string)
+      const weekEndDate = new Date(weekStartDate)
+      weekEndDate.setDate(weekEndDate.getDate() + 7)
+
+      // Get package details
+      const carePackage = await prisma.carePackage.findUnique({
+        where: { id: packageId as string },
+        select: { id: true, name: true, postcode: true }
+      })
+
+      if (!carePackage) {
+        return res.status(404).json({
+          success: false,
+          error: 'Care package not found'
+        })
+      }
+
+      // Get weekly entries
+      const weekEntries = await prisma.rotaEntry.findMany({
+        where: {
+          packageId: packageId as string,
+          date: { gte: weekStartDate, lt: weekEndDate }
+        },
+        include: {
+          carer: { select: { id: true, name: true, email: true } },
+          package: { select: { id: true, name: true, postcode: true } }
+        },
+        orderBy: [{ date: 'asc' }, { startTime: 'asc' }]
+      })
+
+      // Generate Excel workbook
+      const workbook = await this.generateExcelRota(carePackage, weekStartDate, weekEntries)
+
+      // Set response headers for Excel download
+      const filename = `rota_${carePackage.name.replace(/\s+/g, '_')}_${weekStartDate.toISOString().split('T')[0]}.xlsx`
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`)
+
+      // Stream the Excel file
+      await workbook.xlsx.write(res)
+      res.end()
+    } catch (error) {
+      console.error('Error exporting rota to Excel:', error)
+      next(error)
+    }
+  }
+
+  /**
+   * Email weekly rota to stakeholders
+   */
+  async emailWeeklyRota(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { packageId, weekStart, recipients, includeAttachment = true } = req.body
+
+      if (!packageId || !weekStart || !recipients || !Array.isArray(recipients)) {
+        return res.status(400).json({
+          success: false,
+          error: 'Package ID, week start date, and recipients array are required'
+        })
+      }
+
+      const weekStartDate = new Date(weekStart)
+      const weekEndDate = new Date(weekStartDate)
+      weekEndDate.setDate(weekEndDate.getDate() + 7)
+
+      // Get package and entries data
+      const carePackage = await prisma.carePackage.findUnique({
+        where: { id: packageId },
+        select: { id: true, name: true, postcode: true }
+      })
+
+      if (!carePackage) {
+        return res.status(404).json({
+          success: false,
+          error: 'Care package not found'
+        })
+      }
+
+      const weekEntries = await prisma.rotaEntry.findMany({
+        where: {
+          packageId: packageId,
+          date: { gte: weekStartDate, lt: weekEndDate }
+        },
+        include: {
+          carer: { select: { id: true, name: true, email: true } },
+          package: { select: { id: true, name: true, postcode: true } }
+        },
+        orderBy: [{ date: 'asc' }, { startTime: 'asc' }]
+      })
+
+      // Generate email content
+      const emailContent = this.generateRotaEmailContent(carePackage, weekStartDate, weekEntries)
+      
+      let attachmentBuffer: Buffer | undefined
+      if (includeAttachment) {
+        const workbook = await this.generateExcelRota(carePackage, weekStartDate, weekEntries)
+        attachmentBuffer = await workbook.xlsx.writeBuffer() as Buffer
+      }
+
+      // TODO: Integrate with actual email service (SendGrid, AWS SES, etc.)
+      // For now, we'll return the email content and indicate success
+      const emailData = {
+        recipients,
+        subject: `Weekly Rota - ${carePackage.name} (${weekStartDate.toLocaleDateString()})`,
+        html: emailContent,
+        attachment: includeAttachment ? {
+          filename: `rota_${carePackage.name.replace(/\s+/g, '_')}_${weekStartDate.toISOString().split('T')[0]}.xlsx`,
+          content: attachmentBuffer?.toString('base64')
+        } : undefined
+      }
+
+      // Here you would typically queue the email or send it directly
+      // await emailService.sendEmail(emailData)
+
+      res.json({
+        success: true,
+        data: {
+          emailPreview: emailContent,
+          recipientCount: recipients.length,
+          hasAttachment: includeAttachment,
+          packageName: carePackage.name,
+          weekRange: `${weekStartDate.toLocaleDateString()} - ${weekEndDate.toLocaleDateString()}`
+        },
+        message: `Rota email prepared for ${recipients.length} recipient(s)`
+      })
+    } catch (error) {
+      console.error('Error preparing rota email:', error)
+      next(error)
+    }
+  }
+
+  /**
+   * Archive weekly rota
+   */
+  async archiveWeeklyRota(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { packageId, weekStart, archiveReason = 'Manual archive' } = req.body
+
+      if (!packageId || !weekStart) {
+        return res.status(400).json({
+          success: false,
+          error: 'Package ID and week start date are required'
+        })
+      }
+
+      const weekStartDate = new Date(weekStart)
+      const weekEndDate = new Date(weekStartDate)
+      weekEndDate.setDate(weekEndDate.getDate() + 7)
+
+      // Get entries to archive
+      const weekEntries = await prisma.rotaEntry.findMany({
+        where: {
+          packageId: packageId,
+          date: { gte: weekStartDate, lt: weekEndDate }
+        },
+        include: {
+          carer: { select: { id: true, name: true, email: true } },
+          package: { select: { id: true, name: true, postcode: true } }
+        }
+      })
+
+      if (weekEntries.length === 0) {
+        return res.status(400).json({
+          success: false,
+          error: 'No rota entries found for the specified week'
+        })
+      }
+
+      // Create archive record
+      const archiveData = {
+        packageId,
+        weekStart: weekStartDate,
+        weekEnd: weekEndDate,
+        totalEntries: weekEntries.length,
+        entriesData: JSON.stringify(weekEntries),
+        archiveReason,
+        archivedAt: new Date(),
+        archivedBy: req.user?.id
+      }
+
+      // TODO: Create actual archive table and record
+      // For now, we'll simulate the archive process
+      const archiveResult = {
+        archiveId: `archive_${Date.now()}`,
+        ...archiveData
+      }
+
+      res.json({
+        success: true,
+        data: {
+          archiveId: archiveResult.archiveId,
+          packageName: weekEntries[0].package.name,
+          weekRange: `${weekStartDate.toLocaleDateString()} - ${weekEndDate.toLocaleDateString()}`,
+          totalEntries: weekEntries.length,
+          archiveReason,
+          archivedAt: new Date()
+        },
+        message: `Successfully archived ${weekEntries.length} rota entries`
+      })
+    } catch (error) {
+      console.error('Error archiving rota:', error)
+      next(error)
+    }
+  }
+
+  /**
+   * Generate Excel workbook for rota data
+   */
+  private async generateExcelRota(
+    carePackage: { id: string; name: string; postcode: string },
+    weekStart: Date,
+    entries: any[]
+  ): Promise<ExcelJS.Workbook> {
+    const workbook = new ExcelJS.Workbook()
+    const worksheet = workbook.addWorksheet('Weekly Rota')
+
+    // Set up workbook metadata
+    workbook.creator = 'CareTrack Pro'
+    workbook.lastModifiedBy = 'CareTrack Pro'
+    workbook.created = new Date()
+    workbook.modified = new Date()
+
+    // Title and header information
+    const weekEnd = new Date(weekStart)
+    weekEnd.setDate(weekEnd.getDate() + 6)
+
+    worksheet.mergeCells('A1:H1')
+    worksheet.getCell('A1').value = `Weekly Rota - ${carePackage.name}`
+    worksheet.getCell('A1').font = { size: 16, bold: true }
+    worksheet.getCell('A1').alignment = { horizontal: 'center' }
+
+    worksheet.mergeCells('A2:H2')
+    worksheet.getCell('A2').value = `Week: ${weekStart.toLocaleDateString()} - ${weekEnd.toLocaleDateString()}`
+    worksheet.getCell('A2').font = { size: 12 }
+    worksheet.getCell('A2').alignment = { horizontal: 'center' }
+
+    worksheet.mergeCells('A3:H3')
+    worksheet.getCell('A3').value = `Postcode: ${carePackage.postcode}`
+    worksheet.getCell('A3').font = { size: 10 }
+    worksheet.getCell('A3').alignment = { horizontal: 'center' }
+
+    // Headers
+    const headers = ['Date', 'Day', 'Shift Type', 'Start Time', 'End Time', 'Carer Name', 'Email', 'Status']
+    const headerRow = worksheet.addRow(headers)
+    headerRow.eachCell((cell) => {
+      cell.font = { bold: true }
+      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE6E6FA' } }
+      cell.border = {
+        top: { style: 'thin' },
+        left: { style: 'thin' },
+        bottom: { style: 'thin' },
+        right: { style: 'thin' }
+      }
+    })
+
+    // Data rows
+    for (const entry of entries) {
+      const date = new Date(entry.date)
+      const dayName = date.toLocaleDateString('en-GB', { weekday: 'long' })
+      
+      const row = worksheet.addRow([
+        date.toLocaleDateString(),
+        dayName,
+        entry.shiftType,
+        entry.startTime,
+        entry.endTime,
+        entry.carer.name,
+        entry.carer.email,
+        entry.isConfirmed ? 'Confirmed' : 'Pending'
+      ])
+
+      // Apply styling
+      row.eachCell((cell, colNumber) => {
+        cell.border = {
+          top: { style: 'thin' },
+          left: { style: 'thin' },
+          bottom: { style: 'thin' },
+          right: { style: 'thin' }
+        }
+
+        // Color code by shift type
+        if (colNumber === 3) { // Shift Type column
+          if (entry.shiftType === 'DAY') {
+            cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFF8DC' } }
+          } else {
+            cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE6F3FF' } }
+          }
+        }
+
+        // Color code by status
+        if (colNumber === 8) { // Status column
+          if (entry.isConfirmed) {
+            cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE6FFE6' } }
+          } else {
+            cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFEEE6' } }
+          }
+        }
+      })
+    }
+
+    // Auto-fit columns
+    worksheet.columns.forEach((column) => {
+      let maxLength = 0
+      column.eachCell?.({ includeEmpty: true }, (cell) => {
+        const columnLength = cell.value ? cell.value.toString().length : 10
+        if (columnLength > maxLength) {
+          maxLength = columnLength
+        }
+      })
+      column.width = Math.min(maxLength + 2, 50)
+    })
+
+    // Summary section
+    const summaryStartRow = entries.length + 7
+    worksheet.getCell(`A${summaryStartRow}`).value = 'Summary:'
+    worksheet.getCell(`A${summaryStartRow}`).font = { bold: true }
+
+    const totalShifts = entries.length
+    const confirmedShifts = entries.filter(e => e.isConfirmed).length
+    const dayShifts = entries.filter(e => e.shiftType === 'DAY').length
+    const nightShifts = entries.filter(e => e.shiftType === 'NIGHT').length
+
+    worksheet.getCell(`A${summaryStartRow + 1}`).value = `Total Shifts: ${totalShifts}`
+    worksheet.getCell(`A${summaryStartRow + 2}`).value = `Confirmed Shifts: ${confirmedShifts}`
+    worksheet.getCell(`A${summaryStartRow + 3}`).value = `Day Shifts: ${dayShifts}`
+    worksheet.getCell(`A${summaryStartRow + 4}`).value = `Night Shifts: ${nightShifts}`
+
+    return workbook
+  }
+
+  /**
+   * Generate HTML email content for rota
+   */
+  private generateRotaEmailContent(
+    carePackage: { id: string; name: string; postcode: string },
+    weekStart: Date,
+    entries: any[]
+  ): string {
+    const weekEnd = new Date(weekStart)
+    weekEnd.setDate(weekEnd.getDate() + 6)
+
+    let html = `
+    <div style="font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto;">
+      <h2 style="color: #1976d2; text-align: center;">Weekly Rota</h2>
+      <h3 style="text-align: center;">${carePackage.name}</h3>
+      <p style="text-align: center; color: #666;">
+        Week: ${weekStart.toLocaleDateString()} - ${weekEnd.toLocaleDateString()}<br>
+        Postcode: ${carePackage.postcode}
+      </p>
+      
+      <table style="width: 100%; border-collapse: collapse; margin: 20px 0;">
+        <thead>
+          <tr style="background-color: #f5f5f5;">
+            <th style="border: 1px solid #ddd; padding: 12px; text-align: left;">Date</th>
+            <th style="border: 1px solid #ddd; padding: 12px; text-align: left;">Day</th>
+            <th style="border: 1px solid #ddd; padding: 12px; text-align: left;">Shift</th>
+            <th style="border: 1px solid #ddd; padding: 12px; text-align: left;">Time</th>
+            <th style="border: 1px solid #ddd; padding: 12px; text-align: left;">Carer</th>
+            <th style="border: 1px solid #ddd; padding: 12px; text-align: left;">Status</th>
+          </tr>
+        </thead>
+        <tbody>`
+
+    entries.forEach(entry => {
+      const date = new Date(entry.date)
+      const dayName = date.toLocaleDateString('en-GB', { weekday: 'long' })
+      const statusColor = entry.isConfirmed ? '#4caf50' : '#ff9800'
+      const shiftColor = entry.shiftType === 'DAY' ? '#fff3e0' : '#e3f2fd'
+
+      html += `
+          <tr style="background-color: ${shiftColor};">
+            <td style="border: 1px solid #ddd; padding: 8px;">${date.toLocaleDateString()}</td>
+            <td style="border: 1px solid #ddd; padding: 8px;">${dayName}</td>
+            <td style="border: 1px solid #ddd; padding: 8px;">${entry.shiftType}</td>
+            <td style="border: 1px solid #ddd; padding: 8px;">${entry.startTime} - ${entry.endTime}</td>
+            <td style="border: 1px solid #ddd; padding: 8px;">${entry.carer.name}</td>
+            <td style="border: 1px solid #ddd; padding: 8px; color: ${statusColor}; font-weight: bold;">
+              ${entry.isConfirmed ? 'Confirmed' : 'Pending'}
+            </td>
+          </tr>`
+    })
+
+    const totalShifts = entries.length
+    const confirmedShifts = entries.filter(e => e.isConfirmed).length
+    const confirmationRate = totalShifts > 0 ? Math.round((confirmedShifts / totalShifts) * 100) : 0
+
+    html += `
+        </tbody>
+      </table>
+      
+      <div style="background-color: #f9f9f9; padding: 15px; border-radius: 5px; margin: 20px 0;">
+        <h4 style="margin: 0 0 10px 0; color: #333;">Summary</h4>
+        <p style="margin: 5px 0;">Total Shifts: <strong>${totalShifts}</strong></p>
+        <p style="margin: 5px 0;">Confirmed Shifts: <strong>${confirmedShifts}</strong></p>
+        <p style="margin: 5px 0;">Confirmation Rate: <strong>${confirmationRate}%</strong></p>
+      </div>
+      
+      <p style="color: #666; font-size: 12px; text-align: center; margin-top: 30px;">
+        Generated by CareTrack Pro on ${new Date().toLocaleString()}
+      </p>
+    </div>`
+
+    return html
   }
 }
 

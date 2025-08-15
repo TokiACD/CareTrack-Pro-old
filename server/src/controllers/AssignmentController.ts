@@ -172,6 +172,9 @@ export class AssignmentController {
       })
     }
 
+    // SMART ASSIGNMENT FEATURES: Implement automatic inheritance
+    await this.implementGlobalProgressInheritance(carerId, packageId)
+
     // Log the assignment
     await auditService.log({
       action: 'ASSIGN_CARER_TO_PACKAGE',
@@ -367,6 +370,9 @@ export class AssignmentController {
         }
       })
     }
+
+    // SMART ASSIGNMENT FEATURES: Implement task assignment inheritance for all carers
+    await this.implementTaskAssignmentInheritance(taskId, packageId)
 
     // Log the assignment
     await auditService.log({
@@ -598,5 +604,195 @@ export class AssignmentController {
         packagesWithTasks
       }
     })
+  })
+
+  // SMART ASSIGNMENT FEATURES: Global Progress Inheritance
+  private implementGlobalProgressInheritance = asyncHandler(async (carerId: string, packageId: string): Promise<void> => {
+    // Get all tasks assigned to this package
+    const packageTasks = await prisma.packageTaskAssignment.findMany({
+      where: {
+        packageId,
+        isActive: true,
+        task: { deletedAt: null }
+      },
+      include: {
+        task: {
+          select: { id: true, name: true, targetCount: true }
+        }
+      }
+    })
+
+    // For each task in the package, check if carer has existing progress globally
+    for (const packageTask of packageTasks) {
+      const taskId = packageTask.taskId
+      
+      // Find the highest progress this carer has achieved for this task across ALL packages
+      const existingProgress = await prisma.taskProgress.findMany({
+        where: {
+          carerId,
+          taskId,
+          completionCount: { gt: 0 }
+        },
+        orderBy: { completionCount: 'desc' },
+        take: 1
+      })
+
+      // Get existing competency for this task (global per carer-task)
+      const existingCompetency = await prisma.competencyRating.findUnique({
+        where: {
+          carerId_taskId: { carerId, taskId }
+        }
+      })
+
+      if (existingProgress.length > 0) {
+        const maxProgress = existingProgress[0]
+        const completionPercentage = Math.min(100, Math.round((maxProgress.completionCount / packageTask.task.targetCount) * 100))
+
+        // Create/update progress for this package-task combination with inherited progress
+        await prisma.taskProgress.upsert({
+          where: {
+            carerId_packageId_taskId: {
+              carerId,
+              packageId,
+              taskId
+            }
+          },
+          update: {
+            completionCount: maxProgress.completionCount,
+            completionPercentage,
+            lastUpdated: new Date()
+          },
+          create: {
+            carerId,
+            packageId,
+            taskId,
+            completionCount: maxProgress.completionCount,
+            completionPercentage,
+            lastUpdated: new Date()
+          }
+        })
+      } else {
+        // No existing progress, create zero progress record
+        await prisma.taskProgress.upsert({
+          where: {
+            carerId_packageId_taskId: {
+              carerId,
+              packageId,
+              taskId
+            }
+          },
+          update: {
+            completionCount: 0,
+            completionPercentage: 0,
+            lastUpdated: new Date()
+          },
+          create: {
+            carerId,
+            packageId,
+            taskId,
+            completionCount: 0,
+            completionPercentage: 0,
+            lastUpdated: new Date()
+          }
+        })
+      }
+
+      // Competency inheritance is automatic since competencies are global per carer-task
+      // No additional action needed - existing competency will automatically apply
+    }
+  })
+
+  // SMART ASSIGNMENT FEATURES: Task Assignment with Global Progress
+  private implementTaskAssignmentInheritance = asyncHandler(async (taskId: string, packageId: string): Promise<void> => {
+    // Get all carers assigned to this package
+    const packageCarers = await prisma.carerPackageAssignment.findMany({
+      where: {
+        packageId,
+        isActive: true,
+        carer: { deletedAt: null, isActive: true }
+      },
+      include: {
+        carer: {
+          select: { id: true, name: true }
+        }
+      }
+    })
+
+    // Get task details
+    const task = await prisma.task.findUnique({
+      where: { id: taskId, deletedAt: null },
+      select: { id: true, targetCount: true }
+    })
+
+    if (!task) return
+
+    // For each carer assigned to this package, inherit their global progress for this task
+    for (const carerAssignment of packageCarers) {
+      const carerId = carerAssignment.carerId
+      
+      // Find the highest progress this carer has achieved for this task across ALL packages
+      const existingProgress = await prisma.taskProgress.findMany({
+        where: {
+          carerId,
+          taskId,
+          completionCount: { gt: 0 }
+        },
+        orderBy: { completionCount: 'desc' },
+        take: 1
+      })
+
+      if (existingProgress.length > 0) {
+        const maxProgress = existingProgress[0]
+        const completionPercentage = Math.min(100, Math.round((maxProgress.completionCount / task.targetCount) * 100))
+
+        // Create/update progress for this package-task combination with inherited progress
+        await prisma.taskProgress.upsert({
+          where: {
+            carerId_packageId_taskId: {
+              carerId,
+              packageId,
+              taskId
+            }
+          },
+          update: {
+            completionCount: maxProgress.completionCount,
+            completionPercentage,
+            lastUpdated: new Date()
+          },
+          create: {
+            carerId,
+            packageId,
+            taskId,
+            completionCount: maxProgress.completionCount,
+            completionPercentage,
+            lastUpdated: new Date()
+          }
+        })
+      } else {
+        // No existing progress, create zero progress record
+        await prisma.taskProgress.upsert({
+          where: {
+            carerId_packageId_taskId: {
+              carerId,
+              packageId,
+              taskId
+            }
+          },
+          update: {
+            completionCount: 0,
+            completionPercentage: 0,
+            lastUpdated: new Date()
+          },
+          create: {
+            carerId,
+            packageId,
+            taskId,
+            completionCount: 0,
+            completionPercentage: 0,
+            lastUpdated: new Date()
+          }
+        })
+      }
+    }
   })
 }

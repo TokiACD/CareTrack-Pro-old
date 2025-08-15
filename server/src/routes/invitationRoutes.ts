@@ -7,7 +7,8 @@ import jwt from 'jsonwebtoken';
 import { prisma } from '../index';
 import { requireAuth } from '../middleware/auth';
 import { audit, AuditAction } from '../middleware/audit';
-import { emailService } from '../services/emailService';
+import { emailService } from '../services/EmailService';
+import { emailQueueService } from '../services/EmailQueueService';
 import { auditService } from '../services/auditService';
 import { InvitationType, InvitationStatus } from '@caretrack/shared';
 
@@ -203,19 +204,17 @@ router.post('/admin',
       const acceptUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/invitation/accept?token=${invitation.token}`;
       
       try {
-        // Test email service before sending
-        const emailTest = await emailService.initializeService()
-        if (!emailTest.success) {
-          throw new Error(`Email service not configured: ${emailTest.error}`)
-        }
-        
-        await emailService.sendAdminInvitation({
+        // Queue admin invitation email for background processing
+        await emailQueueService.queueAdminInvitation({
           to: email,
           adminName: name,
           invitedByName: invitation.invitedByAdmin.name,
           invitationToken: invitation.token,
           acceptUrl,
           expiresAt
+        }, {
+          priority: 5, // High priority for invitations
+          userId: req.user?.id
         });
       } catch (emailError: any) {
         console.error('Failed to send admin invitation email:', emailError)
@@ -454,19 +453,17 @@ router.post('/carer',
       const acceptUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/invitation/accept?token=${invitation.token}`;
       
       try {
-        // Test email service before sending
-        const emailTest = await emailService.initializeService()
-        if (!emailTest.success) {
-          throw new Error(`Email service not configured: ${emailTest.error}`)
-        }
-        
-        await emailService.sendCarerInvitation({
+        // Queue carer invitation email for background processing
+        await emailQueueService.queueCarerInvitation({
           to: email,
           carerName: name,
           invitedByName: invitation.invitedByAdmin.name,
           invitationToken: invitation.token,
           acceptUrl,
           expiresAt
+        }, {
+          priority: 5, // High priority for invitations
+          userId: req.user?.id
         });
       } catch (emailError: any) {
         console.error('Failed to send carer invitation email:', emailError)
@@ -911,22 +908,28 @@ router.post('/resend/:id',
       const acceptUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/invitation/accept?token=${newToken}`;
 
       if (invitation.userType === InvitationType.ADMIN) {
-        await emailService.sendAdminInvitation({
+        await emailQueueService.queueAdminInvitation({
           to: invitation.email,
           adminName: invitation.name!,
           invitedByName: invitation.invitedByAdmin.name,
           invitationToken: newToken,
           acceptUrl,
           expiresAt: newExpiresAt
+        }, {
+          priority: 8, // Very high priority for resends
+          userId: req.user?.id
         });
       } else {
-        await emailService.sendCarerInvitation({
+        await emailQueueService.queueCarerInvitation({
           to: invitation.email,
           carerName: invitation.name!,
           invitedByName: invitation.invitedByAdmin.name,
           invitationToken: newToken,
           acceptUrl,
           expiresAt: newExpiresAt
+        }, {
+          priority: 8, // Very high priority for resends
+          userId: req.user?.id
         });
       }
 

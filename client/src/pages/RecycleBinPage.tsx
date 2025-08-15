@@ -35,7 +35,13 @@ import {
   MenuItem,
   Pagination,
   Tabs,
-  Tab
+  Tab,
+  Checkbox,
+  Toolbar,
+  Collapse,
+  List,
+  ListItem,
+  ListItemText
 } from '@mui/material'
 import {
   Search as SearchIcon,
@@ -48,7 +54,10 @@ import {
   Warning as WarningIcon,
   Check as CheckIcon,
   Person as PersonIcon,
-  GetApp as DownloadIcon
+  GetApp as DownloadIcon,
+  SelectAll as SelectAllIcon,
+  RestoreFromTrash as BulkRestoreIcon,
+  DeleteSweep as BulkDeleteIcon
 } from '@mui/icons-material'
 import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
@@ -94,6 +103,11 @@ const RecycleBinPage: React.FC = () => {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [cleanupDialogOpen, setCleanupDialogOpen] = useState(false)
   const [selectedItem, setSelectedItem] = useState<DeletedItem | null>(null)
+  
+  // Bulk actions state
+  const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set())
+  const [bulkRestoreDialogOpen, setBulkRestoreDialogOpen] = useState(false)
+  const [bulkDeleteDialogOpen, setBulkDeleteDialogOpen] = useState(false)
   
   // Carer deletion dialog state
   const [carerDeletionDialogOpen, setCarerDeletionDialogOpen] = useState(false)
@@ -226,6 +240,50 @@ const RecycleBinPage: React.FC = () => {
     }
   )
 
+  // Bulk restore mutation
+  const bulkRestoreMutation = useSmartMutation<any, Error, { entityType: string; entityId: string }[]>(
+    async (items) => {
+      return await apiService.post(API_ENDPOINTS.RECYCLE_BIN.BULK_RESTORE, { items })
+    },
+    {
+      mutationType: 'recycle-bin.bulk-restore',
+      onSuccess: (data: any) => {
+        setBulkRestoreDialogOpen(false)
+        setSelectedItems(new Set())
+        currentRefetch()
+        showNotification(data.message || 'Bulk restore completed successfully', 'success')
+      },
+      onError: (error: any) => {
+        showNotification(
+          error.message || 'Failed to restore items',
+          'error'
+        )
+      }
+    }
+  )
+
+  // Bulk delete mutation
+  const bulkDeleteMutation = useSmartMutation<any, Error, { entityType: string; entityId: string }[]>(
+    async (items) => {
+      return await apiService.post(API_ENDPOINTS.RECYCLE_BIN.BULK_DELETE, { items })
+    },
+    {
+      mutationType: 'recycle-bin.bulk-delete',
+      onSuccess: (data: any) => {
+        setBulkDeleteDialogOpen(false)
+        setSelectedItems(new Set())
+        currentRefetch()
+        showNotification(data.message || 'Bulk deletion completed successfully', 'success')
+      },
+      onError: (error: any) => {
+        showNotification(
+          error.message || 'Failed to delete items',
+          'error'
+        )
+      }
+    }
+  )
+
   // Handle actions
   const handleRestore = (item: DeletedItem) => {
     setSelectedItem(item)
@@ -284,6 +342,56 @@ const RecycleBinPage: React.FC = () => {
 
   const confirmCleanup = () => {
     cleanupMutation.mutate()
+  }
+
+  // Bulk action handlers
+  const handleSelectItem = (itemKey: string) => {
+    const newSelection = new Set(selectedItems)
+    if (newSelection.has(itemKey)) {
+      newSelection.delete(itemKey)
+    } else {
+      newSelection.add(itemKey)
+    }
+    setSelectedItems(newSelection)
+  }
+
+  const handleSelectAll = () => {
+    if (selectedItems.size === items.length) {
+      setSelectedItems(new Set())
+    } else {
+      const allItemKeys = items.map((item: DeletedItem) => `${item.entityType}-${item.id}`)
+      setSelectedItems(new Set(allItemKeys))
+    }
+  }
+
+  const handleBulkRestore = () => {
+    setBulkRestoreDialogOpen(true)
+  }
+
+  const handleBulkDelete = () => {
+    setBulkDeleteDialogOpen(true)
+  }
+
+  const confirmBulkRestore = () => {
+    const selectedItemsArray = Array.from(selectedItems).map(itemKey => {
+      const [entityType, entityId] = itemKey.split('-')
+      return { entityType, entityId }
+    })
+    bulkRestoreMutation.mutate(selectedItemsArray)
+  }
+
+  const confirmBulkDelete = () => {
+    const selectedItemsArray = Array.from(selectedItems).map(itemKey => {
+      const [entityType, entityId] = itemKey.split('-')
+      return { entityType, entityId }
+    })
+    bulkDeleteMutation.mutate(selectedItemsArray)
+  }
+
+  // Clear selection when changing tabs
+  const handleTabChange = (newValue: number) => {
+    setActiveTab(newValue)
+    setSelectedItems(new Set())
   }
 
   // Format entity type for display
@@ -358,7 +466,7 @@ const RecycleBinPage: React.FC = () => {
           
           {/* Tabs */}
           <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
-            <Tabs value={activeTab} onChange={(_, newValue) => setActiveTab(newValue)}>
+            <Tabs value={activeTab} onChange={(_, newValue) => handleTabChange(newValue)}>
               <Tab 
                 label={
                   <Box display="flex" alignItems="center" gap={1}>
@@ -413,6 +521,45 @@ const RecycleBinPage: React.FC = () => {
               )}
             </Box>
 
+            {/* Bulk Actions Toolbar */}
+            <Collapse in={selectedItems.size > 0}>
+              <Toolbar 
+                variant="dense"
+                sx={{ 
+                  bgcolor: 'primary.light', 
+                  color: 'primary.contrastText',
+                  borderRadius: 1,
+                  mb: 2,
+                  minHeight: '48px !important'
+                }}
+              >
+                <Typography variant="body2" fontWeight="bold" sx={{ flexGrow: 1 }}>
+                  {selectedItems.size} item{selectedItems.size !== 1 ? 's' : ''} selected
+                </Typography>
+                <Button
+                  size="small"
+                  variant="contained"
+                  color="success"
+                  startIcon={<BulkRestoreIcon />}
+                  onClick={handleBulkRestore}
+                  sx={{ mr: 1 }}
+                  disabled={bulkRestoreMutation.isPending}
+                >
+                  Restore Selected
+                </Button>
+                <Button
+                  size="small"
+                  variant="contained"
+                  color="error"
+                  startIcon={<BulkDeleteIcon />}
+                  onClick={handleBulkDelete}
+                  disabled={bulkDeleteMutation.isPending}
+                >
+                  Delete Selected
+                </Button>
+              </Toolbar>
+            </Collapse>
+
             {/* Loading State */}
             {currentLoading && (
               <Box display="flex" justifyContent="center" p={4}>
@@ -447,6 +594,14 @@ const RecycleBinPage: React.FC = () => {
                       <Table>
                         <TableHead>
                           <TableRow>
+                            <TableCell padding="checkbox">
+                              <Checkbox
+                                indeterminate={selectedItems.size > 0 && selectedItems.size < items.length}
+                                checked={items.length > 0 && selectedItems.size === items.length}
+                                onChange={handleSelectAll}
+                                color="primary"
+                              />
+                            </TableCell>
                             <TableCell>Item</TableCell>
                             <TableCell>Type</TableCell>
                             <TableCell>Deleted</TableCell>
@@ -455,8 +610,19 @@ const RecycleBinPage: React.FC = () => {
                           </TableRow>
                         </TableHead>
                         <TableBody>
-                          {items.map((item: DeletedItem) => (
-                            <TableRow key={`${item.entityType}-${item.id}`}>
+                          {items.map((item: DeletedItem) => {
+                            const itemKey = `${item.entityType}-${item.id}`
+                            const isSelected = selectedItems.has(itemKey)
+                            
+                            return (
+                            <TableRow key={itemKey} selected={isSelected}>
+                              <TableCell padding="checkbox">
+                                <Checkbox
+                                  checked={isSelected}
+                                  onChange={() => handleSelectItem(itemKey)}
+                                  color="primary"
+                                />
+                              </TableCell>
                               <TableCell>
                                 <Typography variant="body2" fontWeight={500}>
                                   {item.displayName}
@@ -540,7 +706,8 @@ const RecycleBinPage: React.FC = () => {
                                 </Box>
                               </TableCell>
                             </TableRow>
-                          ))}
+                          )
+                          })}
                         </TableBody>
                       </Table>
                     </TableContainer>
@@ -661,6 +828,96 @@ const RecycleBinPage: React.FC = () => {
           {notification.message}
         </Alert>
       </Snackbar>
+
+      {/* Bulk Restore Dialog */}
+      <Dialog open={bulkRestoreDialogOpen} onClose={() => setBulkRestoreDialogOpen(false)}>
+        <DialogTitle>Bulk Restore Items</DialogTitle>
+        <DialogContent>
+          <Typography>
+            Are you sure you want to restore {selectedItems.size} selected item{selectedItems.size !== 1 ? 's' : ''}?
+          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+            This will make all selected items active again and visible in the main application.
+          </Typography>
+          {selectedItems.size > 0 && (
+            <List dense sx={{ mt: 2, maxHeight: 200, overflow: 'auto' }}>
+              {Array.from(selectedItems).map(itemKey => {
+                const [entityType, entityId] = itemKey.split('-')
+                const item = items.find((i: DeletedItem) => i.id === entityId && i.entityType === entityType)
+                return item ? (
+                  <ListItem key={itemKey}>
+                    <ListItemText 
+                      primary={item.displayName}
+                      secondary={formatEntityType(item.entityType)}
+                    />
+                  </ListItem>
+                ) : null
+              })}
+            </List>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setBulkRestoreDialogOpen(false)}>Cancel</Button>
+          <Button
+            onClick={confirmBulkRestore}
+            color="success"
+            variant="contained"
+            disabled={bulkRestoreMutation.isPending}
+            startIcon={bulkRestoreMutation.isPending ? <CircularProgress size={16} /> : <BulkRestoreIcon />}
+          >
+            Restore All
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Bulk Delete Dialog */}
+      <Dialog open={bulkDeleteDialogOpen} onClose={() => setBulkDeleteDialogOpen(false)}>
+        <DialogTitle sx={{ color: 'error.main' }}>
+          <Box display="flex" alignItems="center" gap={1}>
+            <WarningIcon />
+            Bulk Permanent Delete
+          </Box>
+        </DialogTitle>
+        <DialogContent>
+          <Alert severity="error" sx={{ mb: 2 }}>
+            <Typography fontWeight="bold">This action cannot be undone!</Typography>
+          </Alert>
+          <Typography>
+            Are you sure you want to permanently delete {selectedItems.size} selected item{selectedItems.size !== 1 ? 's' : ''}?
+          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+            This will completely remove all selected items from the database. All related data and history will be lost.
+          </Typography>
+          {selectedItems.size > 0 && (
+            <List dense sx={{ mt: 2, maxHeight: 200, overflow: 'auto' }}>
+              {Array.from(selectedItems).map(itemKey => {
+                const [entityType, entityId] = itemKey.split('-')
+                const item = items.find((i: DeletedItem) => i.id === entityId && i.entityType === entityType)
+                return item ? (
+                  <ListItem key={itemKey}>
+                    <ListItemText 
+                      primary={item.displayName}
+                      secondary={formatEntityType(item.entityType)}
+                    />
+                  </ListItem>
+                ) : null
+              })}
+            </List>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setBulkDeleteDialogOpen(false)}>Cancel</Button>
+          <Button
+            onClick={confirmBulkDelete}
+            color="error"
+            variant="contained"
+            disabled={bulkDeleteMutation.isPending}
+            startIcon={bulkDeleteMutation.isPending ? <CircularProgress size={16} /> : <BulkDeleteIcon />}
+          >
+            Delete All
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       {/* Carer Deletion Dialog */}
       {carerToDelete && (

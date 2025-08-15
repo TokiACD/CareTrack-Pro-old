@@ -87,5 +87,58 @@ router.post(
   recycleBinController.cleanupOldItems
 )
 
+// GET /api/recycle-bin/impact-analysis - Analyze impact before deletion
+router.get(
+  '/impact-analysis',
+  [
+    query('entityType')
+      .isIn(['adminUsers', 'carers', 'carePackages', 'tasks', 'assessments'])
+      .withMessage('Invalid entity type'),
+    query('entityId')
+      .isString()
+      .isLength({ min: 1 })
+      .withMessage('Entity ID is required')
+  ],
+  validateRequest,
+  recycleBinController.analyzeImpact
+)
+
+// POST /api/recycle-bin/bulk-restore - Bulk restore multiple items
+router.post(
+  '/bulk-restore',
+  [
+    body('items')
+      .isArray({ min: 1 })
+      .withMessage('Items array is required and must not be empty'),
+    body('items.*.entityType')
+      .isIn(['adminUsers', 'carers', 'carePackages', 'tasks', 'assessments'])
+      .withMessage('Invalid entity type in items array'),
+    body('items.*.entityId')
+      .isString()
+      .isLength({ min: 1 })
+      .withMessage('Entity ID is required in items array')
+  ],
+  validateRequest,
+  recycleBinController.bulkRestore
+)
+
+// POST /api/recycle-bin/bulk-delete - Bulk permanently delete multiple items
+router.post(
+  '/bulk-delete',
+  [
+    body('items')
+      .isArray({ min: 1 })
+      .withMessage('Items array is required and must not be empty'),
+    body('items.*.entityType')
+      .isIn(['adminUsers', 'carers', 'carePackages', 'tasks', 'assessments'])
+      .withMessage('Invalid entity type in items array'),
+    body('items.*.entityId')
+      .isString()
+      .isLength({ min: 1 })
+      .withMessage('Entity ID is required in items array')
+  ],
+  validateRequest,
+  recycleBinController.bulkPermanentDelete
+)
 
 export { router as recycleBinRoutes }

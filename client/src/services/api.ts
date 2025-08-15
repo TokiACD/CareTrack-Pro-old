@@ -493,6 +493,37 @@ class ApiService {
     const response = await this.api.put<ApiResponse<T>>(`/api/assessments/responses/${responseId}`, data)
     return response.data.data!
   }
+
+  // ROTA Export Functions
+  async exportRotaToExcel(packageId: string, weekStart: string): Promise<Blob> {
+    const response = await this.api.get(`/api/rota/export/excel`, {
+      params: { packageId, weekStart },
+      responseType: 'blob',
+      headers: {
+        'Accept': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+      }
+    })
+    return response.data
+  }
+
+  async emailWeeklyRota<T>(packageId: string, weekStart: string, recipients: string[], includeAttachment = true): Promise<T> {
+    const response = await this.api.post<ApiResponse<T>>(`/api/rota/export/email`, {
+      packageId,
+      weekStart,
+      recipients,
+      includeAttachment
+    })
+    return response.data.data!
+  }
+
+  async archiveWeeklyRota<T>(packageId: string, weekStart: string, archiveReason?: string): Promise<T> {
+    const response = await this.api.post<ApiResponse<T>>(`/api/rota/export/archive`, {
+      packageId,
+      weekStart,
+      archiveReason
+    })
+    return response.data.data!
+  }
 }
 
 export const apiService = new ApiService()

@@ -653,4 +653,558 @@ export class RecycleBinController {
     })
   })
 
+  // Bulk restore multiple items
+  bulkRestore = asyncHandler(async (req: Request, res: Response): Promise<void> => {
+    const { items } = req.body // Array of { entityType, entityId }
+    const admin = req.user!
+
+    if (!items || !Array.isArray(items) || items.length === 0) {
+      throw createError(400, 'Items array is required and must not be empty')
+    }
+
+    const results: any[] = []
+    const errors: any[] = []
+
+    // Process each item individually
+    for (const item of items) {
+      try {
+        const { entityType, entityId } = item
+
+        if (!entityType || !entityId) {
+          errors.push({ entityType, entityId, error: 'Both entityType and entityId are required' })
+          continue
+        }
+
+        // Use the same logic as single restore
+        const entityMap: Record<string, any> = {
+          adminUsers: { model: prisma.adminUser, name: 'Admin User', checkField: 'email' },
+          carers: { model: prisma.carer, name: 'Carer', checkField: 'email' },
+          carePackages: { model: prisma.carePackage, name: 'Care Package', checkField: 'name' },
+          tasks: { model: prisma.task, name: 'Task', checkField: 'name' },
+          assessments: { model: prisma.assessment, name: 'Assessment', checkField: 'name' }
+        }
+
+        const entityConfig = entityMap[entityType]
+        if (!entityConfig) {
+          errors.push({ entityType, entityId, error: `Invalid entity type: ${entityType}` })
+          continue
+        }
+
+        // Find and validate the deleted item
+        const deletedItem = await entityConfig.model.findUnique({
+          where: { id: entityId }
+        })
+
+        if (!deletedItem) {
+          errors.push({ entityType, entityId, error: `${entityConfig.name} not found` })
+          continue
+        }
+
+        if (!deletedItem.deletedAt) {
+          errors.push({ entityType, entityId, error: `${entityConfig.name} is not deleted` })
+          continue
+        }
+
+        // Check for conflicts
+        if (['carePackages', 'tasks', 'assessments'].includes(entityType)) {
+          const conflictCheck = await entityConfig.model.findFirst({
+            where: {
+              [entityConfig.checkField]: deletedItem[entityConfig.checkField],
+              deletedAt: null,
+              id: { not: entityId }
+            }
+          })
+
+          if (conflictCheck) {
+            errors.push({ 
+              entityType, 
+              entityId, 
+              error: `Cannot restore ${entityConfig.name}. Another active item with the same ${entityConfig.checkField} already exists.` 
+            })
+            continue
+          }
+        }
+
+        if (['adminUsers', 'carers'].includes(entityType)) {
+          const conflictCheck = await entityConfig.model.findFirst({
+            where: {
+              email: deletedItem.email,
+              deletedAt: null,
+              id: { not: entityId }
+            }
+          })
+
+          if (conflictCheck) {
+            errors.push({ 
+              entityType, 
+              entityId, 
+              error: `Cannot restore ${entityConfig.name}. Another active user with the same email already exists.` 
+            })
+            continue
+          }
+        }
+
+        // Restore the item
+        const restoredItem = await entityConfig.model.update({
+          where: { id: entityId },
+          data: { 
+            deletedAt: null,
+            isActive: true
+          }
+        })
+
+        // Log the restoration
+        await auditService.log({
+          action: `BULK_RESTORE_${entityType.toUpperCase()}`,
+          entityType: entityConfig.name,
+          entityId,
+          newValues: { 
+            isActive: true,
+            deletedAt: null
+          },
+          performedByAdminId: admin.id,
+          performedByAdminName: admin.name,
+          ipAddress: req.ip,
+          userAgent: req.get('User-Agent')
+        })
+
+        results.push({ 
+          entityType, 
+          entityId, 
+          success: true, 
+          name: deletedItem.name || deletedItem.displayName 
+        })
+
+      } catch (error) {
+        errors.push({ 
+          entityType: item.entityType, 
+          entityId: item.entityId, 
+          error: error instanceof Error ? error.message : 'Unknown error' 
+        })
+      }
+    }
+
+    res.json({
+      success: true,
+      data: {
+        processed: items.length,
+        successful: results.length,
+        failed: errors.length,
+        results,
+        errors
+      },
+      message: `Bulk restore completed. ${results.length} items restored successfully${errors.length > 0 ? `, ${errors.length} failed` : ''}.`
+    })
+  })
+
+  // Bulk permanent delete multiple items
+  bulkPermanentDelete = asyncHandler(async (req: Request, res: Response): Promise<void> => {
+    const { items } = req.body // Array of { entityType, entityId }
+    const admin = req.user!
+
+    if (!items || !Array.isArray(items) || items.length === 0) {
+      throw createError(400, 'Items array is required and must not be empty')
+    }
+
+    const results: any[] = []
+    const errors: any[] = []
+
+    // Process each item individually within a transaction for each item
+    for (const item of items) {
+      try {
+        const { entityType, entityId } = item
+
+        if (!entityType || !entityId) {
+          errors.push({ entityType, entityId, error: 'Both entityType and entityId are required' })
+          continue
+        }
+
+        const entityMap: Record<string, any> = {
+          adminUsers: { model: prisma.adminUser, name: 'Admin User' },
+          carers: { model: prisma.carer, name: 'Carer' },
+          carePackages: { model: prisma.carePackage, name: 'Care Package' },
+          tasks: { model: prisma.task, name: 'Task' },
+          assessments: { model: prisma.assessment, name: 'Assessment' }
+        }
+
+        const entityConfig = entityMap[entityType]
+        if (!entityConfig) {
+          errors.push({ entityType, entityId, error: `Invalid entity type: ${entityType}` })
+          continue
+        }
+
+        // Find the deleted item
+        const deletedItem = await entityConfig.model.findUnique({
+          where: { id: entityId }
+        })
+
+        if (!deletedItem) {
+          errors.push({ entityType, entityId, error: `${entityConfig.name} not found` })
+          continue
+        }
+
+        if (!deletedItem.deletedAt) {
+          errors.push({ entityType, entityId, error: `${entityConfig.name} is not soft-deleted. Cannot permanently delete active items.` })
+          continue
+        }
+
+        // Perform cascade deletion in transaction
+        await prisma.$transaction(async (tx) => {
+          // Same cascade logic as single delete
+          if (entityType === 'carers') {
+            await tx.taskProgress.deleteMany({ where: { carerId: entityId } })
+            await tx.competencyRating.deleteMany({ where: { carerId: entityId } })
+            await tx.assessmentResponse.deleteMany({ where: { carerId: entityId } })
+            await tx.shiftAssignment.deleteMany({ where: { carerId: entityId } })
+            await tx.rotaEntry.deleteMany({ where: { carerId: entityId } })
+            await tx.carerPackageAssignment.deleteMany({ where: { carerId: entityId } })
+            await tx.carer.delete({ where: { id: entityId } })
+          } else if (entityType === 'tasks') {
+            await tx.taskProgress.deleteMany({ where: { taskId: entityId } })
+            await tx.competencyRating.deleteMany({ where: { taskId: entityId } })
+            await tx.packageTaskAssignment.deleteMany({ where: { taskId: entityId } })
+            await tx.assessmentTaskCoverage.deleteMany({ where: { taskId: entityId } })
+            await tx.task.delete({ where: { id: entityId } })
+          } else if (entityType === 'carePackages') {
+            await tx.taskProgress.deleteMany({ where: { packageId: entityId } })
+            await tx.carerPackageAssignment.deleteMany({ where: { packageId: entityId } })
+            await tx.packageTaskAssignment.deleteMany({ where: { packageId: entityId } })
+            await tx.rotaEntry.deleteMany({ where: { packageId: entityId } })
+            
+            const shifts = await tx.shift.findMany({
+              where: { packageId: entityId },
+              select: { id: true }
+            })
+            
+            for (const shift of shifts) {
+              await tx.shiftAssignment.deleteMany({ where: { shiftId: shift.id } })
+            }
+            
+            await tx.shift.deleteMany({ where: { packageId: entityId } })
+            await tx.carePackage.delete({ where: { id: entityId } })
+          } else if (entityType === 'assessments') {
+            const responses = await tx.assessmentResponse.findMany({
+              where: { assessmentId: entityId },
+              select: { id: true }
+            })
+            
+            for (const response of responses) {
+              await tx.knowledgeResponse.deleteMany({ where: { responseId: response.id } })
+              await tx.practicalResponse.deleteMany({ where: { responseId: response.id } })
+              await tx.emergencyResponse.deleteMany({ where: { responseId: response.id } })
+            }
+            
+            await tx.assessmentResponse.deleteMany({ where: { assessmentId: entityId } })
+            await tx.knowledgeQuestion.deleteMany({ where: { assessmentId: entityId } })
+            await tx.practicalSkill.deleteMany({ where: { assessmentId: entityId } })
+            await tx.emergencyQuestion.deleteMany({ where: { assessmentId: entityId } })
+            await tx.assessmentTaskCoverage.deleteMany({ where: { assessmentId: entityId } })
+            await tx.assessment.delete({ where: { id: entityId } })
+          } else if (entityType === 'adminUsers') {
+            await tx.adminUser.delete({ where: { id: entityId } })
+          }
+        })
+
+        // Log the permanent deletion
+        await auditService.log({
+          action: `BULK_PERMANENT_DELETE_${entityType.toUpperCase()}`,
+          entityType: entityConfig.name,
+          entityId,
+          oldValues: deletedItem,
+          performedByAdminId: admin.id,
+          performedByAdminName: admin.name,
+          ipAddress: req.ip,
+          userAgent: req.get('User-Agent')
+        })
+
+        results.push({ 
+          entityType, 
+          entityId, 
+          success: true, 
+          name: deletedItem.name || deletedItem.displayName 
+        })
+
+      } catch (error) {
+        errors.push({ 
+          entityType: item.entityType, 
+          entityId: item.entityId, 
+          error: error instanceof Error ? error.message : 'Unknown error' 
+        })
+      }
+    }
+
+    res.json({
+      success: true,
+      data: {
+        processed: items.length,
+        successful: results.length,
+        failed: errors.length,
+        results,
+        errors
+      },
+      message: `Bulk deletion completed. ${results.length} items permanently deleted${errors.length > 0 ? `, ${errors.length} failed` : ''}.`
+    })
+  })
+
+  // Analyze impact before deletion - show dependencies and related data
+  analyzeImpact = asyncHandler(async (req: Request, res: Response): Promise<void> => {
+    const { entityType, entityId } = req.query
+
+    if (!entityType || !entityId) {
+      throw createError(400, 'Both entityType and entityId are required')
+    }
+
+    // Map of entity types to their Prisma models
+    const entityMap: Record<string, any> = {
+      adminUsers: { model: prisma.adminUser, name: 'Admin User' },
+      carers: { model: prisma.carer, name: 'Carer' },
+      carePackages: { model: prisma.carePackage, name: 'Care Package' },
+      tasks: { model: prisma.task, name: 'Task' },
+      assessments: { model: prisma.assessment, name: 'Assessment' }
+    }
+
+    const entityConfig = entityMap[entityType as string]
+    if (!entityConfig) {
+      throw createError(400, `Invalid entity type: ${entityType}`)
+    }
+
+    // Find the deleted item
+    const deletedItem = await entityConfig.model.findUnique({
+      where: { id: entityId as string }
+    })
+
+    if (!deletedItem) {
+      throw createError(404, `${entityConfig.name} not found`)
+    }
+
+    if (!deletedItem.deletedAt) {
+      throw createError(400, `${entityConfig.name} is not soft-deleted`)
+    }
+
+    const impactAnalysis: any = {
+      entityType: entityType as string,
+      entityId: entityId as string,
+      entityName: deletedItem.name || deletedItem.displayName || 'Unknown',
+      deletedAt: deletedItem.deletedAt,
+      dependencies: {},
+      totalRecords: 0,
+      hasComplexDependencies: false,
+      riskLevel: 'LOW'
+    }
+
+    // Analyze dependencies based on entity type
+    if (entityType === 'carers') {
+      // Carer dependencies
+      const [
+        taskProgress,
+        competencyRatings,
+        assessmentResponses,
+        shiftAssignments,
+        rotaEntries,
+        packageAssignments
+      ] = await Promise.all([
+        prisma.taskProgress.count({ where: { carerId: entityId as string } }),
+        prisma.competencyRating.count({ where: { carerId: entityId as string } }),
+        prisma.assessmentResponse.count({ where: { carerId: entityId as string } }),
+        prisma.shiftAssignment.count({ where: { carerId: entityId as string } }),
+        prisma.rotaEntry.count({ where: { carerId: entityId as string } }),
+        prisma.carerPackageAssignment.count({ where: { carerId: entityId as string } })
+      ])
+
+      impactAnalysis.dependencies = {
+        taskProgress: { count: taskProgress, description: 'Task completion records' },
+        competencyRatings: { count: competencyRatings, description: 'Skill assessments' },
+        assessmentResponses: { count: assessmentResponses, description: 'Assessment submissions' },
+        shiftAssignments: { count: shiftAssignments, description: 'Historical shift assignments' },
+        rotaEntries: { count: rotaEntries, description: 'Schedule entries' },
+        packageAssignments: { count: packageAssignments, description: 'Care package assignments' }
+      }
+
+      impactAnalysis.totalRecords = taskProgress + competencyRatings + assessmentResponses + 
+                                   shiftAssignments + rotaEntries + packageAssignments
+
+      // CQC compliance warning
+      impactAnalysis.complianceWarning = {
+        type: 'CQC_RETENTION',
+        message: 'Deleted carers must be retained for 6 years as required by CQC regulations',
+        severity: 'ERROR'
+      }
+
+      if (impactAnalysis.totalRecords > 50) {
+        impactAnalysis.hasComplexDependencies = true
+        impactAnalysis.riskLevel = 'HIGH'
+      } else if (impactAnalysis.totalRecords > 10) {
+        impactAnalysis.riskLevel = 'MEDIUM'
+      }
+
+    } else if (entityType === 'tasks') {
+      // Task dependencies
+      const [
+        taskProgress,
+        competencyRatings,
+        packageAssignments,
+        assessmentCoverage
+      ] = await Promise.all([
+        prisma.taskProgress.count({ where: { taskId: entityId as string } }),
+        prisma.competencyRating.count({ where: { taskId: entityId as string } }),
+        prisma.packageTaskAssignment.count({ where: { taskId: entityId as string } }),
+        prisma.assessmentTaskCoverage.count({ where: { taskId: entityId as string } })
+      ])
+
+      impactAnalysis.dependencies = {
+        taskProgress: { count: taskProgress, description: 'Carer progress records' },
+        competencyRatings: { count: competencyRatings, description: 'Competency assessments' },
+        packageAssignments: { count: packageAssignments, description: 'Care package assignments' },
+        assessmentCoverage: { count: assessmentCoverage, description: 'Assessment task mappings' }
+      }
+
+      impactAnalysis.totalRecords = taskProgress + competencyRatings + packageAssignments + assessmentCoverage
+
+      if (impactAnalysis.totalRecords > 100) {
+        impactAnalysis.hasComplexDependencies = true
+        impactAnalysis.riskLevel = 'HIGH'
+      } else if (impactAnalysis.totalRecords > 20) {
+        impactAnalysis.riskLevel = 'MEDIUM'
+      }
+
+    } else if (entityType === 'carePackages') {
+      // Care Package dependencies
+      const [
+        taskProgress,
+        carerAssignments,
+        packageTaskAssignments,
+        rotaEntries,
+        shifts
+      ] = await Promise.all([
+        prisma.taskProgress.count({ where: { packageId: entityId as string } }),
+        prisma.carerPackageAssignment.count({ where: { packageId: entityId as string } }),
+        prisma.packageTaskAssignment.count({ where: { packageId: entityId as string } }),
+        prisma.rotaEntry.count({ where: { packageId: entityId as string } }),
+        prisma.shift.count({ where: { packageId: entityId as string } })
+      ])
+
+      impactAnalysis.dependencies = {
+        taskProgress: { count: taskProgress, description: 'Task completion records' },
+        carerAssignments: { count: carerAssignments, description: 'Assigned carers' },
+        packageTaskAssignments: { count: packageTaskAssignments, description: 'Task assignments' },
+        rotaEntries: { count: rotaEntries, description: 'Schedule entries' },
+        shifts: { count: shifts, description: 'Shift records' }
+      }
+
+      impactAnalysis.totalRecords = taskProgress + carerAssignments + packageTaskAssignments + 
+                                   rotaEntries + shifts
+
+      if (impactAnalysis.totalRecords > 200) {
+        impactAnalysis.hasComplexDependencies = true
+        impactAnalysis.riskLevel = 'HIGH'
+      } else if (impactAnalysis.totalRecords > 50) {
+        impactAnalysis.riskLevel = 'MEDIUM'
+      }
+
+    } else if (entityType === 'assessments') {
+      // Assessment dependencies
+      const [
+        assessmentResponses,
+        knowledgeQuestions,
+        practicalSkills,
+        emergencyQuestions,
+        taskCoverage
+      ] = await Promise.all([
+        prisma.assessmentResponse.count({ where: { assessmentId: entityId as string } }),
+        prisma.knowledgeQuestion.count({ where: { assessmentId: entityId as string } }),
+        prisma.practicalSkill.count({ where: { assessmentId: entityId as string } }),
+        prisma.emergencyQuestion.count({ where: { assessmentId: entityId as string } }),
+        prisma.assessmentTaskCoverage.count({ where: { assessmentId: entityId as string } })
+      ])
+
+      // Count detailed responses
+      const responses = await prisma.assessmentResponse.findMany({
+        where: { assessmentId: entityId as string },
+        select: { id: true }
+      })
+
+      let detailedResponses = 0
+      for (const response of responses) {
+        const [knowledge, practical, emergency] = await Promise.all([
+          prisma.knowledgeResponse.count({ where: { responseId: response.id } }),
+          prisma.practicalResponse.count({ where: { responseId: response.id } }),
+          prisma.emergencyResponse.count({ where: { responseId: response.id } })
+        ])
+        detailedResponses += knowledge + practical + emergency
+      }
+
+      impactAnalysis.dependencies = {
+        assessmentResponses: { count: assessmentResponses, description: 'Carer assessment submissions' },
+        knowledgeQuestions: { count: knowledgeQuestions, description: 'Knowledge test questions' },
+        practicalSkills: { count: practicalSkills, description: 'Practical skill assessments' },
+        emergencyQuestions: { count: emergencyQuestions, description: 'Emergency scenario questions' },
+        taskCoverage: { count: taskCoverage, description: 'Task coverage mappings' },
+        detailedResponses: { count: detailedResponses, description: 'Individual response records' }
+      }
+
+      impactAnalysis.totalRecords = assessmentResponses + knowledgeQuestions + practicalSkills + 
+                                   emergencyQuestions + taskCoverage + detailedResponses
+
+      if (impactAnalysis.totalRecords > 500) {
+        impactAnalysis.hasComplexDependencies = true
+        impactAnalysis.riskLevel = 'HIGH'
+      } else if (impactAnalysis.totalRecords > 100) {
+        impactAnalysis.riskLevel = 'MEDIUM'
+      }
+
+    } else if (entityType === 'adminUsers') {
+      // Admin User dependencies (audit logs, invitations, etc.)
+      const auditLogs = await prisma.auditLog.count({ 
+        where: { performedByAdminId: entityId as string } 
+      })
+
+      impactAnalysis.dependencies = {
+        auditLogs: { count: auditLogs, description: 'Audit trail records' }
+      }
+
+      impactAnalysis.totalRecords = auditLogs
+
+      if (impactAnalysis.totalRecords > 1000) {
+        impactAnalysis.hasComplexDependencies = true
+        impactAnalysis.riskLevel = 'HIGH'
+      } else if (impactAnalysis.totalRecords > 100) {
+        impactAnalysis.riskLevel = 'MEDIUM'
+      }
+    }
+
+    // Add recommendations based on risk level
+    impactAnalysis.recommendations = []
+    
+    if (impactAnalysis.riskLevel === 'HIGH') {
+      impactAnalysis.recommendations.push(
+        'Consider exporting data before deletion',
+        'Review all dependencies carefully',
+        'Ensure compliance requirements are met'
+      )
+    } else if (impactAnalysis.riskLevel === 'MEDIUM') {
+      impactAnalysis.recommendations.push(
+        'Review key dependencies',
+        'Consider data backup if needed'
+      )
+    } else {
+      impactAnalysis.recommendations.push(
+        'Low risk deletion - minimal dependencies found'
+      )
+    }
+
+    // Special handling for carers
+    if (entityType === 'carers') {
+      impactAnalysis.recommendations = [
+        '⚠️  CQC COMPLIANCE: Carers must be retained for 6 years',
+        'This deletion will be blocked by system policy',
+        'Use the download PDF option to preserve care records'
+      ]
+    }
+
+    res.json({
+      success: true,
+      data: impactAnalysis
+    })
+  })
+
 }

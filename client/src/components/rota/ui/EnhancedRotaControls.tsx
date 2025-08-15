@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   Box,
   Paper,
@@ -8,7 +8,18 @@ import {
   IconButton,
   Tooltip,
   Chip,
-  Fade
+  Fade,
+  Button,
+  Menu,
+  MenuItem,
+  ListItemIcon,
+  ListItemText,
+  CircularProgress,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  TextField
 } from '@mui/material';
 import {
   ViewModule as ViewModuleIcon,
@@ -16,7 +27,12 @@ import {
   ViewCompact as ViewCompactIcon,
   Dashboard as DashboardIcon,
   TrendingUp as TrendingUpIcon,
-  Speed as SpeedIcon
+  Speed as SpeedIcon,
+  Download as DownloadIcon,
+  FileDownload as ExcelIcon,
+  Email as EmailIcon,
+  Archive as ArchiveIcon,
+  Share as ShareIcon
 } from '@mui/icons-material';
 
 export type ViewMode = 'table' | 'card' | 'compact';
@@ -32,6 +48,13 @@ interface PerformanceMetrics {
   coverage: 'Full' | 'Good' | 'Partial';
 }
 
+interface ExportOptions {
+  onExportExcel?: () => void;
+  onExportEmail?: (recipients: string[]) => void;
+  onExportArchive?: (reason?: string) => void;
+  isExporting?: boolean;
+}
+
 interface EnhancedRotaControlsProps {
   viewMode: ViewMode;
   onViewModeChange: (event: React.MouseEvent<HTMLElement>, newViewMode: ViewMode) => void;
@@ -39,6 +62,7 @@ interface EnhancedRotaControlsProps {
   onTogglePerformanceMetrics: () => void;
   performanceMetrics?: PerformanceMetrics | null;
   isLoading?: boolean;
+  exportOptions?: ExportOptions;
 }
 
 export const EnhancedRotaControls: React.FC<EnhancedRotaControlsProps> = ({
@@ -47,8 +71,52 @@ export const EnhancedRotaControls: React.FC<EnhancedRotaControlsProps> = ({
   showPerformanceMetrics,
   onTogglePerformanceMetrics,
   performanceMetrics,
-  isLoading = false
+  isLoading = false,
+  exportOptions
 }) => {
+  const [exportMenuAnchor, setExportMenuAnchor] = useState<null | HTMLElement>(null);
+  const [emailDialogOpen, setEmailDialogOpen] = useState(false);
+  const [archiveDialogOpen, setArchiveDialogOpen] = useState(false);
+  const [emailRecipients, setEmailRecipients] = useState('');
+  const [archiveReason, setArchiveReason] = useState('');
+
+  const handleExportMenuOpen = (event: React.MouseEvent<HTMLElement>) => {
+    setExportMenuAnchor(event.currentTarget);
+  };
+
+  const handleExportMenuClose = () => {
+    setExportMenuAnchor(null);
+  };
+
+  const handleExportExcel = () => {
+    exportOptions?.onExportExcel?.();
+    handleExportMenuClose();
+  };
+
+  const handleExportEmailOpen = () => {
+    setEmailDialogOpen(true);
+    handleExportMenuClose();
+  };
+
+  const handleExportEmailSubmit = () => {
+    const recipients = emailRecipients.split(',').map(email => email.trim()).filter(email => email);
+    if (recipients.length > 0) {
+      exportOptions?.onExportEmail?.(recipients);
+    }
+    setEmailDialogOpen(false);
+    setEmailRecipients('');
+  };
+
+  const handleExportArchiveOpen = () => {
+    setArchiveDialogOpen(true);
+    handleExportMenuClose();
+  };
+
+  const handleExportArchiveSubmit = () => {
+    exportOptions?.onExportArchive?.(archiveReason || undefined);
+    setArchiveDialogOpen(false);
+    setArchiveReason('');
+  };
   return (
     <Box>
       {/* Enhanced View Controls */}
@@ -117,8 +185,32 @@ export const EnhancedRotaControls: React.FC<EnhancedRotaControlsProps> = ({
           </ToggleButtonGroup>
         </Box>
         
-        {/* Performance Metrics Toggle */}
+        {/* Performance Metrics Toggle & Export Controls */}
         <Box display="flex" alignItems="center" gap={2}>
+          {/* Export Controls */}
+          {exportOptions && (
+            <Tooltip title="Export Options">
+              <Button
+                variant="outlined"
+                size="small"
+                startIcon={exportOptions.isExporting ? <CircularProgress size={16} /> : <ShareIcon />}
+                onClick={handleExportMenuOpen}
+                disabled={exportOptions.isExporting}
+                sx={{
+                  borderColor: 'primary.main',
+                  color: 'primary.main',
+                  fontWeight: 'bold',
+                  '&:hover': {
+                    backgroundColor: 'primary.light',
+                    borderColor: 'primary.dark'
+                  }
+                }}
+              >
+                {exportOptions.isExporting ? 'Exporting...' : 'Export'}
+              </Button>
+            </Tooltip>
+          )}
+          
           <Tooltip title={showPerformanceMetrics ? "Hide Performance Metrics" : "Show Performance Metrics"}>
             <IconButton
               onClick={onTogglePerformanceMetrics}
@@ -304,6 +396,109 @@ export const EnhancedRotaControls: React.FC<EnhancedRotaControlsProps> = ({
           )}
         </Paper>
       </Fade>
+
+      {/* Export Menu */}
+      <Menu
+        anchorEl={exportMenuAnchor}
+        open={Boolean(exportMenuAnchor)}
+        onClose={handleExportMenuClose}
+        anchorOrigin={{
+          vertical: 'bottom',
+          horizontal: 'right',
+        }}
+        transformOrigin={{
+          vertical: 'top',
+          horizontal: 'right',
+        }}
+      >
+        <MenuItem onClick={handleExportExcel}>
+          <ListItemIcon>
+            <ExcelIcon fontSize="small" />
+          </ListItemIcon>
+          <ListItemText 
+            primary="Export to Excel" 
+            secondary="Download as .xlsx file"
+          />
+        </MenuItem>
+        <MenuItem onClick={handleExportEmailOpen}>
+          <ListItemIcon>
+            <EmailIcon fontSize="small" />
+          </ListItemIcon>
+          <ListItemText 
+            primary="Email Rota" 
+            secondary="Send to stakeholders"
+          />
+        </MenuItem>
+        <MenuItem onClick={handleExportArchiveOpen}>
+          <ListItemIcon>
+            <ArchiveIcon fontSize="small" />
+          </ListItemIcon>
+          <ListItemText 
+            primary="Archive Week" 
+            secondary="Store for records"
+          />
+        </MenuItem>
+      </Menu>
+
+      {/* Email Dialog */}
+      <Dialog open={emailDialogOpen} onClose={() => setEmailDialogOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>Email Weekly Rota</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            Enter email addresses separated by commas. The rota will be sent with an Excel attachment.
+          </Typography>
+          <TextField
+            autoFocus
+            fullWidth
+            multiline
+            rows={3}
+            label="Email Recipients"
+            placeholder="manager@example.com, supervisor@example.com"
+            value={emailRecipients}
+            onChange={(e) => setEmailRecipients(e.target.value)}
+            sx={{ mt: 1 }}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setEmailDialogOpen(false)}>Cancel</Button>
+          <Button 
+            onClick={handleExportEmailSubmit} 
+            variant="contained"
+            disabled={!emailRecipients.trim()}
+            startIcon={<EmailIcon />}
+          >
+            Send Email
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Archive Dialog */}
+      <Dialog open={archiveDialogOpen} onClose={() => setArchiveDialogOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>Archive Weekly Rota</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            This will create a permanent record of the weekly rota for compliance and audit purposes.
+          </Typography>
+          <TextField
+            fullWidth
+            label="Archive Reason (Optional)"
+            placeholder="End of week archival, compliance requirement, etc."
+            value={archiveReason}
+            onChange={(e) => setArchiveReason(e.target.value)}
+            sx={{ mt: 1 }}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setArchiveDialogOpen(false)}>Cancel</Button>
+          <Button 
+            onClick={handleExportArchiveSubmit} 
+            variant="contained"
+            startIcon={<ArchiveIcon />}
+          >
+            Archive Rota
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 };

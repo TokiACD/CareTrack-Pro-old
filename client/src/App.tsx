@@ -21,6 +21,9 @@ const CreateAssessmentPage = React.lazy(() => import('./pages/CreateAssessmentPa
 const EditAssessmentPage = React.lazy(() => import('./pages/EditAssessmentPage'))
 const RecycleBinPage = React.lazy(() => import('./pages/RecycleBinPage'))
 const ProgressPage = React.lazy(() => import('./pages/ProgressPage'))
+const AssessmentWorkflowPage = React.lazy(() => import('./pages/AssessmentWorkflowPage'))
+const ManualManagementPage = React.lazy(() => import('./pages/ManualManagementPage'))
+const ConfirmationManagementPage = React.lazy(() => import('./pages/ConfirmationManagementPage'))
 const CarerProgressDetailPage = React.lazy(() => import('./pages/CarerProgressDetailPage'))
 const TakeAssessmentPage = React.lazy(() => import('./pages/TakeAssessmentPage'))
 const EmailChangeVerification = React.lazy(() => import('./pages/EmailChangeVerification'))
@@ -245,6 +248,36 @@ const App = memo(() => {
             <ProtectedRoute>
               <Suspense fallback={<LoadingScreen />}>
                 <CarerProgressDetailPage />
+              </Suspense>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/progress/assessment-workflow"
+          element={
+            <ProtectedRoute>
+              <Suspense fallback={<LoadingScreen />}>
+                <AssessmentWorkflowPage />
+              </Suspense>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/progress/manual-management"
+          element={
+            <ProtectedRoute>
+              <Suspense fallback={<LoadingScreen />}>
+                <ManualManagementPage />
+              </Suspense>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/progress/confirmations"
+          element={
+            <ProtectedRoute>
+              <Suspense fallback={<LoadingScreen />}>
+                <ConfirmationManagementPage />
               </Suspense>
             </ProtectedRoute>
           }

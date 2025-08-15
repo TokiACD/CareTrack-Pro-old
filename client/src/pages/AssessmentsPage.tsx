@@ -354,11 +354,38 @@ const AssessmentsPage: React.FC = () => {
                               </Box>
                             </TableCell>
                             <TableCell align="center">
-                              <Chip
-                                label={assessment.tasksCovered?.length || 0}
-                                size="small"
-                                color="success"
-                              />
+                              <Box display="flex" flexDirection="column" gap={0.5} alignItems="center">
+                                {assessment.tasksCovered && assessment.tasksCovered.length > 0 ? (
+                                  <>
+                                    <Chip
+                                      label={`${assessment.tasksCovered.length} task${assessment.tasksCovered.length === 1 ? '' : 's'}`}
+                                      size="small"
+                                      color="success"
+                                    />
+                                    <Box display="flex" flexDirection="column" gap={0.25} alignItems="center">
+                                      {assessment.tasksCovered.slice(0, 2).map((taskCoverage: any) => (
+                                        <Chip
+                                          key={taskCoverage.task.id}
+                                          size="small"
+                                          label={taskCoverage.task.name}
+                                          variant="outlined"
+                                          color="secondary"
+                                          sx={{ fontSize: '0.7rem', height: '20px' }}
+                                        />
+                                      ))}
+                                      {assessment.tasksCovered.length > 2 && (
+                                        <Typography variant="caption" color="text.secondary" fontSize="0.65rem">
+                                          +{assessment.tasksCovered.length - 2} more
+                                        </Typography>
+                                      )}
+                                    </Box>
+                                  </>
+                                ) : (
+                                  <Typography variant="body2" color="text.secondary" fontSize="0.75rem">
+                                    No tasks
+                                  </Typography>
+                                )}
+                              </Box>
                             </TableCell>
                             <TableCell align="center">
                               <Chip

@@ -688,3 +688,57 @@ enum InvitationStatus {
   DECLINED
   EXPIRED
 }
+
+// Security and Audit Enhancements
+model SecurityEvent {
+  id          String   @id @default(uuid())
+  type        SecurityEventType
+  severity    AlertSeverity
+  userId      String?
+  userName    String?
+  ipAddress   String?
+  userAgent   String?
+  details     Json
+  metadata    Json?
+  createdAt   DateTime @default(now())
+
+  @@map("security_events")
+}
+
+model AuditAlert {
+  id              String        @id @default(uuid())
+  type            AlertType
+  severity        AlertSeverity
+  title           String
+  message         String
+  details         Json
+  acknowledged    Boolean       @default(false)
+  acknowledgedBy  String?
+  acknowledgedAt  DateTime?
+  createdAt       DateTime      @default(now())
+
+  @@map("audit_alerts")
+}
+
+enum SecurityEventType {
+  FAILED_LOGIN
+  PERMISSION_VIOLATION
+  SUSPICIOUS_ACTIVITY
+  DATA_BREACH
+  CONCURRENT_SESSION
+  IP_ANOMALY
+}
+
+enum AlertType {
+  SECURITY
+  COMPLIANCE
+  SYSTEM
+  DATA_INTEGRITY
+}
+
+enum AlertSeverity {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}

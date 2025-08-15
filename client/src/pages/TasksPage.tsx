@@ -329,6 +329,7 @@ const TasksPage: React.FC = () => {
                     <TableRow>
                       <TableCell>Task Name</TableCell>
                       <TableCell align="center">Target Count</TableCell>
+                      <TableCell align="center">Assessment Links</TableCell>
                       <TableCell align="center">Status</TableCell>
                       <TableCell align="center">Created</TableCell>
                       <TableCell align="center">Actions</TableCell>
@@ -337,7 +338,7 @@ const TasksPage: React.FC = () => {
                   <TableBody>
                     {filteredTasks.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={5} align="center" sx={{ py: 4 }}>
+                        <TableCell colSpan={6} align="center" sx={{ py: 4 }}>
                           <Typography variant="body2" color="text.secondary">
                             {searchTerm ? 'No tasks found matching your search.' : 'No tasks created yet.'}
                           </Typography>
@@ -361,6 +362,31 @@ const TasksPage: React.FC = () => {
                               color="primary"
                               variant="outlined"
                             />
+                          </TableCell>
+                          <TableCell align="center">
+                            <Box display="flex" flexDirection="column" gap={0.5} alignItems="center">
+                              {(task as any).assessmentTaskCoverage && (task as any).assessmentTaskCoverage.length > 0 ? (
+                                (task as any).assessmentTaskCoverage.slice(0, 2).map((coverage: any) => (
+                                  <Chip
+                                    key={coverage.assessment.id}
+                                    size="small"
+                                    label={coverage.assessment.name}
+                                    variant="outlined"
+                                    color="secondary"
+                                    sx={{ fontSize: '0.7rem' }}
+                                  />
+                                ))
+                              ) : (
+                                <Typography variant="body2" color="text.secondary" fontSize="0.75rem">
+                                  No assessments
+                                </Typography>
+                              )}
+                              {(task as any).assessmentTaskCoverage && (task as any).assessmentTaskCoverage.length > 2 && (
+                                <Typography variant="caption" color="text.secondary">
+                                  +{(task as any).assessmentTaskCoverage.length - 2} more
+                                </Typography>
+                              )}
+                            </Box>
                           </TableCell>
                           <TableCell align="center">
                             <Chip

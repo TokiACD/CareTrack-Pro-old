@@ -24,6 +24,7 @@ import {
 import { enhancedErrorHandler } from './middleware/errorSanitization'
 import { errorHandler } from './middleware/errorHandler'
 import { notFoundHandler } from './middleware/notFoundHandler'
+import JobInitializer from './jobs/JobInitializer'
 import { authRoutes } from './routes/authRoutes'
 import invitationRoutes from './routes/invitationRoutes'
 import { usersRouter } from './routes/users'
@@ -40,9 +41,12 @@ import { carerShiftRoutes } from './routes/carerShiftRoutes'
 import { rotaRoutes } from './routes/rotaRoutes'
 import { recycleBinRoutes } from './routes/recycleBinRoutes'
 import { auditRoutes } from './routes/auditRoutes'
+import { enhancedAuditRoutes } from './routes/enhancedAuditRoutes'
 import { dashboardRoutes } from './routes/dashboardRoutes'
 import { emailChangeRoutes } from './routes/emailChangeRoutes'
 import { confirmedShiftsRoutes } from './routes/confirmedShiftsRoutes'
+import { emailQueueRoutes } from './routes/emailQueueRoutes'
+import { schedulerService } from './services/schedulerService'
 
 // Initialize Prisma Client with enhanced security and performance
 let prismaInstance: PrismaClient | null = null
@@ -229,11 +233,18 @@ app.use('/api', (req, res, next) => {
   return adaptiveRateLimit(req, res, next)
 })
 
-// Enhanced health check endpoint with database connectivity
+// Enhanced health check endpoint with database and job system connectivity
 app.get('/health', async (req, res) => {
   try {
     // Test database connectivity
     await prisma.$queryRaw`SELECT 1 as health`
+    
+    // Check job system status if initialized
+    let jobSystemStatus = 'not-initialized'
+    if (JobInitializer.isInitialized()) {
+      const systemStatus = await JobInitializer.getSystemStatus()
+      jobSystemStatus = systemStatus.healthy ? 'healthy' : 'unhealthy'
+    }
     
     res.json({
       success: true,
@@ -241,6 +252,7 @@ app.get('/health', async (req, res) => {
       timestamp: new Date().toISOString(),
       environment: NODE_ENV,
       database: 'connected',
+      jobSystem: jobSystemStatus,
       version: process.env.npm_package_version || '1.0.0'
     })
   } catch (error) {
@@ -249,10 +261,29 @@ app.get('/health', async (req, res) => {
       message: 'Service unavailable - database connection failed',
       timestamp: new Date().toISOString(),
       environment: NODE_ENV,
-      database: 'disconnected'
+      database: 'disconnected',
+      jobSystem: 'error'
     })
   }
 })
+
+// Job system status endpoint (development only)
+if (NODE_ENV === 'development') {
+  app.get('/job-status', async (req, res) => {
+    try {
+      const systemStatus = await JobInitializer.getSystemStatus()
+      res.json({
+        success: true,
+        data: systemStatus
+      })
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      })
+    }
+  })
+}
 
 // Performance metrics endpoint (development only)
 if (NODE_ENV === 'development') {
@@ -294,9 +325,11 @@ app.use('/api/carer-shifts', carerShiftRoutes)
 app.use('/api/rota', rotaRoutes)
 app.use('/api/recycle-bin', recycleBinRoutes)
 app.use('/api/audit', auditRoutes)
+app.use('/api/enhanced-audit', enhancedAuditRoutes)
 app.use('/api/dashboard', dashboardRoutes)
 app.use('/api/email-change', emailChangeRoutes)
 app.use('/api/confirmed-shifts', confirmedShiftsRoutes)
+app.use('/api/email-queue', emailQueueRoutes)
 
 // Serve frontend static files in production with enhanced security
 if (NODE_ENV === 'production') {
@@ -379,15 +412,29 @@ app.use(notFoundHandler)
 app.use(enhancedErrorHandler) // Use enhanced error handler
 app.use(errorHandler) // Fallback
 
-// Graceful shutdown
+// Graceful shutdown with job system cleanup
 process.on('SIGINT', async () => {
   console.log('Received SIGINT, shutting down gracefully...')
+  
+  // Shutdown job system first
+  if (JobInitializer.isInitialized()) {
+    console.log('🔄 Shutting down job processing system...')
+    await JobInitializer.shutdown()
+  }
+  
   await prisma.$disconnect()
   process.exit(0)
 })
 
 process.on('SIGTERM', async () => {
   console.log('Received SIGTERM, shutting down gracefully...')
+  
+  // Shutdown job system first
+  if (JobInitializer.isInitialized()) {
+    console.log('🔄 Shutting down job processing system...')
+    await JobInitializer.shutdown()
+  }
+  
   await prisma.$disconnect()
   process.exit(0)
 })
@@ -430,6 +477,27 @@ async function startServer() {
     await prisma.$queryRaw`SELECT 1 as health`
     console.log('✅ Database health check passed')
 
+    // Initialize job processing system
+    console.log('🔄 Initializing job processing system...')
+    try {
+      await JobInitializer.initialize()
+      console.log('✅ Job processing system ready')
+    } catch (jobError) {
+      console.warn('⚠️  Job processing system failed to initialize:', jobError)
+      console.warn('⚠️  Server will continue without background job processing')
+      console.warn('⚠️  Email operations will fall back to synchronous processing')
+    }
+
+    // Initialize scheduler service for automated tasks
+    console.log('⏰ Initializing scheduler service...')
+    try {
+      schedulerService.init()
+      console.log('✅ Scheduler service ready')
+    } catch (schedulerError) {
+      console.warn('⚠️  Scheduler service failed to initialize:', schedulerError)
+      console.warn('⚠️  Automated cleanup and notifications will not work')
+    }
+
     app.listen(PORT, () => {
       console.log(`🚀 Server running on http://localhost:${PORT}`)
       console.log(`📊 Environment: ${NODE_ENV}`)
@@ -440,6 +508,7 @@ async function startServer() {
       if (NODE_ENV === 'development') {
         console.log(`📘 Prisma Studio: npx prisma studio`)
         console.log(`📊 Metrics: http://localhost:${PORT}/metrics`)
+        console.log(`🔧 Job Status: http://localhost:${PORT}/job-status`)
       }
     })
   } catch (error) {
@@ -448,6 +517,11 @@ async function startServer() {
     // Cleanup on startup failure
     try {
       await prisma.$disconnect()
+      
+      // Cleanup job system if it was initialized
+      if (JobInitializer.isInitialized()) {
+        await JobInitializer.shutdown()
+      }
     } catch (disconnectError) {
       console.error('Error during cleanup:', disconnectError)
     }
