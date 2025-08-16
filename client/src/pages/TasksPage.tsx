@@ -75,7 +75,7 @@ const TasksPage: React.FC = () => {
   
   const [formData, setFormData] = useState<TaskFormData>({
     name: '',
-    targetCount: 1
+    targetCount: 0 // Start empty, will be set to 1 on blur if empty
   })
   
   // Notification state
@@ -128,10 +128,14 @@ const TasksPage: React.FC = () => {
         showNotification('Task created successfully', 'success')
       },
       onError: (error: any) => {
-        showNotification(
-          error.message || 'Failed to create task',
-          'error'
-        )
+        // Provide more specific error messages
+        let errorMessage = error.message || 'Failed to create task'
+        
+        if (error.message?.includes('already exists')) {
+          errorMessage = `Task name "${formData.name}" already exists. Please choose a different name.`
+        }
+        
+        showNotification(errorMessage, 'error')
       }
     }
   )
@@ -150,10 +154,14 @@ const TasksPage: React.FC = () => {
         showNotification('Task updated successfully', 'success')
       },
       onError: (error: any) => {
-        showNotification(
-          error.message || 'Failed to update task',
-          'error'
-        )
+        // Provide more specific error messages
+        let errorMessage = error.message || 'Failed to update task'
+        
+        if (error.message?.includes('already exists')) {
+          errorMessage = `Task name "${formData.name}" already exists. Please choose a different name.`
+        }
+        
+        showNotification(errorMessage, 'error')
       }
     }
   )
@@ -183,7 +191,7 @@ const TasksPage: React.FC = () => {
   const resetForm = () => {
     setFormData({
       name: '',
-      targetCount: 1
+      targetCount: 0 // Start empty for better UX
     })
   }
 
@@ -438,10 +446,25 @@ const TasksPage: React.FC = () => {
             <TextField
               label="Target Count"
               type="number"
-              value={formData.targetCount}
-              onChange={(e) => setFormData({ ...formData, targetCount: parseInt(e.target.value) || 1 })}
+              value={formData.targetCount || ''}
+              onChange={(e) => {
+                const value = e.target.value
+                setFormData({ 
+                  ...formData, 
+                  targetCount: value === '' ? 0 : parseInt(value) || 1 
+                })
+              }}
+              onFocus={(e) => e.target.select()}
+              onClick={(e) => e.target.select()}
+              onBlur={(e) => {
+                // Ensure minimum value of 1 when leaving the field
+                if (!e.target.value || parseInt(e.target.value) < 1) {
+                  setFormData({ ...formData, targetCount: 1 })
+                }
+              }}
               fullWidth
               required
+              placeholder="Enter target count (e.g., 5)"
               inputProps={{ min: 1, max: 9999 }}
               helperText="Number of completions needed to reach 100%"
             />

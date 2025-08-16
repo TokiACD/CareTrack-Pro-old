@@ -43,6 +43,20 @@ export const sanitizeErrorResponse = (error: any, req: Request): SanitizedError 
     ...(process.env.NODE_ENV === 'development' && { errorId })
   };
 
+  // Handle custom errors with explicit statusCode (from createError function)
+  if (error.statusCode && typeof error.statusCode === 'number') {
+    return {
+      ...baseResponse,
+      error: error.message || 'An error occurred',
+      code: error.statusCode === 409 ? 'CONFLICT' : 
+            error.statusCode === 400 ? 'BAD_REQUEST' :
+            error.statusCode === 401 ? 'UNAUTHORIZED' :
+            error.statusCode === 403 ? 'FORBIDDEN' :
+            error.statusCode === 404 ? 'NOT_FOUND' :
+            'SERVER_ERROR'
+    };
+  }
+
   // Handle specific error types with appropriate sanitization
   if (error.name === 'ValidationError' || error.code === 'VALIDATION_ERROR') {
     return {
@@ -200,34 +214,41 @@ export const enhancedErrorHandler = (
   // Determine HTTP status code
   let statusCode = 500;
   
-  switch (sanitizedResponse.code) {
-    case 'VALIDATION_ERROR':
-      statusCode = 400;
-      break;
-    case 'UNAUTHORIZED':
-      statusCode = 401;
-      break;
-    case 'FORBIDDEN':
-      statusCode = 403;
-      break;
-    case 'NOT_FOUND':
-    case 'RECORD_NOT_FOUND':
-      statusCode = 404;
-      break;
-    case 'DUPLICATE_ENTRY':
-      statusCode = 409;
-      break;
-    case 'RATE_LIMIT_EXCEEDED':
-      statusCode = 429;
-      break;
-    case 'FILE_TOO_LARGE':
-    case 'INVALID_FILE':
-      statusCode = 413;
-      break;
-    case 'CSRF_TOKEN_INVALID':
-    case 'CSRF_TOKEN_MISSING':
-      statusCode = 403;
-      break;
+  // Check if error has explicit statusCode first (from createError function)
+  if (error.statusCode && typeof error.statusCode === 'number') {
+    statusCode = error.statusCode;
+  } else {
+    // Fall back to sanitized response code mapping
+    switch (sanitizedResponse.code) {
+      case 'VALIDATION_ERROR':
+        statusCode = 400;
+        break;
+      case 'UNAUTHORIZED':
+        statusCode = 401;
+        break;
+      case 'FORBIDDEN':
+        statusCode = 403;
+        break;
+      case 'NOT_FOUND':
+      case 'RECORD_NOT_FOUND':
+        statusCode = 404;
+        break;
+      case 'DUPLICATE_ENTRY':
+      case 'CONFLICT':
+        statusCode = 409;
+        break;
+      case 'RATE_LIMIT_EXCEEDED':
+        statusCode = 429;
+        break;
+      case 'FILE_TOO_LARGE':
+      case 'INVALID_FILE':
+        statusCode = 413;
+        break;
+      case 'CSRF_TOKEN_INVALID':
+      case 'CSRF_TOKEN_MISSING':
+        statusCode = 403;
+        break;
+    }
   }
 
   // Set security headers on error responses

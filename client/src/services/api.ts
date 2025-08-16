@@ -9,6 +9,13 @@ class ApiService {
   private readonly CACHE_DURATION = 5 * 60 * 1000 // 5 minutes
   private readonly MAX_CACHE_SIZE = 100
   private csrfToken: string | null = null
+  
+  // CSRF Token Lifecycle Management
+  private csrfTokenTimestamp: number = 0
+  private readonly CSRF_TOKEN_LIFETIME = 60 * 60 * 1000 // 1 hour (matches server config)
+  private readonly CSRF_REFRESH_MARGIN = 10 * 60 * 1000 // Refresh 10 minutes before expiry
+  private csrfRefreshTimer: NodeJS.Timeout | null = null
+  private refreshingToken = false
 
   constructor() {
     this.api = axios.create({
@@ -40,6 +47,8 @@ class ApiService {
       const data = await response.json()
       if (data.success && data.token) {
         this.csrfToken = data.token
+        this.csrfTokenTimestamp = Date.now()
+        this.scheduleProactiveRefresh()
         logger.debug('CSRF token initialized', { tokenLength: data.token.length }, 'api')
       }
     } catch (error) {
@@ -59,6 +68,8 @@ class ApiService {
       const data = await response.json()
       if (data.success && data.token) {
         this.csrfToken = data.token
+        this.csrfTokenTimestamp = Date.now()
+        this.scheduleProactiveRefresh()
         logger.debug('CSRF token fetched', { tokenLength: data.token.length }, 'api')
         return data.token
       }
@@ -66,6 +77,78 @@ class ApiService {
       logger.warn('Failed to fetch CSRF token:', error, 'api')
     }
     return null
+  }
+
+  // Proactive CSRF Token Refresh Management
+  private scheduleProactiveRefresh() {
+    // Clear any existing timer
+    if (this.csrfRefreshTimer) {
+      clearTimeout(this.csrfRefreshTimer)
+    }
+
+    // Calculate time until refresh should happen
+    const refreshTime = this.CSRF_TOKEN_LIFETIME - this.CSRF_REFRESH_MARGIN
+    
+    this.csrfRefreshTimer = setTimeout(async () => {
+      await this.proactivelyRefreshCSRFToken()
+    }, refreshTime)
+
+    logger.debug('CSRF token refresh scheduled', {
+      refreshInMinutes: Math.round(refreshTime / (60 * 1000)),
+      currentTime: new Date().toISOString()
+    }, 'api')
+  }
+
+  private async proactivelyRefreshCSRFToken() {
+    if (this.refreshingToken) {
+      logger.debug('CSRF token refresh already in progress, skipping', {}, 'api')
+      return
+    }
+
+    this.refreshingToken = true
+    
+    try {
+      logger.info('Proactively refreshing CSRF token', {
+        tokenAge: Math.round((Date.now() - this.csrfTokenTimestamp) / (60 * 1000)),
+        currentTime: new Date().toISOString()
+      }, 'api')
+
+      const newToken = await this.ensureCSRFToken()
+      
+      if (newToken) {
+        logger.info('CSRF token proactively refreshed successfully', {
+          tokenLength: newToken.length
+        }, 'api')
+      } else {
+        logger.warn('Failed to proactively refresh CSRF token', {}, 'api')
+      }
+    } catch (error) {
+      logger.error('Error during proactive CSRF token refresh:', error, 'api')
+    } finally {
+      this.refreshingToken = false
+    }
+  }
+
+  private isCSRFTokenExpiringSoon(): boolean {
+    if (!this.csrfTokenTimestamp) return true
+    
+    const tokenAge = Date.now() - this.csrfTokenTimestamp
+    const timeUntilExpiry = this.CSRF_TOKEN_LIFETIME - tokenAge
+    
+    return timeUntilExpiry <= this.CSRF_REFRESH_MARGIN
+  }
+
+  private async ensureCSRFTokenFresh() {
+    // Check if token needs proactive refresh
+    if (this.isCSRFTokenExpiringSoon() && !this.refreshingToken) {
+      logger.debug('CSRF token expiring soon, refreshing proactively', {
+        tokenAge: Math.round((Date.now() - this.csrfTokenTimestamp) / (60 * 1000))
+      }, 'api')
+      
+      await this.proactivelyRefreshCSRFToken()
+    }
+    
+    return this.csrfToken
   }
 
   private setupInterceptors() {
@@ -79,9 +162,9 @@ class ApiService {
         
         // Add CSRF token for non-GET requests
         if (config.method !== 'get') {
-          if (!this.csrfToken) {
-            // If no CSRF token, get it asynchronously
-            return this.ensureCSRFToken().then((token) => {
+          if (!this.csrfToken || this.isCSRFTokenExpiringSoon()) {
+            // If no CSRF token or token expiring soon, get fresh token
+            return this.ensureCSRFTokenFresh().then((token) => {
               if (token) {
                 config.headers['x-csrf-token'] = token
               }
@@ -179,6 +262,8 @@ class ApiService {
               const data = await response.json()
               if (data.success && data.token) {
                 this.csrfToken = data.token
+                this.csrfTokenTimestamp = Date.now()
+                this.scheduleProactiveRefresh()
                 logger.debug('Fresh CSRF token obtained', { 
                   tokenLength: data.token.length 
                 }, 'api')
@@ -563,6 +648,44 @@ class ApiService {
     }
   }
 
+  // Manual CSRF token refresh (for testing or special cases)
+  async refreshCSRFToken(): Promise<boolean> {
+    try {
+      const token = await this.ensureCSRFToken()
+      return !!token
+    } catch (error) {
+      logger.error('Manual CSRF token refresh failed:', error, 'api')
+      return false
+    }
+  }
+
+  // Get CSRF token status for monitoring
+  getCSRFTokenStatus() {
+    return {
+      hasToken: !!this.csrfToken,
+      tokenAge: this.csrfTokenTimestamp ? Date.now() - this.csrfTokenTimestamp : 0,
+      timeUntilExpiry: this.csrfTokenTimestamp ? 
+        Math.max(0, this.CSRF_TOKEN_LIFETIME - (Date.now() - this.csrfTokenTimestamp)) : 0,
+      willExpireSoon: this.isCSRFTokenExpiringSoon(),
+      refreshScheduled: !!this.csrfRefreshTimer,
+      isRefreshing: this.refreshingToken
+    }
+  }
+
+  // Cleanup method for proper resource management
+  destroy() {
+    // Clear CSRF refresh timer
+    if (this.csrfRefreshTimer) {
+      clearTimeout(this.csrfRefreshTimer)
+      this.csrfRefreshTimer = null
+    }
+    
+    // Clear cache
+    this.requestCache.clear()
+    
+    logger.debug('ApiService destroyed and cleaned up', {}, 'api')
+  }
+
   // Specialized method for users endpoints that return extended response format
   async getUsersResponse<T>(url: string, params?: Record<string, unknown>): Promise<UsersApiResponse<T>> {
     // No caching for users endpoints to ensure fresh data after mutations
@@ -649,3 +772,23 @@ class ApiService {
 }
 
 export const apiService = new ApiService()
+
+// Development debugging - expose CSRF status to console
+if (process.env.NODE_ENV === 'development') {
+  (window as any).csrfStatus = () => {
+    const status = apiService.getCSRFTokenStatus()
+    console.log('🔒 CSRF Token Status:', {
+      ...status,
+      tokenAgeMinutes: Math.round(status.tokenAge / (60 * 1000)),
+      timeUntilExpiryMinutes: Math.round(status.timeUntilExpiry / (60 * 1000))
+    })
+    return status
+  }
+  
+  (window as any).refreshCSRF = async () => {
+    console.log('🔄 Manually refreshing CSRF token...')
+    const success = await apiService.refreshCSRFToken()
+    console.log(success ? '✅ CSRF token refreshed' : '❌ CSRF token refresh failed')
+    return success
+  }
+}

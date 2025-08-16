@@ -152,28 +152,46 @@ export class TaskController {
       throw createError(400, 'Target count must be between 1 and 9999')
     }
 
-    // Check for duplicate name (case-insensitive, excluding deleted)
-    const existingTask = await prisma.task.findFirst({
-      where: {
-        name: {
-          equals: name.trim(),
-          mode: 'insensitive'
-        },
-        deletedAt: null
-      }
-    })
+    // Create task with database error handling
+    let task
+    try {
+      // Check for duplicate name (case-insensitive, excluding deleted)
+      const existingTask = await prisma.task.findFirst({
+        where: {
+          name: {
+            equals: name.trim(),
+            mode: 'insensitive'
+          },
+          deletedAt: null
+        }
+      })
 
-    if (existingTask) {
-      throw createError(409, 'A task with this name already exists')
+      if (existingTask) {
+        throw createError(409, 'A task with this name already exists')
+      }
+
+      task = await prisma.task.create({
+        data: {
+          name: name.trim(),
+          targetCount: Math.floor(targetCount)
+        }
+      })
+    } catch (error: any) {
+      // Handle our custom validation errors
+      if (error.statusCode === 409) {
+        throw error // Re-throw our custom error as-is
+      }
+      
+      // Handle potential database constraint violations
+      if (error.code === 'P2002') {
+        // Unique constraint violation
+        throw createError(409, 'A task with this name already exists')
+      }
+      
+      // Log and re-throw unexpected database errors
+      console.error('Database error creating task:', error)
+      throw createError(500, 'Failed to create task due to database error')
     }
-
-    // Create task
-    const task = await prisma.task.create({
-      data: {
-        name: name.trim(),
-        targetCount: Math.floor(targetCount)
-      }
-    })
 
     // Log the creation
     await auditService.log({
@@ -218,22 +236,6 @@ export class TaskController {
       if (typeof name !== 'string' || name.trim().length === 0) {
         throw createError(400, 'Task name cannot be empty')
       }
-
-      // Check for duplicate name (case-insensitive, excluding current task and deleted)
-      const duplicateTask = await prisma.task.findFirst({
-        where: {
-          name: {
-            equals: name.trim(),
-            mode: 'insensitive'
-          },
-          deletedAt: null,
-          id: { not: id }
-        }
-      })
-
-      if (duplicateTask) {
-        throw createError(409, 'A task with this name already exists')
-      }
     }
 
     if (targetCount !== undefined) {
@@ -247,11 +249,47 @@ export class TaskController {
     if (name !== undefined) updateData.name = name.trim()
     if (targetCount !== undefined) updateData.targetCount = Math.floor(targetCount)
 
-    // Update task
-    const updatedTask = await prisma.task.update({
-      where: { id },
-      data: updateData
-    })
+    // Update task with database error handling
+    let updatedTask
+    try {
+      // Check for duplicate name (case-insensitive, excluding current task and deleted)
+      if (name !== undefined) {
+        const duplicateTask = await prisma.task.findFirst({
+          where: {
+            name: {
+              equals: name.trim(),
+              mode: 'insensitive'
+            },
+            deletedAt: null,
+            id: { not: id }
+          }
+        })
+
+        if (duplicateTask) {
+          throw createError(409, 'A task with this name already exists')
+        }
+      }
+
+      updatedTask = await prisma.task.update({
+        where: { id },
+        data: updateData
+      })
+    } catch (error: any) {
+      // Handle our custom validation errors
+      if (error.statusCode === 409) {
+        throw error // Re-throw our custom error as-is
+      }
+      
+      // Handle potential database constraint violations
+      if (error.code === 'P2002') {
+        // Unique constraint violation
+        throw createError(409, 'A task with this name already exists')
+      }
+      
+      // Log and re-throw unexpected database errors
+      console.error('Database error updating task:', error)
+      throw createError(500, 'Failed to update task due to database error')
+    }
 
     // Log the update
     await auditService.log({

@@ -147,13 +147,30 @@ router.post('/',
         });
       }
 
-      const newPackage = await prisma.carePackage.create({
-        data: {
-          name,
-          postcode: formatPostcode(postcode),
-          isActive: true
+      let newPackage;
+      try {
+        newPackage = await prisma.carePackage.create({
+          data: {
+            name,
+            postcode: formatPostcode(postcode),
+            isActive: true
+          }
+        });
+      } catch (error: any) {
+        // Handle potential database constraint violations
+        if (error.code === 'P2002') {
+          return res.status(409).json({
+            success: false,
+            message: 'Package name already exists'
+          });
         }
-      });
+        
+        console.error('Database error creating care package:', error);
+        return res.status(500).json({
+          success: false,
+          message: 'Failed to create care package due to database error'
+        });
+      }
 
       res.status(201).json({
         success: true,
@@ -238,41 +255,58 @@ router.put('/:id',
         formattedUpdates.postcode = formatPostcode(formattedUpdates.postcode);
       }
 
-      const updatedPackage = await prisma.carePackage.update({
-        where: { id },
-        data: {
-          ...formattedUpdates,
-          updatedAt: new Date()
-        },
-        include: {
-          carerAssignments: {
-            where: { isActive: true },
-            include: {
-              carer: {
-                select: { id: true, name: true }
-              }
-            }
+      let updatedPackage;
+      try {
+        updatedPackage = await prisma.carePackage.update({
+          where: { id },
+          data: {
+            ...formattedUpdates,
+            updatedAt: new Date()
           },
-          taskAssignments: {
-            where: { isActive: true },
-            include: {
-              task: {
-                select: { id: true, name: true }
+          include: {
+            carerAssignments: {
+              where: { isActive: true },
+              include: {
+                carer: {
+                  select: { id: true, name: true }
+                }
               }
-            }
-          },
-          _count: {
-            select: {
-              carerAssignments: {
-                where: { isActive: true }
-              },
-              taskAssignments: {
-                where: { isActive: true }
+            },
+            taskAssignments: {
+              where: { isActive: true },
+              include: {
+                task: {
+                  select: { id: true, name: true }
+                }
+              }
+            },
+            _count: {
+              select: {
+                carerAssignments: {
+                  where: { isActive: true }
+                },
+                taskAssignments: {
+                  where: { isActive: true }
+                }
               }
             }
           }
+        });
+      } catch (error: any) {
+        // Handle potential database constraint violations
+        if (error.code === 'P2002') {
+          return res.status(409).json({
+            success: false,
+            message: 'Package name already exists'
+          });
         }
-      });
+        
+        console.error('Database error updating care package:', error);
+        return res.status(500).json({
+          success: false,
+          message: 'Failed to update care package due to database error'
+        });
+      }
 
       res.json({
         success: true,

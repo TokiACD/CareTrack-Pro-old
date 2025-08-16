@@ -183,34 +183,26 @@ const AssignmentsPage: React.FC = () => {
     },
     {
       mutationType: 'assignments.create',
-      skipAutoInvalidation: true,
       onSuccess: async (data: any) => {
-        // Force complete cache reset for assignments, packages, AND progress
-        queryClient.removeQueries({ 
-          queryKey: ['assignments'],
-          exact: false 
-        });
-        queryClient.removeQueries({ 
-          queryKey: ['packages'],
-          exact: false 
-        });
-        queryClient.removeQueries({ 
-          queryKey: ['progress'],
-          exact: false 
-        });
+        // Close dialog and reset form
+        setCarerDialogOpen(false)
+        setSelectedCarerIds([])
+        setCarerSearchTerm('')
         
-        // Force immediate refetch
+        // Small delay to ensure backend transaction is committed
+        await new Promise(resolve => setTimeout(resolve, 100));
+        
+        // Force refresh the current package data to show updated assignments
+        queryClient.removeQueries({ queryKey: ['assignments', 'packages'], exact: false });
         const newData = await queryClient.fetchQuery({
           queryKey: ['assignments', 'packages'],
           queryFn: async () => {
             const response = await apiService.get(API_ENDPOINTS.ASSIGNMENTS.LIST)
             return response || []
-          }
+          },
+          staleTime: 0,
+          gcTime: 0
         });
-        
-        setCarerDialogOpen(false)
-        setSelectedCarerIds([])
-        setCarerSearchTerm('')
         
         // Update selectedPackage state with fresh data
         if (selectedPackage) {
@@ -218,7 +210,7 @@ const AssignmentsPage: React.FC = () => {
             ? newData.find((pkg: CarePackage) => pkg.id === selectedPackage.id)
             : null;
           if (updatedPackage) {
-            setSelectedPackage(updatedPackage);
+            setSelectedPackage({ ...updatedPackage });
           }
         }
         
@@ -247,29 +239,20 @@ const AssignmentsPage: React.FC = () => {
     },
     {
       mutationType: 'assignments.delete',
-      skipAutoInvalidation: true,
       onSuccess: async (data: any) => {
-        // Force complete cache reset for assignments, packages, AND progress
-        queryClient.removeQueries({ 
-          queryKey: ['assignments'],
-          exact: false 
-        });
-        queryClient.removeQueries({ 
-          queryKey: ['packages'],
-          exact: false 
-        });
-        queryClient.removeQueries({ 
-          queryKey: ['progress'],
-          exact: false 
-        });
+        // Small delay to ensure backend transaction is committed
+        await new Promise(resolve => setTimeout(resolve, 100));
         
-        // Force immediate refetch
+        // Force refresh the current package data to show updated assignments
+        queryClient.removeQueries({ queryKey: ['assignments', 'packages'], exact: false });
         const newData = await queryClient.fetchQuery({
           queryKey: ['assignments', 'packages'],
           queryFn: async () => {
             const response = await apiService.get(API_ENDPOINTS.ASSIGNMENTS.LIST)
             return response || []
-          }
+          },
+          staleTime: 0,
+          gcTime: 0
         });
         
         // Update selectedPackage state with fresh data
@@ -278,7 +261,7 @@ const AssignmentsPage: React.FC = () => {
             ? newData.find((pkg: CarePackage) => pkg.id === selectedPackage.id)
             : null;
           if (updatedPackage) {
-            setSelectedPackage(updatedPackage);
+            setSelectedPackage({ ...updatedPackage });
           }
         }
         
@@ -312,34 +295,26 @@ const AssignmentsPage: React.FC = () => {
     },
     {
       mutationType: 'assignments.create',
-      skipAutoInvalidation: true,
       onSuccess: async (data: any) => {
-        // Force complete cache reset for assignments, packages, AND progress
-        queryClient.removeQueries({ 
-          queryKey: ['assignments'],
-          exact: false 
-        });
-        queryClient.removeQueries({ 
-          queryKey: ['packages'],
-          exact: false 
-        });
-        queryClient.removeQueries({ 
-          queryKey: ['progress'],
-          exact: false 
-        });
+        // Close dialog and reset form
+        setTaskDialogOpen(false)
+        setSelectedTaskIds([])
+        setTaskSearchTerm('')
         
-        // Force immediate refetch
+        // Small delay to ensure backend transaction is committed
+        await new Promise(resolve => setTimeout(resolve, 100));
+        
+        // Force refresh the current package data to show updated assignments
+        queryClient.removeQueries({ queryKey: ['assignments', 'packages'], exact: false });
         const newData = await queryClient.fetchQuery({
           queryKey: ['assignments', 'packages'],
           queryFn: async () => {
             const response = await apiService.get(API_ENDPOINTS.ASSIGNMENTS.LIST)
             return response || []
-          }
+          },
+          staleTime: 0,
+          gcTime: 0
         });
-        
-        setTaskDialogOpen(false)
-        setSelectedTaskIds([])
-        setTaskSearchTerm('')
         
         // Update selectedPackage state with fresh data
         if (selectedPackage) {
@@ -347,7 +322,7 @@ const AssignmentsPage: React.FC = () => {
             ? newData.find((pkg: CarePackage) => pkg.id === selectedPackage.id)
             : null;
           if (updatedPackage) {
-            setSelectedPackage(updatedPackage);
+            setSelectedPackage({ ...updatedPackage });
           }
         }
         
@@ -376,29 +351,20 @@ const AssignmentsPage: React.FC = () => {
     },
     {
       mutationType: 'assignments.delete',
-      skipAutoInvalidation: true,
       onSuccess: async (data: any) => {
-        // Force complete cache reset for assignments, packages, AND progress
-        queryClient.removeQueries({ 
-          queryKey: ['assignments'],
-          exact: false 
-        });
-        queryClient.removeQueries({ 
-          queryKey: ['packages'],
-          exact: false 
-        });
-        queryClient.removeQueries({ 
-          queryKey: ['progress'],
-          exact: false 
-        });
+        // Small delay to ensure backend transaction is committed
+        await new Promise(resolve => setTimeout(resolve, 100));
         
-        // Force immediate refetch
+        // Force refresh the current package data to show updated assignments
+        queryClient.removeQueries({ queryKey: ['assignments', 'packages'], exact: false });
         const newData = await queryClient.fetchQuery({
           queryKey: ['assignments', 'packages'],
           queryFn: async () => {
             const response = await apiService.get(API_ENDPOINTS.ASSIGNMENTS.LIST)
             return response || []
-          }
+          },
+          staleTime: 0,
+          gcTime: 0
         });
         
         // Update selectedPackage state with fresh data
@@ -407,7 +373,7 @@ const AssignmentsPage: React.FC = () => {
             ? newData.find((pkg: CarePackage) => pkg.id === selectedPackage.id)
             : null;
           if (updatedPackage) {
-            setSelectedPackage(updatedPackage);
+            setSelectedPackage({ ...updatedPackage });
           }
         }
         

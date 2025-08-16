@@ -92,23 +92,40 @@ router.post('/admins',
       // Hash temporary password
       const passwordHash = await bcrypt.hash(tempPassword, PASSWORD_CONFIG.BCRYPT_ROUNDS);
 
-      const newAdmin = await prisma.adminUser.create({
-        data: {
-          email,
-          name,
-          passwordHash,
-          isActive: true,
-          invitedBy: req.user!.id
-        },
-        select: {
-          id: true,
-          email: true,
-          name: true,
-          isActive: true,
-          createdAt: true,
-          invitedBy: true
+      let newAdmin;
+      try {
+        newAdmin = await prisma.adminUser.create({
+          data: {
+            email,
+            name,
+            passwordHash,
+            isActive: true,
+            invitedBy: req.user!.id
+          },
+          select: {
+            id: true,
+            email: true,
+            name: true,
+            isActive: true,
+            createdAt: true,
+            invitedBy: true
+          }
+        });
+      } catch (error: any) {
+        // Handle potential database constraint violations
+        if (error.code === 'P2002') {
+          return res.status(409).json({
+            success: false,
+            message: 'Email address is already in use'
+          });
         }
-      });
+        
+        console.error('Database error creating admin user:', error);
+        return res.status(500).json({
+          success: false,
+          message: 'Failed to create admin user due to database error'
+        });
+      }
 
       res.status(201).json({
         success: true,
@@ -392,13 +409,30 @@ router.post('/carers',
         });
       }
 
-      const newCarer = await prisma.carer.create({
-        data: {
-          name,
-          email,
-          isActive: true
+      let newCarer;
+      try {
+        newCarer = await prisma.carer.create({
+          data: {
+            name,
+            email,
+            isActive: true
+          }
+        });
+      } catch (error: any) {
+        // Handle potential database constraint violations
+        if (error.code === 'P2002') {
+          return res.status(409).json({
+            success: false,
+            message: 'Email address is already in use'
+          });
         }
-      });
+        
+        console.error('Database error creating carer:', error);
+        return res.status(500).json({
+          success: false,
+          message: 'Failed to create carer due to database error'
+        });
+      }
 
       res.status(201).json({
         success: true,
