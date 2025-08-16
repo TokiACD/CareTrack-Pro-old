@@ -27,6 +27,7 @@ import { useNavigate } from 'react-router-dom';
 import { BrandHeader } from './index';
 import { StandardPageHeader } from './StandardPageHeader';
 import { useAuth } from '../../contexts/AuthContext';
+import { useAdminDashboardRefresh } from '../../hooks/useSmartRefresh';
 import ShiftNotifications from '../dashboard/ShiftNotifications';
 
 interface AdminPageLayoutProps {
@@ -77,6 +78,9 @@ export const AdminPageLayout: React.FC<AdminPageLayoutProps> = ({
   
   const [userMenuAnchor, setUserMenuAnchor] = useState<null | HTMLElement>(null);
 
+  // Smart refresh system - no auto-refresh on mount, handled by navigation
+  // const { refresh } = useAdminDashboardRefresh({ refreshOnMount: false });
+
   const handleBackToDashboard = () => {
     navigate('/dashboard');
   };
@@ -92,7 +96,7 @@ export const AdminPageLayout: React.FC<AdminPageLayoutProps> = ({
   const handleLogout = async () => {
     handleUserMenuClose();
     await logout();
-    navigate('/login');
+    // Navigation is handled by AuthContext - no manual navigation needed
   };
 
   const handleProfile = () => {

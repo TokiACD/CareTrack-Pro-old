@@ -303,6 +303,7 @@ router.get('/carers', requireAuth, async (req, res) => {
       orderBy: { createdAt: 'desc' }
     });
 
+
     // Filter for fully assessed carers if requested
     let filteredCarers = carers;
     if (fullyAssessed === 'true') {
@@ -334,6 +335,7 @@ router.get('/carers', requireAuth, async (req, res) => {
       totalCompetencies: carer.competencyRatings.length,
       fullyAssessed: carer.competencyRatings.some(rating => rating.level !== 'NOT_ASSESSED')
     }));
+
 
     res.json({
       success: true,

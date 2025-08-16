@@ -49,6 +49,8 @@ import { emailChangeRoutes } from './routes/emailChangeRoutes'
 import { confirmedShiftsRoutes } from './routes/confirmedShiftsRoutes'
 import { emailQueueRoutes } from './routes/emailQueueRoutes'
 import { assessmentTriggerRoutes } from './routes/assessmentTriggerRoutes'
+import { notificationRoutes } from './routes/notificationRoutes'
+import testNotificationRoutes from './routes/testNotificationRoutes'
 import { schedulerService } from './services/schedulerService'
 
 // Initialize Prisma Client with enhanced security and performance
@@ -375,6 +377,8 @@ app.use('/api/email-change', emailChangeRoutes)
 app.use('/api/confirmed-shifts', confirmedShiftsRoutes)
 app.use('/api/email-queue', emailQueueRoutes)
 app.use('/api/assessment-triggers', assessmentTriggerRoutes)
+app.use('/api/notifications', notificationRoutes)
+app.use('/api/test', testNotificationRoutes)
 
 // Serve frontend static files in production with enhanced security
 if (NODE_ENV === 'production') {

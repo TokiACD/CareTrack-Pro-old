@@ -69,7 +69,7 @@ router.post(
       .trim()
       .isLength({ min: 1, max: 255 })
       .withMessage('Task name must be between 1 and 255 characters')
-      .matches(/^[a-zA-Z0-9\s\-_.,()]+$/)
+      .matches(/^[a-zA-Z0-9\s\-–—_.,()/]+$/)
       .withMessage('Task name contains invalid characters'),
     body('targetCount')
       .isInt({ min: 1, max: 9999 })
@@ -92,7 +92,7 @@ router.put(
       .trim()
       .isLength({ min: 1, max: 255 })
       .withMessage('Task name must be between 1 and 255 characters')
-      .matches(/^[a-zA-Z0-9\s\-_.,()]+$/)
+      .matches(/^[a-zA-Z0-9\s\-–—_.,()/]+$/)
       .withMessage('Task name contains invalid characters'),
     body('targetCount')
       .optional()

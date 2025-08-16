@@ -26,11 +26,12 @@ export default defineConfig({
     port: 5000,
     strictPort: true,
     proxy: {
+      // Simplified API proxy - SSE removed
       '/api': {
         target: 'http://localhost:5001',
         changeOrigin: true,
         secure: false,
-        timeout: 30000, // 30 second timeout instead of 0
+        timeout: 30000, // 30 second timeout
         configure: (proxy, _options) => {
           proxy.on('error', (err, req, res) => {
             console.error('🔴 Proxy Error:', err.message, 'for', req.url);
@@ -50,6 +51,7 @@ export default defineConfig({
             console.log('🔄 Proxying:', req.method, req.url, '→ http://localhost:5001');
             proxyReq.removeHeader('origin');
             proxyReq.setHeader('host', 'localhost:5001');
+            
             // Add request timeout handling
             proxyReq.setTimeout(30000, () => {
               console.error('⏰ Proxy request timeout for:', req.url);

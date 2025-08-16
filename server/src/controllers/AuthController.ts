@@ -206,12 +206,67 @@ export class AuthController {
       throw createError(401, 'Authentication failed')
     }
 
+    // Always issue a fresh token to ensure SSE has current token
+    const jwtSecret = process.env.JWT_SECRET
+    if (!jwtSecret || jwtSecret.length < 32) {
+      throw createError(500, 'Server configuration error: JWT secret must be at least 32 characters')
+    }
+
+    const payload = { 
+      userId: req.user.id, 
+      email: req.user.email,
+      userType: req.userType,
+      iat: Math.floor(Date.now() / 1000)
+    }
+    
+    const newToken = jwt.sign(payload, jwtSecret as Secret, {
+      expiresIn: JWT_CONFIG.EXPIRES_IN,
+      algorithm: JWT_CONFIG.ALGORITHM
+    })
+    
+
     res.json({
       success: true,
       data: {
         user: req.user,
         userType: req.userType,
+        token: newToken
       },
+    })
+  })
+
+  // Manual token refresh endpoint for testing
+  refreshToken = asyncHandler(async (req: Request, res: Response): Promise<void> => {
+    if (!req.user || !req.userType) {
+      throw createError(401, 'Authentication failed')
+    }
+
+    const jwtSecret = process.env.JWT_SECRET
+    if (!jwtSecret || jwtSecret.length < 32) {
+      throw createError(500, 'Server configuration error: JWT secret must be at least 32 characters')
+    }
+
+    const payload = { 
+      userId: req.user.id, 
+      email: req.user.email,
+      userType: req.userType,
+      iat: Math.floor(Date.now() / 1000)
+    }
+    
+    const newToken = jwt.sign(payload, jwtSecret as Secret, {
+      expiresIn: JWT_CONFIG.EXPIRES_IN,
+      algorithm: JWT_CONFIG.ALGORITHM
+    })
+    
+
+    res.json({
+      success: true,
+      data: {
+        user: req.user,
+        userType: req.userType,
+        token: newToken
+      },
+      message: 'Token refreshed successfully'
     })
   })
 

@@ -294,6 +294,7 @@ export class RecycleBinController {
       }
     })
 
+
     // Log the restoration
     await auditService.log({
       action: `RESTORE_${entityType.toUpperCase()}`,

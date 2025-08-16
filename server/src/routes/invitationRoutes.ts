@@ -1,4 +1,4 @@
-import { Router, Request, Response } from 'express';
+import { Router, Request, Response, NextFunction } from 'express';
 import { body, validationResult } from 'express-validator';
 import bcrypt from 'bcryptjs';
 import { PASSWORD_CONFIG } from '../config/security';
@@ -8,6 +8,7 @@ import { prisma } from '../index';
 import { requireAuth } from '../middleware/auth';
 import { audit, AuditAction } from '../middleware/audit';
 import { emailService } from '../services/EmailService';
+import { notificationService } from '../services/NotificationService';
 import { emailQueueService } from '../services/EmailQueueService';
 import { auditService } from '../services/auditService';
 import { InvitationType, InvitationStatus } from '@caretrack/shared';
@@ -642,14 +643,55 @@ router.get('/accept',
   }
 );
 
+// DEBUG: Test endpoint to verify routing
+router.get('/test-routing', (req: Request, res: Response) => {
+  console.log('🧪 [DEBUG] Test routing endpoint called - invitation routes are working!')
+  res.json({
+    success: true,
+    message: 'Invitation routes are working correctly',
+    timestamp: new Date().toISOString(),
+    path: req.path,
+    method: req.method
+  })
+})
+
 // Accept invitation
 router.post('/accept',
+  // DEBUG: Add comprehensive logging middleware to track all acceptance attempts
+  (req: Request, res: Response, next: NextFunction) => {
+    console.log('🚨 [INVITATION-ACCEPT-DEBUG] POST /accept endpoint HIT!', {
+      timestamp: new Date().toISOString(),
+      method: req.method,
+      path: req.path,
+      fullUrl: req.url,
+      headers: {
+        'content-type': req.headers['content-type'],
+        'user-agent': req.headers['user-agent']?.substring(0, 50),
+        'origin': req.headers['origin'],
+        'referer': req.headers['referer']
+      },
+      bodyPresent: !!req.body,
+      bodyKeys: req.body ? Object.keys(req.body) : [],
+      bodyToken: req.body?.token ? req.body.token.substring(0, 16) + '...' : 'missing',
+      ip: req.ip,
+      sessionId: req.sessionID || 'no-session'
+    })
+    next()
+  },
   [
     body('token').notEmpty().withMessage('Invitation token is required'),
     body('password').isLength({ min: 8 }).withMessage('Password must be at least 8 characters long')
   ],
   async (req: Request, res: Response) => {
     try {
+      // DEBUG: Track invitation acceptance attempts
+      console.log('🎯 [DEBUG] Invitation acceptance endpoint called:', {
+        timestamp: new Date().toISOString(),
+        method: req.method,
+        userAgent: req.headers['user-agent'],
+        ip: req.ip,
+        bodyToken: req.body?.token ? req.body.token.substring(0, 16) + '...' : 'missing'
+      })
       
       const errors = validationResult(req);
       if (!errors.isEmpty()) {
@@ -731,6 +773,7 @@ router.post('/accept',
           data: {
             email: invitation.email,
             name: invitation.name!,
+            passwordHash,
             isActive: true
           },
           select: {
@@ -753,6 +796,73 @@ router.post('/accept',
           name: newUser.name    // Update invitation name to match user's current name
         }
       });
+
+      // DEBUG: Track invitation acceptance flow
+      console.log('🚀 [DEBUG] Invitation acceptance completed successfully:', {
+        invitationId: invitation.id,
+        userType: invitation.userType,
+        newUserId: newUser.id,
+        timestamp: new Date().toISOString()
+      })
+
+      // Send real-time notifications for both admin and carer acceptances
+      console.log('🔍 [SSE-DEBUG] Sending notifications for invitation acceptance:', {
+        userType: invitation.userType,
+        newUserId: newUser.id,
+        newUserName: newUser.name,
+        timestamp: new Date().toISOString()
+      })
+      
+      try {
+        // Get connection stats for debugging
+        const stats = notificationService.getStats()
+        console.log('🔔 [SSE-DEBUG] Broadcasting invitation acceptance notification to all admins', {
+          connectionStats: stats,
+          userData: {
+            id: newUser.id,
+            name: newUser.name,
+            email: newUser.email,
+            userType: invitation.userType
+          },
+          timestamp: new Date().toISOString()
+        })
+        
+        // Send user creation notification for both admins and carers
+        notificationService.notifyUserCreated({
+          id: newUser.id,
+          name: newUser.name,
+          email: newUser.email,
+          createdAt: newUser.createdAt
+        }, invitation.userType.toLowerCase() as 'admin' | 'carer')
+
+        // For carers, also send the specialized carer accepted notification
+        if (invitation.userType === 'CARER' || String(invitation.userType) === 'CARER') {
+          notificationService.notifyCarerAccepted({
+            id: newUser.id,
+            name: newUser.name,
+            email: newUser.email,
+            createdAt: newUser.createdAt
+          })
+        }
+
+        // Send invitation status change notification for all types
+        notificationService.notifyInvitationStatusChange({
+          id: invitation.id,
+          email: invitation.email,
+          name: invitation.name,
+          status: 'ACCEPTED',
+          userType: invitation.userType
+        })
+        
+        console.log('✅ [SSE-DEBUG] Real-time notifications sent successfully for invitation acceptance')
+      } catch (error) {
+        console.error('❌ [SSE-DEBUG] Failed to send real-time notifications:', error)
+        console.error('❌ [SSE-DEBUG] Error details:', {
+          errorMessage: error instanceof Error ? error.message : String(error),
+          errorStack: error instanceof Error ? error.stack : undefined,
+          timestamp: new Date().toISOString()
+        })
+      }
 
       res.status(201).json({
         success: true,
@@ -1088,5 +1198,35 @@ router.delete('/accepted',
     }
   }
 );
+
+// TEST ENDPOINT: Trigger SSE notification for debugging
+router.post('/test-sse', async (req: Request, res: Response) => {
+  try {
+    console.log('🧪 [TEST-SSE] Manual SSE notification trigger requested')
+    
+    // Broadcast a test notification
+    notificationService.broadcast({
+      id: `test-${Date.now()}`,
+      type: 'CARER_ACCEPTED',
+      title: 'Test Notification',
+      message: 'This is a test SSE notification from the server',
+      timestamp: new Date(),
+      data: { test: true }
+    })
+    
+    console.log('✅ [TEST-SSE] Test notification broadcasted successfully')
+    
+    res.json({
+      success: true,
+      message: 'Test SSE notification sent'
+    })
+  } catch (error) {
+    console.error('❌ [TEST-SSE] Failed to send test notification:', error)
+    res.status(500).json({
+      success: false,
+      error: 'Failed to send test notification'
+    })
+  }
+})
 
 export default router;

@@ -46,6 +46,7 @@ import { useAuth } from '../contexts/AuthContext'
 import { useNotification } from '../contexts/NotificationContext'
 import { useQuery } from '@tanstack/react-query'
 import { apiService } from '../services/api'
+import { useAdminDashboardRefresh } from '../hooks/useSmartRefresh'
 import { BrandHeader } from '../components/common'
 import DashboardCard from '../components/dashboard/DashboardCard'
 import UsersCard from '../components/dashboard/UsersCard'
@@ -149,6 +150,14 @@ export const DashboardPage = memo(() => {
   const isMobile = useMediaQuery(theme.breakpoints.down('md'))
   const isSmallMobile = useMediaQuery(theme.breakpoints.down('sm'))
 
+  // Smart refresh system for reliable data updates
+  const { refreshOnNavigation } = useAdminDashboardRefresh()
+
+  // Handle navigation refresh when moving between sections
+  const handleNavigationRefresh = useCallback((section: string) => {
+    refreshOnNavigation(section)
+  }, [refreshOnNavigation])
+
   // Fetch carers ready for assessment
   const { data: carersReadyData, isLoading: carersReadyLoading } = useQuery({
     queryKey: ['carers-ready-for-assessment'],
@@ -196,6 +205,9 @@ export const DashboardPage = memo(() => {
   }, [logout, showSuccess, handleMenuClose])
 
   const handleCardClick = useCallback((cardId: string) => {
+    // Trigger refresh on navigation between sections
+    handleNavigationRefresh(cardId)
+    
     // Navigate to dedicated pages for certain cards
     const navigationMap: Record<string, string> = {
       'users': '/users',
@@ -218,7 +230,7 @@ export const DashboardPage = memo(() => {
       // For other cards, use the existing internal navigation
       setActiveCard(cardId)
     }
-  }, [navigate])
+  }, [navigate, handleNavigationRefresh])
 
   const handleBackToDashboard = useCallback(() => {
     setActiveCard(null)

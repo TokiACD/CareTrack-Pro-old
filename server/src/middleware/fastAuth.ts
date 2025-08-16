@@ -11,6 +11,7 @@ import { AdminUser } from '@caretrack/shared'
 interface JwtPayload {
   userId: string
   email: string
+  userType: 'admin' | 'carer'
   iat?: number
   exp?: number
 }
@@ -53,28 +54,51 @@ export const fastAuth = async (
     const cached = userCache.get(decoded.userId)
     if (cached && cached.expires > Date.now()) {
       req.user = cached.user
+      req.userType = decoded.userType
       return next()
     }
 
-    // Get user from database (only if not cached) - optimized query
-    const user = await prisma.adminUser.findFirst({
-      where: {
-        id: decoded.userId,
-        isActive: true,
-        deletedAt: null,
-      },
-      select: {
-        id: true,
-        email: true,
-        name: true,
-        isActive: true,
-        createdAt: true,
-        updatedAt: true,
-        deletedAt: true,
-        invitedBy: true,
-        lastLogin: true,
-      },
-    })
+    let user: any = null
+
+    // Try to find user based on userType in token
+    if (decoded.userType === 'admin') {
+      user = await prisma.adminUser.findFirst({
+        where: {
+          id: decoded.userId,
+          isActive: true,
+          deletedAt: null,
+        },
+        select: {
+          id: true,
+          email: true,
+          name: true,
+          isActive: true,
+          createdAt: true,
+          updatedAt: true,
+          deletedAt: true,
+          invitedBy: true,
+          lastLogin: true,
+        },
+      })
+    } else if (decoded.userType === 'carer') {
+      user = await prisma.carer.findFirst({
+        where: {
+          id: decoded.userId,
+          isActive: true,
+          deletedAt: null,
+        },
+        select: {
+          id: true,
+          email: true,
+          name: true,
+          isActive: true,
+          createdAt: true,
+          updatedAt: true,
+          deletedAt: true,
+          lastLogin: true,
+        },
+      })
+    }
 
     if (!user) {
       res.status(401).json({
@@ -86,14 +110,15 @@ export const fastAuth = async (
 
     // Cache user for subsequent requests
     userCache.set(decoded.userId, {
-      user: user as AdminUser,
+      user: user,
       expires: Date.now() + CACHE_TTL
     })
 
     // Skip lastLogin update on fast auth to improve performance
     // This is a performance-critical path, lastLogin updates are optional
 
-    req.user = user as AdminUser
+    req.user = user
+    req.userType = decoded.userType
     next()
   } catch (error) {
     console.error('Fast authentication error:', error)

@@ -92,7 +92,6 @@ const AcceptInvitationPage: React.FC = () => {
       return;
     }
 
-
     setSubmitting(true);
     setError('');
 
@@ -102,21 +101,29 @@ const AcceptInvitationPage: React.FC = () => {
         password
       };
 
+      console.log('🎯 [FRONTEND-DEBUG] Starting invitation acceptance:', {
+        endpoint: API_ENDPOINTS.INVITATIONS.ACCEPT,
+        hasToken: !!token,
+        tokenLength: token ? token.length : 0,
+        hasPassword: !!password,
+        timestamp: new Date().toISOString()
+      });
 
       await apiService.post(API_ENDPOINTS.INVITATIONS.ACCEPT, requestData);
 
+      console.log('✅ [FRONTEND-DEBUG] Invitation acceptance successful');
       setSuccess(true);
       setActiveStep(2);
       
-      // Redirect to login after 3 seconds
-      setTimeout(() => {
-        navigate('/login', { 
-          state: { 
-            message: 'Account created successfully! Please log in with your credentials.' 
-          }
-        });
-      }, 3000);
+      // FIXED: Removed auto-redirect - let user click "Continue to Login" button manually
     } catch (error: any) {
+      console.error('❌ [FRONTEND-DEBUG] Invitation acceptance failed:', {
+        error: error.message || String(error),
+        stack: error.stack,
+        timestamp: new Date().toISOString(),
+        errorType: error?.constructor?.name || 'Unknown'
+      });
+      
       setError(error.message || 'Failed to accept invitation');
     } finally {
       setSubmitting(false);
@@ -301,7 +308,7 @@ const AcceptInvitationPage: React.FC = () => {
                 Welcome to CareTrack Pro!
               </Typography>
               <Typography variant="body1" color="textSecondary" mb={3}>
-                Your account has been created successfully. You will be redirected to the login page shortly.
+                Your account has been created successfully. Click the button below to continue to the login page.
               </Typography>
               <Paper elevation={1} sx={{ p: 3, backgroundColor: 'grey.50' }}>
                 <Typography variant="h6" gutterBottom>
@@ -318,7 +325,11 @@ const AcceptInvitationPage: React.FC = () => {
               <Box mt={3}>
                 <Button 
                   variant="contained" 
-                  onClick={() => navigate('/login')}
+                  onClick={() => navigate('/login', { 
+                    state: { 
+                      message: 'Account created successfully! Please log in with your credentials.' 
+                    }
+                  })}
                   size="large"
                 >
                   Continue to Login

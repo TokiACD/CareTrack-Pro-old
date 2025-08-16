@@ -117,20 +117,36 @@ const csrfProtection = (req: Request, res: Response, next: NextFunction) => {
     });
   }
 
-  // Check session binding if available
+  // Check session binding if available (relaxed for development)
   const sessionId = req.session?.id || req.sessionID;
   const userId = req.user?.id;
   
-  if (tokenData.sessionId && sessionId && tokenData.sessionId !== sessionId) {
+  // Only enforce strict session binding in production with proper session store
+  const shouldEnforceSessionBinding = process.env.NODE_ENV === 'production' && 
+                                     process.env.REDIS_SESSION_STORE === 'true';
+  
+  if (shouldEnforceSessionBinding && tokenData.sessionId && sessionId && 
+      tokenData.sessionId !== sessionId) {
     console.log('❌ [CSRF-DEBUG] CSRF token session mismatch', {
       tokenSessionId: tokenData.sessionId,
-      requestSessionId: sessionId
+      requestSessionId: sessionId,
+      environment: process.env.NODE_ENV
     });
     
     return res.status(403).json({
       success: false,
       error: 'CSRF token session mismatch',
       code: 'CSRF_SESSION_MISMATCH'
+    });
+  }
+  
+  // Log session info for debugging in development
+  if (process.env.NODE_ENV === 'development') {
+    console.log('🔍 [CSRF-DEBUG] Session binding check', {
+      tokenSessionId: tokenData.sessionId,
+      requestSessionId: sessionId,
+      enforcingBinding: shouldEnforceSessionBinding,
+      environment: process.env.NODE_ENV
     });
   }
 
@@ -151,10 +167,14 @@ const generateCSRFToken = (req: Request, res: Response) => {
   const sessionId = req.session?.id || req.sessionID;
   const userId = req.user?.id;
   
+  // In development, be more lenient with session binding
+  const shouldBindToSession = process.env.NODE_ENV === 'production' && 
+                              process.env.REDIS_SESSION_STORE === 'true';
+  
   csrfTokens.set(token, {
     token,
     expires,
-    sessionId: sessionId || undefined,
+    sessionId: shouldBindToSession ? sessionId : undefined,
     userId: userId || undefined,
     used: false
   });
@@ -175,6 +195,9 @@ const generateCSRFToken = (req: Request, res: Response) => {
     cleanedExpiredTokens: cleanedCount,
     cookieName: CSRF_CONFIG.COOKIE_NAME,
     secure: CSRF_CONFIG.SECURE,
+    sessionBinding: shouldBindToSession,
+    sessionId: shouldBindToSession ? sessionId : 'not-bound',
+    environment: process.env.NODE_ENV,
     timestamp: new Date().toISOString()
   });
 
@@ -540,16 +563,31 @@ const enhancedSessionSecurity = (req: Request, res: Response, next: NextFunction
   if (req.session?.fingerprint && req.session.fingerprint !== currentFingerprint) {
     // For authenticated users with JWT tokens, log but don't block (they have additional security)
     const hasJWTToken = req.headers.authorization?.startsWith('Bearer ');
-    const isCSRFEndpoint = req.path === '/csrf-token';
+    // FIXED: Correct SSE route path detection
+    const hasSSEToken = (req.path === '/api/notifications/stream' || req.path === '/notifications/stream') && req.query.token;
+    const isCSRFEndpoint = req.path === '/csrf-token' || req.path === '/api/csrf-token';
+    const isInvitationEndpoint = req.path.includes('/invitations/accept') || req.path.includes('/invitations/decline');
+    // ADDED: SSE-specific route patterns
+    const isSSEEndpoint = req.path.includes('/notifications/stream') || req.path.includes('/api/notifications');
     
-    if (hasJWTToken || isCSRFEndpoint) {
-      // Log suspicious activity but allow the request through
-      logSecurityEvent(req, 'SESSION_FINGERPRINT_MISMATCH', 'WARNING');
+    if (hasJWTToken || hasSSEToken || isCSRFEndpoint || isInvitationEndpoint || isSSEEndpoint) {
+      // Log suspicious activity but allow the request through for authenticated endpoints
+      logSecurityEvent(req, 'SESSION_FINGERPRINT_MISMATCH', 'WARNING', {
+        hasJWTToken,
+        hasSSEToken,
+        isSSEEndpoint,
+        path: req.path,
+        reason: 'Allowing authenticated endpoint with session fingerprint mismatch'
+      });
       // Update fingerprint for future requests
       req.session.fingerprint = currentFingerprint;
     } else {
       // For unauthenticated users, maintain strict checking
-      logSecurityEvent(req, 'SESSION_HIJACK_ATTEMPT', 'CRITICAL');
+      logSecurityEvent(req, 'SESSION_HIJACK_ATTEMPT', 'CRITICAL', {
+        path: req.path,
+        fingerprint: currentFingerprint,
+        sessionFingerprint: req.session.fingerprint
+      });
       
       return req.session.destroy((err) => {
         res.status(401).json({

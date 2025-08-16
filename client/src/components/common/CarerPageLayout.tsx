@@ -90,7 +90,7 @@ export const CarerPageLayout: React.FC<CarerPageLayoutProps> = ({
   const handleLogout = async () => {
     handleUserMenuClose();
     await logout();
-    navigate('/login');
+    // Navigation is handled by AuthContext - no manual navigation needed
   };
 
   const handleProfile = () => {

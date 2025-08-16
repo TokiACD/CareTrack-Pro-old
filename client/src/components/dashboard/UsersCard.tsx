@@ -29,13 +29,14 @@ import {
 } from '@mui/icons-material';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiService } from '../../services/api';
-import { API_ENDPOINTS, AdminUser as SharedAdminUser, Carer as SharedCarer, Invitation as SharedInvitation } from '@caretrack/shared';
+import { API_ENDPOINTS, AdminUser as SharedAdminUser, Carer as SharedCarer, Invitation as SharedInvitation, UsersApiResponse } from '@caretrack/shared';
 import EmailChangeDialog from '../profile/EmailChangeDialog';
 import { useAuth } from '../../contexts/AuthContext';
 import { useSmartMutation } from '../../hooks/useSmartMutation';
 import ConfirmationDialog from '../common/ConfirmationDialog';
 import CarerDeletionDialog from '../common/CarerDeletionDialog';
 import { useConfirmation } from '../../hooks/useConfirmation';
+import { useAdminDashboardRefresh } from '../../hooks/useSmartRefresh';
 import {
   UserFormDialog,
   NotificationSnackbar,
@@ -140,6 +141,11 @@ const UsersCard: React.FC = () => {
 
   const queryClient = useQueryClient();
 
+  // Smart refresh system for reliable data updates
+  const { refresh, refreshOnNavigation } = useAdminDashboardRefresh({
+    refreshOnMount: false // Disable refresh on mount to prevent redundant calls
+  });
+
   // Helper function to show notifications
   const showNotification = (message: string, severity: 'success' | 'error') => {
     setNotification({
@@ -152,6 +158,12 @@ const UsersCard: React.FC = () => {
   const handleCloseNotification = () => {
     setNotification(prev => ({ ...prev, open: false }));
   };
+
+  // Gentle refresh when component mounts to ensure fresh data
+  React.useEffect(() => {
+    // Don't force refresh immediately to avoid rate limiting
+    // The queries will fetch naturally due to shorter staleTime
+  }, []);
 
   // Listen for email changes from verification page
   React.useEffect(() => {
@@ -199,11 +211,11 @@ const UsersCard: React.FC = () => {
     queryKey: ['users', 'admins', searchTerm],
     queryFn: async () => {
       const params = searchTerm ? { search: searchTerm } : undefined;
-      return await apiService.get<ExtendedAdminUser[]>(`${API_ENDPOINTS.USERS.ADMINS}`, params);
+      const response = await apiService.getUsersResponse<ExtendedAdminUser[]>(`${API_ENDPOINTS.USERS.ADMINS}`, params);
+      return response.data || [];
     },
-    staleTime: 30000, // Consider data stale after 30 seconds
-    refetchOnWindowFocus: true, // Refetch when user returns to tab
-    refetchInterval: 60000 // Refetch every minute
+    staleTime: 5000, // Short but reasonable stale time
+    refetchOnWindowFocus: true
   });
 
   // Fetch carers
@@ -218,8 +230,15 @@ const UsersCard: React.FC = () => {
       if (searchTerm) params.search = searchTerm;
       if (showFullyAssessedOnly) params.fullyAssessed = 'true';
       
-      return await apiService.get<ExtendedCarer[]>(`${API_ENDPOINTS.USERS.CARERS}`, params);
-    }
+      // CRITICAL FIX: Only pass params if they exist, otherwise pass undefined
+      const hasParams = Object.keys(params).length > 0;
+      const apiParams = hasParams ? params : undefined;
+      
+      const response = await apiService.getUsersResponse<ExtendedCarer[]>(`${API_ENDPOINTS.USERS.CARERS}`, apiParams);
+      return response.data || [];
+    },
+    staleTime: 30000, // 30 seconds stale time
+    refetchOnWindowFocus: true
   });
 
   // Fetch invitations
@@ -234,9 +253,10 @@ const UsersCard: React.FC = () => {
       if (searchTerm) params.search = searchTerm;
       params.status = invitationStatusFilter;
       
-      return await apiService.get<ExtendedInvitation[]>(`${API_ENDPOINTS.INVITATIONS.LIST}`, params);
+      const response = await apiService.getFullResponse<ExtendedInvitation[]>(`${API_ENDPOINTS.INVITATIONS.LIST}`, params);
+      return response.data || [];
     },
-    staleTime: 30000, // Consider data stale after 30 seconds
+    staleTime: 30000, // 30 seconds stale time
     refetchOnWindowFocus: true, // Refetch when user returns to tab
     refetchInterval: 60000 // Refetch every minute
   });
@@ -247,9 +267,10 @@ const UsersCard: React.FC = () => {
   } = useQuery({
     queryKey: ['invitations-pending-count'],
     queryFn: async () => {
-      return await apiService.get<ExtendedInvitation[]>(`${API_ENDPOINTS.INVITATIONS.LIST}`, { status: 'PENDING' });
+      const response = await apiService.getFullResponse<ExtendedInvitation[]>(`${API_ENDPOINTS.INVITATIONS.LIST}`, { status: 'PENDING' });
+      return response.data || [];
     },
-    staleTime: 30000, // Consider data stale after 30 seconds
+    staleTime: 30000, // 30 seconds stale time
     refetchOnWindowFocus: true, // Refetch when user returns to tab
     refetchInterval: 60000 // Refetch every minute
   });
@@ -401,6 +422,9 @@ const UsersCard: React.FC = () => {
 
 
   const handleTabChange = (_event: React.SyntheticEvent, newValue: number) => {
+    const tabNames = ['Admin Users', 'Carers', 'Invitations'];
+    refreshOnNavigation(tabNames[newValue]);
+    
     setActiveTab(newValue);
     setSearchTerm('');
     setShowFullyAssessedOnly(false);

@@ -1,5 +1,5 @@
 import axios, { AxiosInstance, AxiosError } from 'axios'
-import { ApiResponse } from '@caretrack/shared'
+import { ApiResponse, UsersApiResponse } from '@caretrack/shared'
 import { isSuccessfulApiResponse, isFailedApiResponse, handleApiError } from '../utils/typeGuards'
 import { logger } from './logger'
 
@@ -19,6 +19,8 @@ class ApiService {
       },
       // Enable compression
       decompress: true,
+      // Include credentials for session management
+      withCredentials: true,
     })
 
     this.setupInterceptors()
@@ -28,7 +30,13 @@ class ApiService {
 
   private async initializeCSRF() {
     try {
-      const response = await fetch('/api/csrf-token')
+      const response = await fetch('/api/csrf-token', {
+        method: 'GET',
+        credentials: 'include', // Include cookies for session management
+        headers: {
+          'Content-Type': 'application/json',
+        }
+      })
       const data = await response.json()
       if (data.success && data.token) {
         this.csrfToken = data.token
@@ -41,7 +49,13 @@ class ApiService {
 
   private async ensureCSRFToken(): Promise<string | null> {
     try {
-      const response = await fetch('/api/csrf-token')
+      const response = await fetch('/api/csrf-token', {
+        method: 'GET',
+        credentials: 'include', // Include cookies for session management
+        headers: {
+          'Content-Type': 'application/json',
+        }
+      })
       const data = await response.json()
       if (data.success && data.token) {
         this.csrfToken = data.token
@@ -141,21 +155,43 @@ class ApiService {
         // Handle CSRF token errors with automatic refresh
         if (error.response?.status === 403 && 
             (error.response?.data?.code === 'CSRF_TOKEN_INVALID' || 
-             error.response?.data?.code === 'CSRF_TOKEN_MISSING')) {
-          logger.warn('CSRF token invalid/missing, refreshing token', {}, 'api')
+             error.response?.data?.code === 'CSRF_TOKEN_MISSING' ||
+             error.response?.data?.code === 'CSRF_SESSION_MISMATCH')) {
+          logger.warn('CSRF token error, refreshing token', {
+            errorCode: error.response?.data?.code,
+            message: error.response?.data?.error
+          }, 'api')
           
           // Clear the invalid token
           this.csrfToken = null
           
-          // Fetch a new token
+          // Fetch a fresh token with credentials to establish proper session
           try {
-            const newToken = await this.ensureCSRFToken()
+            const response = await fetch('/api/csrf-token', {
+              method: 'GET',
+              credentials: 'include', // Important: include cookies for session
+              headers: {
+                'Content-Type': 'application/json',
+              }
+            })
             
-            // Retry the original request with the new token
-            if (error.config && newToken) {
-              logger.debug('Retrying request with new CSRF token', {}, 'api')
-              error.config.headers['x-csrf-token'] = newToken
-              return this.api.request(error.config)
+            if (response.ok) {
+              const data = await response.json()
+              if (data.success && data.token) {
+                this.csrfToken = data.token
+                logger.debug('Fresh CSRF token obtained', { 
+                  tokenLength: data.token.length 
+                }, 'api')
+                
+                // Retry the original request with the new token
+                if (error.config) {
+                  // Ensure credentials are included in retry
+                  error.config.withCredentials = true
+                  error.config.headers['x-csrf-token'] = this.csrfToken
+                  logger.debug('Retrying request with fresh CSRF token', {}, 'api')
+                  return this.api.request(error.config)
+                }
+              }
             }
           } catch (tokenError) {
             logger.error('Failed to refresh CSRF token:', tokenError, 'api')
@@ -166,8 +202,16 @@ class ApiService {
         if (error.response?.status === 401) {
           localStorage.removeItem('authToken')
           logger.warn('Authentication expired, redirecting to login', {}, 'auth')
-          // Use replace instead of direct assignment for better UX
-          window.location.replace('/login')
+          
+          // Only redirect if not already on login page or during logout
+          // Check if this is a logout request to avoid double navigation
+          const isLogoutRequest = error.config?.url?.includes('/logout')
+          const isOnLoginPage = window.location.pathname === '/login'
+          
+          if (!isLogoutRequest && !isOnLoginPage) {
+            // Use replace instead of direct assignment for better UX
+            window.location.replace('/login')
+          }
         }
         
         // Handle timeout errors with user-friendly messages
@@ -246,15 +290,36 @@ class ApiService {
 
   // Generic request methods with type guards and caching
   async get<T>(url: string, params?: Record<string, unknown>): Promise<T> {
-    // Check cache first
-    const cached = this.getCachedResponse<ApiResponse<T>>(url, params)
-    if (cached && isSuccessfulApiResponse<T>(cached)) {
-      logger.debug(`Cache hit for: GET ${url}`, { params }, 'api')
-      return cached.data
+    // Skip cache for sensitive endpoints that need fresh data after mutations
+    const skipCache = url.includes('/auth/verify') || 
+                     url.includes('/users/') || 
+                     url.includes('/care-packages') ||
+                     url.includes('/tasks') ||
+                     url.includes('/assessments') ||
+                     url.includes('/recycle-bin')
+    
+    // Check cache first (unless skipping)
+    if (!skipCache) {
+      const cached = this.getCachedResponse<ApiResponse<T>>(url, params)
+      if (cached && isSuccessfulApiResponse<T>(cached)) {
+        logger.debug(`Cache hit for: GET ${url}`, { params }, 'api')
+        return cached.data
+      }
     }
     
     try {
-      const response = await this.api.get<ApiResponse<T>>(url, { params })
+      const requestConfig: any = { params }
+      
+      // Disable caching for auth verification
+      if (skipCache) {
+        requestConfig.headers = {
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache',
+          'Expires': '0'
+        }
+      }
+      
+      const response = await this.api.get<ApiResponse<T>>(url, requestConfig)
       
       if (!isSuccessfulApiResponse<T>(response.data)) {
         throw new Error(`Invalid API response from ${url}`)
@@ -274,13 +339,54 @@ class ApiService {
     // Clear related cache entries on mutations
     this.clearRelatedCache(url)
     
-    const response = await this.api.post<ApiResponse<T>>(url, data)
-    
-    if (!isSuccessfulApiResponse<T>(response.data)) {
-      throw new Error(`Invalid API response from ${url}`)
+    try {
+      console.log(`🚀 [API-DEBUG] POST request starting:`, {
+        url,
+        fullUrl: `${window.location.origin}${url}`,
+        dataKeys: data ? Object.keys(data) : [],
+        dataValues: data,
+        timestamp: new Date().toISOString(),
+        hasCSRFToken: !!this.csrfToken,
+        withCredentials: this.api.defaults.withCredentials,
+        baseURL: this.api.defaults.baseURL,
+        userAgent: navigator.userAgent
+      })
+      
+      console.log(`🔍 [API-DEBUG] Axios config:`, {
+        baseURL: this.api.defaults.baseURL,
+        headers: this.api.defaults.headers,
+        timeout: this.api.defaults.timeout
+      })
+      
+      const response = await this.api.post<ApiResponse<T>>(url, data)
+      
+      console.log(`✅ [API-DEBUG] POST request completed:`, {
+        url,
+        status: response.status,
+        responseKeys: response.data ? Object.keys(response.data) : [],
+        timestamp: new Date().toISOString()
+      })
+      
+      if (!isSuccessfulApiResponse<T>(response.data)) {
+        throw new Error(`Invalid API response from ${url}`)
+      }
+      
+      return response.data.data
+    } catch (error) {
+      console.error(`❌ [API-DEBUG] POST request failed:`, {
+        url,
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+        timestamp: new Date().toISOString(),
+        errorType: error?.constructor?.name || 'Unknown'
+      })
+      
+      logger.error(`POST request failed: ${url}`, {
+        data,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      }, 'api')
+      throw error
     }
-    
-    return response.data.data
   }
 
   async put<T>(url: string, data?: Record<string, unknown>): Promise<T> {
@@ -455,6 +561,20 @@ class ApiService {
       hitRate: 0, // Would need to track hits/misses for actual calculation
       duration: this.CACHE_DURATION
     }
+  }
+
+  // Specialized method for users endpoints that return extended response format
+  async getUsersResponse<T>(url: string, params?: Record<string, unknown>): Promise<UsersApiResponse<T>> {
+    // No caching for users endpoints to ensure fresh data after mutations
+    
+    const response = await this.api.get<UsersApiResponse<T>>(url, { params })
+    
+    // Validate the extended response format
+    if (!response.data || typeof response.data.success !== 'boolean') {
+      throw new Error(`Invalid users API response from ${url}`)
+    }
+    
+    return response.data
   }
 
   // Draft Assessment Management

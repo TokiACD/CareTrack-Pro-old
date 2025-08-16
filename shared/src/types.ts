@@ -406,6 +406,12 @@ export interface ApiResponse<T = any> {
   message?: string;
 }
 
+// Extended response for endpoints that include additional metadata
+export interface UsersApiResponse<T> extends ApiResponse<T> {
+  total: number;
+  filters?: Record<string, any>;
+}
+
 export interface PaginatedResponse<T> extends ApiResponse<T[]> {
   pagination: {
     page: number;

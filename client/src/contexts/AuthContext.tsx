@@ -8,6 +8,7 @@ interface AuthContextType {
   isAdmin: boolean
   isCarer: boolean
   loading: boolean
+  token: string | null
   login: (email: string, password: string) => Promise<void>
   logout: () => void
   refreshUser: () => Promise<void>
@@ -22,6 +23,7 @@ interface AuthProviderProps {
 export function AuthProvider({ children }: AuthProviderProps) {
   const [user, setUser] = useState<AdminUser | Carer | null>(null)
   const [userType, setUserType] = useState<'admin' | 'carer' | null>(null)
+  const [token, setToken] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -30,11 +32,19 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   const initializeAuth = async () => {
     try {
-      const token = localStorage.getItem('authToken')
-      if (token) {
+      const storedToken = localStorage.getItem('authToken')
+      if (storedToken) {
+        setToken(storedToken)
+        
         const response = await authService.verifyToken()
         setUser(response.user)
         setUserType(response.userType)
+        
+        // Store fresh token (now always provided by server)
+        if (response.token) {
+          localStorage.setItem('authToken', response.token)
+          setToken(response.token)
+        }
       }
     } catch (error) {
       console.error('Auth initialization failed:', error)
@@ -43,6 +53,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         localStorage.removeItem('authToken')
         setUser(null)
         setUserType(null)
+        setToken(null)
       } else {
         // For network errors, keep the token and retry later
         console.warn('Network error during auth initialization, keeping token for retry')
@@ -56,6 +67,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     try {
       const response = await authService.login(email, password)
       localStorage.setItem('authToken', response.token)
+      setToken(response.token)
       setUser(response.user)
       setUserType(response.userType)
       
@@ -71,11 +83,23 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
   }
 
-  const logout = () => {
-    localStorage.removeItem('authToken')
-    setUser(null)
-    setUserType(null)
-    authService.logout()
+  const logout = async () => {
+    try {
+      // Call server logout endpoint first (if it exists)
+      await authService.logout()
+    } catch (error) {
+      // Continue with logout even if server call fails
+      console.warn('Server logout failed, continuing with local logout:', error)
+    } finally {
+      // Always clear local state
+      localStorage.removeItem('authToken')
+      setUser(null)
+      setUserType(null)
+      setToken(null)
+      
+      // Navigate to login page - single source of navigation
+      window.location.href = '/login'
+    }
   }
 
   const refreshUser = async () => {
@@ -83,6 +107,12 @@ export function AuthProvider({ children }: AuthProviderProps) {
       const response = await authService.verifyToken()
       setUser(response.user)
       setUserType(response.userType)
+      
+      // Store fresh token (now always provided by server)
+      if (response.token) {
+        localStorage.setItem('authToken', response.token)
+        setToken(response.token)
+      }
     } catch (error) {
       console.error('User refresh failed:', error)
       logout()
@@ -95,6 +125,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     isAdmin: userType === 'admin',
     isCarer: userType === 'carer',
     loading,
+    token,
     login,
     logout,
     refreshUser,

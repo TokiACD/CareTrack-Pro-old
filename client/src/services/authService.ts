@@ -15,6 +15,7 @@ interface InviteAdminData {
 interface VerifyTokenResponse {
   user: AdminUser | Carer
   userType: 'admin' | 'carer'
+  token?: string
 }
 
 class AuthService {

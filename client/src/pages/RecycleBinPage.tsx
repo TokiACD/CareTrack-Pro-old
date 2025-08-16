@@ -37,7 +37,6 @@ import {
   Tabs,
   Tab,
   Checkbox,
-  Toolbar,
   Collapse,
   List,
   ListItem,
@@ -57,14 +56,17 @@ import {
   GetApp as DownloadIcon,
   SelectAll as SelectAllIcon,
   RestoreFromTrash as BulkRestoreIcon,
-  DeleteSweep as BulkDeleteIcon
+  DeleteSweep as BulkDeleteIcon,
+  Refresh as RefreshIcon
 } from '@mui/icons-material'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { apiService } from '../services/api'
 import { API_ENDPOINTS } from '@caretrack/shared'
 import { useAuth } from '../contexts/AuthContext'
 import { useSmartMutation } from '../hooks/useSmartMutation'
+import { useAdminDashboardRefresh } from '../hooks/useSmartRefresh'
+import { useNotification } from '../contexts/NotificationContext'
 import { AdminPageLayout } from '../components/common/AdminPageLayout'
 import CarerDeletionDialog from '../components/common/CarerDeletionDialog'
 
@@ -93,6 +95,11 @@ interface DeletedItem {
 const RecycleBinPage: React.FC = () => {
   const navigate = useNavigate()
   const { user } = useAuth()
+  const { showSuccess, showError } = useNotification()
+  const queryClient = useQueryClient()
+  
+  // Smart refresh system for automatic data updates
+  const { refresh: smartRefresh, refreshOnNavigation } = useAdminDashboardRefresh()
 
   // State management
   const [activeTab, setActiveTab] = useState(0)
@@ -182,16 +189,31 @@ const RecycleBinPage: React.FC = () => {
     },
     {
       mutationType: 'recycle-bin.restore',
-      onSuccess: (data: any) => {
+      immediateInvalidation: true, // Force immediate refetch instead of just marking stale
+      customInvalidations: [
+        'users-carers'  // Only essential carer-related invalidation
+      ],
+      onSuccess: async (data: any) => {
         setRestoreDialogOpen(false)
         setSelectedItem(null)
         currentRefetch()
-        showNotification(data.message || 'Item restored successfully', 'success')
+        
+        // Targeted cache invalidation for carer queries after restoration
+        if (selectedItem?.entityType === 'carers') {
+          // Targeted cache invalidation for carer queries
+          await queryClient.invalidateQueries({ 
+            queryKey: ['users', 'carers'],
+            exact: false 
+          });
+        }
+        
+        // Use gentle refresh instead of forcing it
+        smartRefresh(false) // Don't force - respect debounce to prevent rate limiting
+        showSuccess(data.message || 'Item restored successfully! Data refreshed.')
       },
       onError: (error: any) => {
-        showNotification(
-          error.message || 'Failed to restore item',
-          'error'
+        showError(
+          error.message || 'Failed to restore item'
         )
       }
     }
@@ -247,16 +269,94 @@ const RecycleBinPage: React.FC = () => {
     },
     {
       mutationType: 'recycle-bin.bulk-restore',
-      onSuccess: (data: any) => {
+      immediateInvalidation: true, // Force immediate refetch instead of just marking stale
+      customInvalidations: [
+        'users-carers',
+        'invitations-pending-count',
+        'confirmed-shifts-count',
+        'progress',
+        'shift-sender'
+      ],
+      onSuccess: async (data: any) => {
         setBulkRestoreDialogOpen(false)
         setSelectedItems(new Set())
         currentRefetch()
-        showNotification(data.message || 'Bulk restore completed successfully', 'success')
+        
+        // Debug: Check all registered queries in cache
+        console.log('🔍 All queries in cache:', queryClient.getQueryCache().getAll().map(q => q.queryKey));
+        
+        // Force immediate refetch of all users queries with any parameters
+        console.log('🔄 Forcing refetch of all user queries after bulk restore...');
+        
+        const refetchPromise = queryClient.refetchQueries({ 
+          predicate: (query) => {
+            const queryKey = query.queryKey as string[];
+            const shouldRefetch = queryKey[0] === 'users' || 
+                   (queryKey.length >= 2 && queryKey[0] === 'users' && queryKey[1] === 'carers') ||
+                   (queryKey.length >= 2 && queryKey[0] === 'users' && queryKey[1] === 'admins');
+            if (shouldRefetch) {
+              console.log('🎯 Refetching query:', queryKey);
+            }
+            return shouldRefetch;
+          }
+        });
+        
+        // Wait for refetch to complete
+        await refetchPromise;
+        console.log('✅ Bulk refetch completed');
+        
+        // Force invalidate AND refetch carers queries regardless of staleTime
+        console.log('🔧 Force invalidating and refetching carers queries...');
+        
+        // First invalidate to mark as stale
+        await queryClient.invalidateQueries({ 
+          queryKey: ['users', 'carers'],
+          exact: false 
+        });
+        
+        // Then force refetch
+        await queryClient.refetchQueries({ 
+          queryKey: ['users', 'carers'],
+          exact: false 
+        });
+        
+        // Also try to reset the queries entirely
+        queryClient.resetQueries({ 
+          queryKey: ['users', 'carers'],
+          exact: false 
+        });
+        
+        console.log('✅ Carers queries invalidated, refetched, and reset');
+        
+        // Log what entities were restored
+        const restoredTypes = Array.from(selectedItems).map(itemKey => {
+          const [entityType] = itemKey.split('-');
+          return entityType;
+        });
+        console.log('📝 Restored entity types:', restoredTypes);
+        
+        // Targeted cache invalidation for bulk carer restore
+        if (restoredTypes.includes('carers')) {
+          console.log('🎯 Targeting specific carer queries for bulk restore...');
+          
+          // Add a small delay to ensure database transaction is fully committed
+          await new Promise(resolve => setTimeout(resolve, 300)); // 300ms delay
+          
+          // Invalidate only the specific queries that need fresh data
+          await queryClient.invalidateQueries({ 
+            queryKey: ['users', 'carers'],
+            exact: false 
+          });
+          
+          console.log('✅ Carer queries invalidated after bulk restore');
+        }
+        
+        smartRefresh(true) // Force refresh to bypass debounce
+        showSuccess(data.message || 'Bulk restore completed successfully! Data refreshed.')
       },
       onError: (error: any) => {
-        showNotification(
-          error.message || 'Failed to restore items',
-          'error'
+        showError(
+          error.message || 'Failed to restore items'
         )
       }
     }
@@ -320,6 +420,13 @@ const RecycleBinPage: React.FC = () => {
 
   const handleCleanup = () => {
     setCleanupDialogOpen(true)
+  }
+
+  const handleManualRefresh = () => {
+    // Trigger immediate data refresh with force
+    currentRefetch()
+    smartRefresh(true) // Force refresh to bypass debounce
+    showSuccess('Data refreshed successfully!')
   }
 
   const confirmRestore = () => {
@@ -452,15 +559,26 @@ const RecycleBinPage: React.FC = () => {
             }
             subheader="Manage soft-deleted items - restore or permanently delete"
             action={
-              <Button
-                variant="contained"
-                color="warning"
-                startIcon={<CleanupIcon />}
-                onClick={handleCleanup}
-                disabled={items.length === 0}
-              >
-                Cleanup Old Items
-              </Button>
+              <Box display="flex" gap={1}>
+                <Button
+                  variant="outlined"
+                  size="small"
+                  startIcon={<RefreshIcon />}
+                  onClick={handleManualRefresh}
+                  title="Refresh data"
+                >
+                  Refresh
+                </Button>
+                <Button
+                  variant="contained"
+                  color="warning"
+                  startIcon={<CleanupIcon />}
+                  onClick={handleCleanup}
+                  disabled={items.length === 0}
+                >
+                  Cleanup Old Items
+                </Button>
+              </Box>
             }
           />
           

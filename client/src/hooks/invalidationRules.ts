@@ -68,7 +68,8 @@ export const INVALIDATION_RULES = {
   'audit-logs.create': ['audit-logs'],
   
   // Recycle bin mutations
-  'recycle-bin.restore': ['recycle-bin', 'recycle-bin-summary', 'users', 'carers', 'packages', 'tasks', 'assessments', 'admin-users', 'assignments'],
+  'recycle-bin.restore': ['recycle-bin', 'recycle-bin-summary', 'users', 'carers', 'packages', 'tasks', 'assessments', 'admin-users', 'assignments', 'carers-ready-for-assessment'],
+  'recycle-bin.bulk-restore': ['recycle-bin', 'recycle-bin-summary', 'users', 'carers', 'packages', 'tasks', 'assessments', 'admin-users', 'assignments', 'carers-ready-for-assessment'],
   'recycle-bin.delete': ['recycle-bin', 'recycle-bin-summary'],
   'recycle-bin.cleanup': ['recycle-bin', 'recycle-bin-summary']
 } as const;

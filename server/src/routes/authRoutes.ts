@@ -30,6 +30,9 @@ router.post('/logout', requireAuth, authController.logout)
 // Verify token - use fast auth for performance-critical endpoint
 router.get('/verify', requireFastAuth, authController.verifyToken)
 
+// Manual token refresh endpoint
+router.post('/refresh', requireAuth, authController.refreshToken)
+
 // Forgot password with validation
 router.post(
   '/forgot-password',

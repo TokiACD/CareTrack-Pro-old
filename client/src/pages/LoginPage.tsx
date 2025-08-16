@@ -24,7 +24,7 @@ import {
   Visibility,
   VisibilityOff,
   Security as SecurityIcon,
-  AdminPanelSettings as AdminIcon,
+  Person as PersonIcon,
   HealthAndSafety as HealthIcon,
   Shield as ShieldIcon,
 } from '@mui/icons-material'
@@ -244,7 +244,7 @@ export function LoginPage() {
                   mb: 1,
                 }}
               >
-                Healthcare Administration
+                Healthcare System Login
               </Typography>
               
               <Typography
@@ -267,7 +267,7 @@ export function LoginPage() {
                   <Box>
                     <TextField
                       fullWidth
-                      label="Administrator Email"
+                      label="Email"
                       type="email"
                       {...register('email', {
                         required: ERROR_MESSAGES.VALIDATION.REQUIRED_FIELD,
@@ -284,7 +284,7 @@ export function LoginPage() {
                       InputProps={{
                         startAdornment: (
                           <InputAdornment position="start">
-                            <AdminIcon sx={{ color: 'text.secondary', fontSize: '1.2rem' }} />
+                            <PersonIcon sx={{ color: 'text.secondary', fontSize: '1.2rem' }} />
                           </InputAdornment>
                         ),
                       }}
@@ -444,7 +444,7 @@ export function LoginPage() {
                         </Box>
                       </Stack>
                     ) : (
-                      'Access Healthcare Dashboard'
+                      'Sign In to CareTrack Pro'
                     )}
                   </Button>
 
@@ -488,7 +488,7 @@ export function LoginPage() {
             >
               <Stack spacing={2}>
                 <Typography variant="body2" color="text.secondary" fontWeight={500}>
-                  🔒 Administrator accounts are created by invitation only
+                  🔒 User accounts are created by invitation only
                 </Typography>
                 
                 <Stack direction="row" spacing={2} justifyContent="center">
